@@ -8,6 +8,7 @@ This code to be generic over the actual game, so it only needs to written once.
 Currently, the implemented games are:
 * [Super/Ultimate tic-tac-toe](https://en.wikipedia.org/wiki/Ultimate_tic-tac-toe) in the module [sttt](https://docs.rs/board-game/latest/board-game/games/sttt/).
 * [Ataxx](https://en.wikipedia.org/wiki/Ataxx) in the module [ataxx](https://docs.rs/board-game/latest/board-game/games/ataxx/).
+* [Chess] in the module [chess](https://docs.rs/board-game/latest/board-game/games/chess/), this is just ca wrapper around the [chess] crate.
 
 Notable things currently implemented in this crate that work for any [Board](https://docs.rs/board-game/latest/board-game/board/trait.Board.html):
 * Game-playing algorithms, specifically:
@@ -52,7 +53,5 @@ println!("{}", board);
 let mut bot = MCTSBot::new(1000, 2.0, thread_rng());
 println!("{:?}", bot.select_move(&board))
 ```
-
-
 
 <!-- cargo-sync-readme end -->
