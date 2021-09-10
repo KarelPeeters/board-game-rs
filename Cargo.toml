@@ -21,10 +21,3 @@ nom = "7.0.0"
 regex = { version = "1.5.4", default-features = false, features = ["std"] }
 rand_xoshiro = "0.6.0"
 cast_trait = "0.1.2"
-
-[target.'cfg(windows)'.dependencies]
-windows = "0.17.2"
-
-[target.'cfg(windows)'.build-dependencies]
-windows = "0.17.2"
-
