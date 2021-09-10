@@ -6,9 +6,12 @@
 //! # Features
 //!
 //! Currently, the implemented games are:
-//! * [Super/Ultimate tic-tac-toe](https://en.wikipedia.org/wiki/Ultimate_tic-tac-toe) in the module [sttt](crate::games::sttt).
-//! * [Ataxx](https://en.wikipedia.org/wiki/Ataxx) in the module [ataxx](crate::games::ataxx).
-//! * [Chess] in the module [chess](crate::games::chess), this is just ca wrapper around the [chess] crate.
+//! * [Super/Ultimate tic-tac-toe](https://en.wikipedia.org/wiki/Ultimate_tic-tac-toe)
+//!     in the module [sttt](crate::games::sttt).
+//! * [Ataxx](https://en.wikipedia.org/wiki/Ataxx)
+//!     in the module [ataxx](crate::games::ataxx).
+//! * Chess in the module [chess](crate::games::chess),
+//!     implemented as a simple wrapper around the [chess](https://crates.io/crates/chess) crate.
 //!
 //! Notable things currently implemented in this crate that work for any [Board](crate::board::Board):
 //! * Game-playing algorithms, specifically:
