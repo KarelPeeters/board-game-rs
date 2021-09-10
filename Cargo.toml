@@ -20,3 +20,4 @@ nom = "7.0.0"
 regex = { version = "1.5.4", default-features = false, features = ["std"] }
 rand_xoshiro = "0.6.0"
 cast_trait = "0.1.2"
+chess = "3.2.0"

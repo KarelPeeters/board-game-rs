@@ -20,7 +20,7 @@ impl AtaxxBoard {
         assert_eq!(1 + 7 + 3, captures.len());
 
         for y in (0..7).rev() {
-            let line = &captures[1 + y];
+            let line = &captures[7 - y];
             let mut x = 0;
             for c in line.chars() {
                 if x >= 7 { panic!("Line {:?} too long", line) }
@@ -63,20 +63,23 @@ impl AtaxxBoard {
 
             for x in 0..7 {
                 let coord = Coord::from_xy(x, y);
-                match self.tile(coord) {
-                    None => {
-                        if self.gaps.has(coord) {
-                            write!(&mut s, "-").unwrap();
-                        } else {
-                            empty_count += 1;
-                        }
+
+                if self.free_tiles().has(coord) {
+                    empty_count += 1;
+                } else {
+                    if empty_count != 0 {
+                        write!(&mut s, "{}", empty_count).unwrap();
+                        empty_count = 0;
                     }
-                    Some(player) => {
-                        if empty_count != 0 {
-                            write!(&mut s, "{}", empty_count).unwrap();
-                            empty_count = 0;
+
+                    match self.tile(coord) {
+                        Some(player) => {
+                            write!(&mut s, "{}", player_symbol(player)).unwrap();
                         }
-                        write!(&mut s, "{}", player_symbol(player)).unwrap();
+                        None => {
+                            assert!(self.gaps.has(coord));
+                            write!(&mut s, "-").unwrap();
+                        }
                     }
                 }
             }

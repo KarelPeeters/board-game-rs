@@ -3,70 +3,17 @@ use std::collections::hash_map::RandomState;
 use std::iter::FromIterator;
 
 use internal_iterator::InternalIterator;
-use itertools::Itertools;
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoroshiro64StarStar;
 
-use board_game::board::{Board, Outcome, Player};
-use board_game::games::ataxx::AtaxxBoard;
-use board_game::games::sttt::STTTBoard;
+use board_game::board::Board;
 use board_game::symmetry::Symmetry;
-use board_game::util::board_gen::{random_board_with_forced_win, random_board_with_moves, random_board_with_outcome};
 
-#[test]
-fn sttt_empty() {
-    test_main(&STTTBoard::default())
-}
+mod sttt;
+mod ataxx;
+mod chess;
 
-#[test]
-fn sttt_few() {
-    test_main(&random_board_with_moves(&STTTBoard::default(), 10, &mut consistent_rng()))
-}
-
-#[test]
-fn sttt_close() {
-    test_main(&random_board_with_forced_win(&STTTBoard::default(), 5, &mut consistent_rng()))
-}
-
-#[test]
-fn sttt_draw() {
-    test_main(&random_board_with_outcome(&STTTBoard::default(), Outcome::Draw, &mut consistent_rng()))
-}
-
-#[test]
-fn ataxx_empty() {
-    test_main(&AtaxxBoard::default())
-}
-
-#[test]
-fn ataxx_few() {
-    test_main(&random_board_with_moves(&AtaxxBoard::default(), 10, &mut consistent_rng()))
-}
-
-#[test]
-fn ataxx_close() {
-    let mut rng = consistent_rng();
-
-    // generate a board that's pretty full instead of the more likely empty board
-    let start = random_board_with_moves(&AtaxxBoard::default(), 120, &mut rng);
-    let board = random_board_with_forced_win(&start, 5, &mut rng);
-
-    test_main(&board)
-}
-
-#[test]
-fn ataxx_done() {
-    test_main(&random_board_with_outcome(&AtaxxBoard::default(), Outcome::WonBy(Player::A), &mut consistent_rng()))
-}
-
-#[test]
-fn ataxx_forced_pass() {
-    let board = AtaxxBoard::from_fen("xxxxxxx/-------/-------/o6/7/7/7 x 0 0");
-    assert!(!board.is_done(), "Board is not done, player B can still play");
-    test_main(&board)
-}
-
-fn test_main<B: Board>(board: &B) {
+pub fn board_test_main<B: Board>(board: &B) {
     if !board.is_done() {
         test_available_match(board);
         test_random_available_uniform(board);
@@ -82,27 +29,24 @@ fn test_available_match<B: Board>(board: &B) {
     let all: Vec<B::Move> = B::all_possible_moves().collect();
     let available: Vec<B::Move> = board.available_moves().collect();
 
-    // check that every generated move is indeed available
+    // check that every generated move is indeed available, and that it is contained within all possible moves
     for &mv in &available {
         assert!(board.is_available_move(mv), "generated move {:?} is not available", mv);
+        assert!(all.contains(&mv), "generated move {:?} is not in all_possible_moves", mv);
     }
 
     // check that every available move is generated
     for &mv in &all {
         if board.is_available_move(mv) {
             assert!(available.contains(&mv), "available move {:?} was not generated", mv);
+        } else {
+            assert!(!available.contains(&mv), "non-available move {:?} was generated", mv)
         }
     }
 
     // check that there are no duplicates anywhere
     assert_eq!(all.len(), HashSet::<_, RandomState>::from_iter(&all).len(), "Found duplicate move");
     assert_eq!(available.len(), HashSet::<_, RandomState>::from_iter(&available).len(), "Found duplicate move");
-
-    // check that all_possible_moves and available_moves have the same ordering
-    let all_filtered = all.iter().copied()
-        .filter(|&mv| board.is_available_move(mv))
-        .collect_vec();
-    assert_eq!(available, all_filtered, "Move order mismatch")
 }
 
 /// Test whether the random move distribution is uniform using
@@ -180,6 +124,6 @@ fn test_symmetry<B: Board>(board: &B) {
     }
 }
 
-fn consistent_rng() -> impl Rng {
+pub fn consistent_rng() -> impl Rng {
     Xoroshiro64StarStar::seed_from_u64(0)
 }
