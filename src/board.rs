@@ -6,19 +6,8 @@ use rand::Rng;
 
 use crate::symmetry::Symmetry;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum Player {
-    A,
-    B,
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum Outcome {
-    WonBy(Player),
-    Draw,
-}
-
-/// The representation of a game state.
+/// The main trait of this crate. Represents the state of a game.
+/// Each game implementation is supposed to provide it's own constructors to allow for customizable start positions.
 pub trait Board: 'static + Debug + Display + Clone + Eq + Hash + Send + Sync
     where for<'a> Self: BoardAvailableMoves<'a, Self>
 {
@@ -71,8 +60,8 @@ pub trait Board: 'static + Debug + Display + Clone + Eq + Hash + Send + Sync
     fn map_move(sym: Self::Symmetry, mv: Self::Move) -> Self::Move;
 }
 
-/// Trait to fake generic associated types, can be removed once that's stable.
-/// See <https://github.com/rust-lang/rust/issues/44265>.
+/// A helper trait to get the correct lifetimes for [BoardAvailableMoves::available_moves].
+/// This is a workaround to get generic associated types, See <https://github.com/rust-lang/rust/issues/44265>.
 pub trait BoardAvailableMoves<'a, B: Board> {
     type MoveIterator: InternalIterator<Item=B::Move>;
     type AllMoveIterator: InternalIterator<Item=B::Move>;
@@ -86,6 +75,20 @@ pub trait BoardAvailableMoves<'a, B: Board> {
     /// that it stays consistent when the board is not modified.
     /// Panics if this board is done.
     fn available_moves(&'a self) -> Self::MoveIterator;
+}
+
+/// One of the two players.
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum Player {
+    A,
+    B,
+}
+
+/// The absolute outcome for a game.
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum Outcome {
+    WonBy(Player),
+    Draw,
 }
 
 impl Player {

@@ -2,6 +2,7 @@ use cast_trait::Cast;
 
 use crate::board::{Outcome, Player};
 
+/// The outcome of a game from the POV of a certain player. Usually obtained using [Outcome::pov].
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum OutcomeWDL {
     Win,
@@ -9,6 +10,7 @@ pub enum OutcomeWDL {
     Loss,
 }
 
+/// A collection of [win, draw, loss] values.
 #[derive(Default, Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct WDL<V> {
     pub win: V,
@@ -16,16 +18,21 @@ pub struct WDL<V> {
     pub loss: V,
 }
 
+/// Trait to convert an absolute outcome to a relative one.
 pub trait POV {
     type Output;
+
+    /// View this outcome from the POV of `pov`.
     fn pov(self, pov: Player) -> Self::Output;
 }
 
 pub trait Flip {
+    /// Flip this outcome.
     fn flip(self) -> Self;
 }
 
 impl OutcomeWDL {
+    /// Convert this to a WDL with a one at the correct place and zero otherwise.
     pub fn to_wdl<V: num::One + num::Zero>(self) -> WDL<V> {
         match self {
             OutcomeWDL::Win => WDL { win: V::one(), draw: V::zero(), loss: V::zero() },
@@ -34,6 +41,7 @@ impl OutcomeWDL {
         }
     }
 
+    /// Convert a win to `1`, draw to `0` and loss to `-1`.
     pub fn sign<V: num::Zero + num::One + std::ops::Neg<Output=V>>(self) -> V {
         match self {
             OutcomeWDL::Win => V::one(),
@@ -42,6 +50,7 @@ impl OutcomeWDL {
         }
     }
 
+    /// Convert a win to `inf`, draw to `0` and loss to `-inf`.
     pub fn inf_sign<V: num::Float>(self) -> V {
         match self {
             OutcomeWDL::Win => V::infinity(),
