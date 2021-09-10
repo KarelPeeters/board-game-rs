@@ -1,5 +1,7 @@
 #![warn(missing_debug_implementations)]
 
+//! Test doc comment
+
 pub mod board;
 pub mod symmetry;
 pub mod wdl;

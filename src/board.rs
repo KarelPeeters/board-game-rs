@@ -72,7 +72,7 @@ pub trait Board: 'static + Debug + Display + Clone + Eq + Hash + Send + Sync
 }
 
 /// Trait to fake generic associated types, can be removed once that's stable.
-/// See https://github.com/rust-lang/rust/issues/44265.
+/// See <https://github.com/rust-lang/rust/issues/44265>.
 pub trait BoardAvailableMoves<'a, B: Board> {
     type MoveIterator: InternalIterator<Item=B::Move>;
     type AllMoveIterator: InternalIterator<Item=B::Move>;
