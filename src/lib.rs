@@ -3,7 +3,9 @@
 //! A [Board](crate::board::Board) abstraction for deterministic two player games.
 //! This code to be generic over the actual game, so it only needs to written once.
 //!
-//! Currently the implemented games are:
+//! # Features
+//!
+//! Currently, the implemented games are:
 //! * [Super/Ultimate tic-tac-toe](https://en.wikipedia.org/wiki/Ultimate_tic-tac-toe) in the module [sttt](crate::games::sttt).
 //! * [Ataxx](https://en.wikipedia.org/wiki/Ataxx) in the module [ataxx](crate::games::ataxx).
 //!
@@ -20,6 +22,44 @@
 //! * Random board generation functions, see [board_gen](crate::util::board_gen).
 //! * A bot vs bot game runner to compare playing strength, see [bot_game](crate::util::bot_game).
 //! * Simple game statistics (perft, random game length) which can be used to test [Board](crate::board::Board) implementations.
+//!
+//! # Examples
+//!
+//! ## List the available moves on a board and play a random one.
+//!
+//! ```
+//! # use board_game::games::ataxx::AtaxxBoard;
+//! # use board_game::board::{BoardAvailableMoves, Board};
+//! # use internal_iterator::InternalIterator;
+//! # let mut rng = rand::thread_rng();
+//!
+//! let mut board = AtaxxBoard::default();
+//! println!("{}", board);
+//!
+//! board.available_moves().for_each(|mv| {
+//!     println!("{:?}", mv)
+//! });
+//!
+//! let mv = board.random_available_move(&mut rng);
+//! println!("Picked move {:?}", mv);
+//! board.play(mv);
+//! println!("{}", board);
+//! ```
+//!
+//! ## Get the best move according to MCTS
+//!
+//! ```
+//! # use board_game::ai::mcts::MCTSBot;
+//! # use board_game::games::ataxx::AtaxxBoard;
+//! # use board_game::ai::Bot;
+//! # use rand::thread_rng;
+//!
+//! let board = AtaxxBoard::default();
+//! println!("{}", board);
+//!
+//! let mut bot = MCTSBot::new(1000, 2.0, thread_rng());
+//! println!("{:?}", bot.select_move(&board))
+//! ```
 
 pub mod board;
 pub mod symmetry;

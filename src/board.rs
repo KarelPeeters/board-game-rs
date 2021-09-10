@@ -11,7 +11,10 @@ use crate::symmetry::Symmetry;
 pub trait Board: 'static + Debug + Display + Clone + Eq + Hash + Send + Sync
     where for<'a> Self: BoardAvailableMoves<'a, Self>
 {
+    /// The type used to represent moves on this board.
     type Move: Debug + Copy + Eq + Ord + Hash + Send + Sync;
+
+    /// The type used to represent board symmetries.
     type Symmetry: Symmetry;
 
     /// Whether the player who plays a move can lose by playing that move.
