@@ -15,6 +15,8 @@ mod ataxx;
 mod chess;
 
 pub fn board_test_main<B: Board>(board: &B) {
+    println!("Currently testing board\n{:?}\n{}", board, board);
+
     if board.is_done() {
         test_done_board_panics(board);
     } else {
@@ -40,7 +42,6 @@ fn test_done_board_panics<B: Board>(board: &B) {
 
 fn test_available_match<B: Board>(board: &B) {
     println!("available_moves and is_available match:");
-    println!("{}", board);
 
     let all: Vec<B::Move> = B::all_possible_moves().collect();
     let available: Vec<B::Move> = board.available_moves().collect();
@@ -140,6 +141,6 @@ fn test_symmetry<B: Board>(board: &B) {
     }
 }
 
-pub fn consistent_rng() -> impl Rng {
+fn consistent_rng() -> impl Rng {
     Xoroshiro64StarStar::seed_from_u64(0)
 }

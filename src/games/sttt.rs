@@ -1,7 +1,7 @@
 use std::fmt;
-use std::fmt::Debug;
+use std::fmt::{Debug, Formatter};
 
-use internal_iterator::{InternalIterator, Internal, IteratorExt};
+use internal_iterator::{Internal, InternalIterator, IteratorExt};
 use itertools::Itertools;
 use rand::Rng;
 
@@ -12,7 +12,7 @@ use crate::util::bits::{BitIter, get_nth_set_bit};
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Coord(u8);
 
-#[derive(Clone, Eq, PartialEq, Debug, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct STTTBoard {
     grids: [u32; 9],
     main_grid: u32,
@@ -360,6 +360,12 @@ fn symbol_to_tuple(c: char) -> (bool, bool, Option<Player>) {
         ' ' => (false, false, None),
         '.' => (true, false, None),
         _ => panic!("unexpected character '{}'", c)
+    }
+}
+
+impl fmt::Debug for STTTBoard {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "STTTBoard({:?})", board_to_compact_string(self))
     }
 }
 

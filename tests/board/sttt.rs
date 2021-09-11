@@ -1,8 +1,7 @@
-use board_game::board::Outcome;
-use board_game::games::sttt::STTTBoard;
-use board_game::util::board_gen::{random_board_with_forced_win, random_board_with_moves, random_board_with_outcome};
+use board_game::board::{Board, Outcome};
+use board_game::games::sttt::{board_from_compact_string, STTTBoard};
 
-use crate::board::{board_test_main, consistent_rng};
+use crate::board::board_test_main;
 
 #[test]
 fn sttt_empty() {
@@ -11,15 +10,17 @@ fn sttt_empty() {
 
 #[test]
 fn sttt_few() {
-    board_test_main(&random_board_with_moves(&STTTBoard::default(), 10, &mut consistent_rng()))
+    board_test_main(&board_from_compact_string("                        o  .........               o    x  xxox        x   O  o  "))
 }
 
 #[test]
 fn sttt_close() {
-    board_test_main(&random_board_with_forced_win(&STTTBoard::default(), 5, &mut consistent_rng()))
+    board_test_main(&board_from_compact_string("x     ooo.Ooo.xx..o  o  oxoxxxoo     x  xo oxx  xo o  x xxooxx  oxox oox  xx xoxo"))
 }
 
 #[test]
 fn sttt_draw() {
-    board_test_main(&random_board_with_outcome(&STTTBoard::default(), Outcome::Draw, &mut consistent_rng()))
+    let board = board_from_compact_string("xxx o xo ooXoxxxxoo  o  oxo o xxx   oxoxxoxoxo xooo x oxxoxxoo  xxooxo xxoooxxoxo");
+    assert_eq!(board.outcome(), Some(Outcome::Draw));
+    board_test_main(&board)
 }
