@@ -21,3 +21,11 @@ regex = { version = "1.5.4", default-features = false, features = ["std"] }
 rand_xoshiro = "0.6.0"
 cast_trait = "0.1.2"
 chess = "3.2.0"
+
+# temporary fix until https://github.com/jordanbray/chess/pull/67 is merged
+[profile.dev.build-override]
+opt-level = 3
+[profile.release.build-override]
+opt-level = 3
+[profile.test.build-override]
+opt-level = 3
