@@ -1,25 +1,36 @@
 use std::fmt::{Display, Formatter};
 
-use chess::{BoardStatus, ChessMove, Color, MoveGen};
+use chess::{BoardStatus, ChessMove, Color, MoveGen, Piece};
 use internal_iterator::{Internal, InternalIterator, IteratorExt};
 use rand::Rng;
 
 use crate::board::{Board, BoardAvailableMoves, Outcome, Player};
 use crate::symmetry::UnitSymmetry;
 
+pub const MAX_REVERSIBLE_MOVES: u32 = 100;
+
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct ChessBoard {
-    pub inner: chess::Board,
+    inner: chess::Board,
+    /// The number of consecutive reversible moves, resets when an irreversible move is played.
+    reversible_moves: u32,
 }
 
 impl ChessBoard {
-    pub fn new(inner: chess::Board) -> Self {
-        ChessBoard { inner }
+    pub fn new(inner: chess::Board, reversible_moves: u32) -> Self {
+        ChessBoard { inner, reversible_moves }
+    }
+
+    pub fn inner(&self) -> &chess::Board {
+        &self.inner
+    }
+    pub fn reversible_moves(&self) -> u32 {
+        self.reversible_moves
     }
 }
 
 impl Board for ChessBoard {
-    type Move = chess::ChessMove;
+    type Move = ChessMove;
     type Symmetry = UnitSymmetry;
 
     fn can_lose_after_move() -> bool {
@@ -31,28 +42,41 @@ impl Board for ChessBoard {
     }
 
     fn is_available_move(&self, mv: Self::Move) -> bool {
+        assert!(!self.is_done());
         self.inner.legal(mv)
     }
 
     fn random_available_move(&self, rng: &mut impl Rng) -> Self::Move {
+        assert!(!self.is_done());
         let mut move_gen = MoveGen::new_legal(&self.inner);
         let picked = rng.gen_range(0..move_gen.len());
         move_gen.nth(picked).unwrap()
     }
 
     fn play(&mut self, mv: Self::Move) {
+        assert!(!self.is_done());
         *self = self.clone_and_play(mv)
     }
 
     fn clone_and_play(&self, mv: Self::Move) -> Self {
-        ChessBoard { inner: self.inner.make_move_new(mv) }
+        assert!(!self.is_done());
+
+        let capture = self.inner.color_on(mv.get_dest()).is_some();
+        let pawn_move = self.inner.piece_on(mv.get_source()) == Some(Piece::Pawn);
+        let reversible_moves = if capture || pawn_move { 0 } else { self.reversible_moves + 1 };
+
+        ChessBoard { inner: self.inner.make_move_new(mv), reversible_moves }
     }
 
     fn outcome(&self) -> Option<Outcome> {
-        match self.inner.status() {
-            BoardStatus::Ongoing => None,
-            BoardStatus::Stalemate => Some(Outcome::Draw),
-            BoardStatus::Checkmate => Some(Outcome::WonBy(self.next_player().other()))
+        if self.reversible_moves >= MAX_REVERSIBLE_MOVES {
+            Some(Outcome::Draw)
+        } else {
+            match self.inner.status() {
+                BoardStatus::Ongoing => None,
+                BoardStatus::Stalemate => Some(Outcome::Draw),
+                BoardStatus::Checkmate => Some(Outcome::WonBy(self.next_player().other()))
+            }
         }
     }
 
@@ -98,11 +122,12 @@ impl<'a> BoardAvailableMoves<'a, ChessBoard> for ChessBoard {
     }
 
     fn available_moves(&'a self) -> Self::MoveIterator {
+        assert!(!self.is_done());
         MoveGen::new_legal(&self.inner).into_internal()
     }
 }
 
-fn color_to_player(color: chess::Color) -> Player {
+fn color_to_player(color: Color) -> Player {
     match color {
         Color::White => Player::A,
         Color::Black => Player::B,
@@ -112,13 +137,14 @@ fn color_to_player(color: chess::Color) -> Player {
 impl Default for ChessBoard {
     fn default() -> Self {
         ChessBoard {
-            inner: chess::Board::default()
+            inner: chess::Board::default(),
+            reversible_moves: 0,
         }
     }
 }
 
 impl Display for ChessBoard {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ChessBoard(\"{}\")", self.inner)
+        write!(f, "ChessBoard(\"{}\", reversible_moves: {})", self.inner, self.reversible_moves)
     }
 }
