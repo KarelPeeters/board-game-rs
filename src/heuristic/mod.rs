@@ -1,2 +1,3 @@
-pub mod sttt_heuristic;
-pub mod ataxx_heuristic;
+pub mod sttt;
+pub mod ataxx;
+pub mod chess;

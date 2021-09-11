@@ -9,7 +9,7 @@ use rand::Rng;
 use crate::ai::Bot;
 use crate::board::Board;
 
-pub trait Heuristic<B: Board>: Debug {
+pub trait Heuristic<B: Board> {
     /// The type used to represent the heuristic value of a board.
     type V: Copy + Eq + Ord + Neg<Output=Self::V>;
 
@@ -131,7 +131,7 @@ impl<R: Rng> MoveSelector for RandomBestMoveSelector<'_, R> {
 
 /// The core minimax implementation.
 /// Fail-Soft Alpha-Beta Negamax, implementation based on
-/// https://www.chessprogramming.org/Alpha-Beta#cite_note-9
+/// <https://www.chessprogramming.org/Alpha-Beta#Outside_the_Bounds>
 fn negamax_recurse<B: Board, H: Heuristic<B>>(
     heuristic: &H,
     board: &B,
@@ -196,7 +196,7 @@ pub struct MiniMaxBot<B: Board, H: Heuristic<B>, R: Rng> {
     ph: PhantomData<B>,
 }
 
-impl<B: Board, H: Heuristic<B>, R: Rng> Debug for MiniMaxBot<B, H, R> {
+impl<B: Board, H: Heuristic<B> + Debug, R: Rng> Debug for MiniMaxBot<B, H, R> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "MiniMaxBot {{ depth: {}, heuristic: {:?} }}", self.depth, self.heuristic)
     }
@@ -209,7 +209,7 @@ impl<B: Board, H: Heuristic<B>, R: Rng> MiniMaxBot<B, H, R> {
     }
 }
 
-impl<B: Board, H: Heuristic<B>, R: Rng> Bot<B> for MiniMaxBot<B, H, R> {
+impl<B: Board, H: Heuristic<B> + Debug, R: Rng> Bot<B> for MiniMaxBot<B, H, R> {
     fn select_move(&mut self, board: &B) -> B::Move {
         assert!(!board.is_done());
         minimax(board, &self.heuristic, self.depth, &mut self.rng).best_move.unwrap()
