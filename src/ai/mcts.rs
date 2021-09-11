@@ -379,13 +379,15 @@ impl<R: Rng> MCTSBot<R> {
         assert!(iterations > 0);
         MCTSBot { iterations, exploration_weight, rng }
     }
+
+    pub fn build_tree<B: Board>(&mut self, board: &B) -> Tree<B> {
+        mcts_build_tree(board, self.iterations, self.exploration_weight, &mut self.rng)
+    }
 }
 
 impl<R: Rng, B: Board> Bot<B> for MCTSBot<R> {
     fn select_move(&mut self, board: &B) -> B::Move {
         assert!(!board.is_done());
-
-        let tree = mcts_build_tree(board, self.iterations, self.exploration_weight, &mut self.rng);
-        tree.best_move()
+        self.build_tree(board).best_move()
     }
 }
