@@ -5,14 +5,15 @@ use internal_iterator::InternalIterator;
 use rand::Rng;
 
 use crate::symmetry::Symmetry;
+use std::panic::RefUnwindSafe;
 
 /// The main trait of this crate. Represents the state of a game.
 /// Each game implementation is supposed to provide it's own constructors to allow for customizable start positions.
-pub trait Board: 'static + Debug + Display + Clone + Eq + Hash + Send + Sync
+pub trait Board: 'static + Debug + Display + Clone + Eq + Hash + Send + Sync + RefUnwindSafe
     where for<'a> Self: BoardAvailableMoves<'a, Self>
 {
     /// The type used to represent moves on this board.
-    type Move: Debug + Copy + Eq + Ord + Hash + Send + Sync;
+    type Move: Debug + Eq + Ord + Hash + Copy + Send + Sync + RefUnwindSafe;
 
     /// The type used to represent board symmetries.
     type Symmetry: Symmetry;
@@ -42,6 +43,7 @@ pub trait Board: 'static + Debug + Display + Clone + Eq + Hash + Send + Sync
     fn play(&mut self, mv: Self::Move);
 
     /// Clone this board, play `mv` on it and return the new board.
+    /// Panics if this board is done or if the move is not available or valid for this board.
     fn clone_and_play(&self, mv: Self::Move) -> Self {
         let mut next = self.clone();
         next.play(mv);

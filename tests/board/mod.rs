@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
 use std::collections::hash_map::RandomState;
 use std::iter::FromIterator;
+use std::panic::catch_unwind;
 
 use internal_iterator::InternalIterator;
 use rand::{Rng, SeedableRng};
@@ -14,12 +15,27 @@ mod ataxx;
 mod chess;
 
 pub fn board_test_main<B: Board>(board: &B) {
-    if !board.is_done() {
+    if board.is_done() {
+        test_done_board_panics(board);
+    } else {
         test_available_match(board);
         test_random_available_uniform(board);
     }
 
     test_symmetry(board);
+}
+
+fn test_done_board_panics<B: Board>(board: &B) {
+    assert!(board.is_done(), "bug in test implementation");
+
+    assert!(catch_unwind(|| board.available_moves()).is_err(), "must panic");
+    assert!(catch_unwind(|| board.random_available_move(&mut consistent_rng())).is_err());
+
+    B::all_possible_moves().for_each(|mv: B::Move| {
+        assert!(catch_unwind(|| board.clone().play(mv)).is_err(), "must panic");
+        assert!(catch_unwind(|| board.clone_and_play(mv)).is_err(), "must panic");
+        assert!(catch_unwind(|| board.is_available_move(mv)).is_err(), "must panic")
+    });
 }
 
 fn test_available_match<B: Board>(board: &B) {
