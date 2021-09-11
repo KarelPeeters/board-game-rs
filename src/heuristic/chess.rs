@@ -1,11 +1,12 @@
-use crate::ai::minimax::Heuristic;
-use crate::games::chess::ChessBoard;
-use crate::ai::solver::SolverHeuristic;
-use crate::board::Board;
 use chess::{ALL_PIECES, Piece};
 
+use crate::ai::minimax::Heuristic;
+use crate::ai::solver::SolverHeuristic;
+use crate::board::Board;
+use crate::games::chess::ChessBoard;
+
 #[derive(Debug)]
-struct ChessPieceValueHeuristic;
+pub struct ChessPieceValueHeuristic;
 
 impl Heuristic<ChessBoard> for ChessPieceValueHeuristic {
     type V = i32;
