@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter};
+use std::fmt::Write;
 
 use chess::{BoardStatus, ChessMove, Color, MoveGen, Piece};
 use internal_iterator::{Internal, InternalIterator, IteratorExt};
@@ -147,4 +148,22 @@ impl Display for ChessBoard {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "ChessBoard(\"{}\", reversible_moves: {})", self.inner, self.reversible_moves)
     }
+}
+
+pub fn moves_to_pgn(moves: &[ChessMove]) -> String {
+    let mut result = String::new();
+    let f = &mut result;
+
+    for (i, mv) in moves.iter().enumerate() {
+        if i % 2 == 0 { write!(f, "{}. ", 1 + i / 2).unwrap(); }
+
+        write!(f, "{}{}", mv.get_source(), mv.get_dest()).unwrap();
+        if let Some(promotion) = mv.get_promotion() {
+            write!(f, "={}", promotion.to_string(Color::White)).unwrap()
+        };
+
+        write!(f, " ").unwrap();
+    }
+
+    result
 }
