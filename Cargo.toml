@@ -1,6 +1,6 @@
 [package]
 name = "board-game"
-version = "0.3.5"
+version = "0.3.6"
 authors = ["Karel Peeters <karel.peeters.leuven@gmail.com>"]
 description = "A board game abstraction and generic utilities around it."
 license = "MIT OR Apache-2.0"
