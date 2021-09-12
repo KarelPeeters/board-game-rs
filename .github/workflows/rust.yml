@@ -17,4 +17,4 @@ jobs:
       - name: Test
         run: cargo test
       - name: Clippy
-        run: cargo clippy
+        run: cargo clippy --all-targets
