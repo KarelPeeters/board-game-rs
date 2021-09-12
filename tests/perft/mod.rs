@@ -10,7 +10,9 @@ pub fn perft_main<S: Debug + ?Sized, T: Debug, B: Board>(
     f: impl Fn(&S) -> B,
     r: Option<impl Fn(&B) -> T>,
     cases: Vec<(&S, Vec<u64>)>,
-) where for<'a> &'a S: PartialEq<T> {
+) where
+    for<'a> &'a S: PartialEq<T>,
+{
     for (desc, expected_perfts) in cases {
         let board = f(desc);
         println!("Parsed {:?} as", desc);

@@ -1,6 +1,6 @@
 //! Utilities with compact bit data structures.
-use num::{PrimInt, Unsigned};
 use num::traits::WrappingSub;
+use num::{PrimInt, Unsigned};
 
 #[derive(Debug)]
 /// Iterator over the indices of the set bits of an integer,

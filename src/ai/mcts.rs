@@ -4,8 +4,8 @@ use std::ops::{Index, IndexMut};
 
 use decorum::N32;
 use internal_iterator::InternalIterator;
-use rand::Rng;
 use rand::seq::IteratorRandom;
+use rand::Rng;
 
 use crate::ai::Bot;
 use crate::board::{Board, Outcome};
@@ -64,7 +64,12 @@ impl<M> Node<M> {
             Some(outcome) => SNodeKind::Solved(outcome),
         };
 
-        Node { last_move, visits: 0, children: None, kind }
+        Node {
+            last_move,
+            visits: 0,
+            children: None,
+            kind,
+        }
     }
 
     pub fn is_unvisited(&self) -> bool {
@@ -110,9 +115,7 @@ impl<M> Node<M> {
                 let visits = wdl.sum();
                 wdl.cast::<f32>() / visits as f32
             }
-            SNodeKind::Solved(outcome) => {
-                outcome.to_wdl()
-            }
+            SNodeKind::Solved(outcome) => outcome.to_wdl(),
         }
     }
 
@@ -131,9 +134,7 @@ impl<M> Node<M> {
 
                 value_unit + exploration_weight * explore
             }
-            SNodeKind::Solved(outcome) => {
-                (outcome.sign::<f32>() + 1.0) / 2.0
-            }
+            SNodeKind::Solved(outcome) => (outcome.sign::<f32>() + 1.0) / 2.0,
         }
     }
 }
@@ -147,25 +148,24 @@ pub struct Tree<B: Board> {
 
 impl<B: Board> Tree<B> {
     pub fn new(root_board: B) -> Self {
-        Tree { root_board, nodes: Default::default() }
+        Tree {
+            root_board,
+            nodes: Default::default(),
+        }
     }
 
     pub fn best_child(&self) -> usize {
-        let children = self[0].children
-            .expect("Root node must have children");
+        let children = self[0].children.expect("Root node must have children");
 
         //pick the winning child if any
         // there should only be at most one, so we're not biasing towards earlier moves here
-        let won_child = children.iter()
-            .find(|&c| self[c].solution() == Some(OutcomeWDL::Win));
+        let won_child = children.iter().find(|&c| self[c].solution() == Some(OutcomeWDL::Win));
         if let Some(win_child) = won_child {
             return win_child;
         }
 
         // pick the most visited child
-        children.iter()
-            .max_by_key(|&c| self[c].visits)
-            .unwrap()
+        children.iter().max_by_key(|&c| self[c].visits).unwrap()
     }
 
     pub fn best_move(&self) -> B::Move {
@@ -189,7 +189,9 @@ impl<B: Board> Tree<B> {
     fn print_impl(&self, node: usize, depth: u64, max_depth: u64) {
         let node = &self[node];
 
-        for _ in 0..depth { print!("  ") }
+        for _ in 0..depth {
+            print!("  ")
+        }
         print!("{:?}: {}, {:.3} <- ", node.last_move, node.visits, node.wdl().value());
 
         match node.kind {
@@ -202,17 +204,15 @@ impl<B: Board> Tree<B> {
             }
         };
 
-        if depth == max_depth { return; }
+        if depth == max_depth {
+            return;
+        }
 
         if let Some(children) = node.children {
             let best_child = self.best_child();
 
             for child in children {
-                let next_max_depth = if child == best_child {
-                    max_depth
-                } else {
-                    depth + 1
-                };
+                let next_max_depth = if child == best_child { max_depth } else { depth + 1 };
 
                 self.print_impl(child, depth + 1, next_max_depth)
             }
@@ -305,8 +305,7 @@ fn mcts_solver_step<B: Board>(
         let picked_mv = tree[picked_child].last_move.unwrap();
         let next_board = curr_board.clone_and_play(picked_mv);
 
-        let outcome = random_playout(next_board, rng)
-            .pov(curr_board.next_player().other());
+        let outcome = random_playout(next_board, rng).pov(curr_board.next_player().other());
         tree[picked_child].increment(outcome);
 
         (outcome.flip(), false)
@@ -316,10 +315,9 @@ fn mcts_solver_step<B: Board>(
         // at least this is what the paper seems to suggest
         let parent_visits = tree[curr_node].visits;
 
-        let picked = children.iter()
-            .max_by_key(|&c| {
-                N32::from(tree[c].uct(parent_visits, exploration_weight))
-            })
+        let picked = children
+            .iter()
+            .max_by_key(|&c| N32::from(tree[c].uct(parent_visits, exploration_weight)))
             .unwrap();
 
         //continue recursing
@@ -344,7 +342,12 @@ fn mcts_solver_step<B: Board>(
     (result, false)
 }
 
-pub fn mcts_build_tree<B: Board>(root_board: &B, iterations: u64, exploration_weight: f32, rng: &mut impl Rng) -> Tree<B> {
+pub fn mcts_build_tree<B: Board>(
+    root_board: &B,
+    iterations: u64,
+    exploration_weight: f32,
+    rng: &mut impl Rng,
+) -> Tree<B> {
     assert!(iterations > 0);
 
     let mut tree = Tree::new(root_board.clone());
@@ -354,7 +357,9 @@ pub fn mcts_build_tree<B: Board>(root_board: &B, iterations: u64, exploration_we
 
     for _ in 0..iterations {
         //we've solved the root node, so we're done
-        if tree[0].solution().is_some() { break; }
+        if tree[0].solution().is_some() {
+            break;
+        }
 
         mcts_solver_step(&mut tree, 0, root_board, exploration_weight, rng);
     }
@@ -370,14 +375,22 @@ pub struct MCTSBot<R: Rng> {
 
 impl<R: Rng> Debug for MCTSBot<R> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "MCTSBot {{ iterations: {}, exploration_weight: {} }}", self.iterations, self.exploration_weight)
+        write!(
+            f,
+            "MCTSBot {{ iterations: {}, exploration_weight: {} }}",
+            self.iterations, self.exploration_weight
+        )
     }
 }
 
 impl<R: Rng> MCTSBot<R> {
     pub fn new(iterations: u64, exploration_weight: f32, rng: R) -> Self {
         assert!(iterations > 0);
-        MCTSBot { iterations, exploration_weight, rng }
+        MCTSBot {
+            iterations,
+            exploration_weight,
+            rng,
+        }
     }
 
     pub fn build_tree<B: Board>(&mut self, board: &B) -> Tree<B> {

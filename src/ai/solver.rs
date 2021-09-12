@@ -4,8 +4,8 @@ use std::fmt::{Debug, Formatter};
 use internal_iterator::InternalIterator;
 use rand::Rng;
 
+use crate::ai::minimax::{minimax, minimax_value, Heuristic};
 use crate::ai::Bot;
-use crate::ai::minimax::{Heuristic, minimax, minimax_value};
 use crate::board::{Board, Outcome, Player};
 use crate::wdl::POV;
 
@@ -45,7 +45,9 @@ pub fn is_double_forced_draw(board: &impl Board, depth: u32) -> Option<bool> {
     if let Some(outcome) = board.outcome() {
         return Some(outcome == Outcome::Draw);
     }
-    if depth == 0 { return None; }
+    if depth == 0 {
+        return None;
+    }
 
     //TODO this Some/None mapping is super confusing, maybe add try_fold to internal_iterator and use that
     let result = board.available_moves().find_map(|mv| {
@@ -61,7 +63,7 @@ pub fn is_double_forced_draw(board: &impl Board, depth: u32) -> Option<bool> {
     match result {
         Some(true) => None,
         Some(false) => Some(false),
-        None => Some(true)
+        None => Some(true),
     }
 }
 
@@ -85,6 +87,8 @@ impl<R: Rng> SolverBot<R> {
 
 impl<B: Board, R: Rng> Bot<B> for SolverBot<R> {
     fn select_move(&mut self, board: &B) -> B::Move {
-        minimax(board, &SolverHeuristic, self.depth, &mut self.rng).best_move.unwrap()
+        minimax(board, &SolverHeuristic, self.depth, &mut self.rng)
+            .best_move
+            .unwrap()
     }
 }

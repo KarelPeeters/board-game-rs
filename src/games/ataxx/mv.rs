@@ -27,7 +27,7 @@ impl Debug for Move {
 }
 
 impl Coord {
-    pub fn all() -> impl Iterator<Item=Coord> {
+    pub fn all() -> impl Iterator<Item = Coord> {
         // this is kind of stupid but it works
         Tiles::full().into_iter()
     }
@@ -71,7 +71,11 @@ impl Coord {
 }
 
 fn abs_distance(a: u8, b: u8) -> u8 {
-    if a >= b { a - b } else { b - a }
+    if a >= b {
+        a - b
+    } else {
+        b - a
+    }
 }
 
 impl Coord {
@@ -92,7 +96,7 @@ impl Move {
         match self {
             Move::Pass => "0000".to_string(),
             Move::Copy { to } => to.to_uai(),
-            Move::Jump { from, to } => format!("{}{}", from.to_uai(), to.to_uai())
+            Move::Jump { from, to } => format!("{}{}", from.to_uai(), to.to_uai()),
         }
     }
 
@@ -100,8 +104,11 @@ impl Move {
         match s {
             "0000" => Move::Pass,
             _ if s.len() == 2 => Move::Copy { to: Coord::from_uai(s) },
-            _ if s.len() == 4 => Move::Jump { from: Coord::from_uai(&s[..2]), to: Coord::from_uai(&s[2..]) },
-            _ => panic!("Invalid move uai string '{}'", s)
+            _ if s.len() == 4 => Move::Jump {
+                from: Coord::from_uai(&s[..2]),
+                to: Coord::from_uai(&s[2..]),
+            },
+            _ => panic!("Invalid move uai string '{}'", s),
         }
     }
 }

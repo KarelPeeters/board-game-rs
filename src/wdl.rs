@@ -35,14 +35,26 @@ impl OutcomeWDL {
     /// Convert this to a WDL with a one at the correct place and zero otherwise.
     pub fn to_wdl<V: num::One + num::Zero>(self) -> WDL<V> {
         match self {
-            OutcomeWDL::Win => WDL { win: V::one(), draw: V::zero(), loss: V::zero() },
-            OutcomeWDL::Draw => WDL { win: V::zero(), draw: V::one(), loss: V::zero() },
-            OutcomeWDL::Loss => WDL { win: V::zero(), draw: V::zero(), loss: V::one() },
+            OutcomeWDL::Win => WDL {
+                win: V::one(),
+                draw: V::zero(),
+                loss: V::zero(),
+            },
+            OutcomeWDL::Draw => WDL {
+                win: V::zero(),
+                draw: V::one(),
+                loss: V::zero(),
+            },
+            OutcomeWDL::Loss => WDL {
+                win: V::zero(),
+                draw: V::zero(),
+                loss: V::one(),
+            },
         }
     }
 
     /// Convert a win to `1`, draw to `0` and loss to `-1`.
-    pub fn sign<V: num::Zero + num::One + std::ops::Neg<Output=V>>(self) -> V {
+    pub fn sign<V: num::Zero + num::One + std::ops::Neg<Output = V>>(self) -> V {
         match self {
             OutcomeWDL::Win => V::one(),
             OutcomeWDL::Draw => V::zero(),
@@ -60,7 +72,7 @@ impl OutcomeWDL {
     }
 
     /// Combine outcomes together in minimax-style.. `None` means unknown.
-    pub fn best<I: IntoIterator<Item=Option<OutcomeWDL>>>(children: I) -> Option<OutcomeWDL> {
+    pub fn best<I: IntoIterator<Item = Option<OutcomeWDL>>>(children: I) -> Option<OutcomeWDL> {
         let mut any_unknown = false;
         let mut all_known_are_loss = true;
 
@@ -92,12 +104,19 @@ impl OutcomeWDL {
 
 impl<V: num::Float> WDL<V> {
     pub fn nan() -> WDL<V> {
-        WDL { win: V::nan(), draw: V::nan(), loss: V::nan() }
+        WDL {
+            win: V::nan(),
+            draw: V::nan(),
+            loss: V::nan(),
+        }
     }
 }
 
 impl<V: Copy> WDL<V> {
-    pub fn cast<W>(self) -> WDL<W> where V: Cast<W> {
+    pub fn cast<W>(self) -> WDL<W>
+    where
+        V: Cast<W>,
+    {
         WDL {
             win: self.win.cast(),
             draw: self.draw.cast(),
@@ -106,13 +125,13 @@ impl<V: Copy> WDL<V> {
     }
 }
 
-impl<V: Copy + std::ops::Sub<V, Output=V>> WDL<V> {
+impl<V: Copy + std::ops::Sub<V, Output = V>> WDL<V> {
     pub fn value(self) -> V {
         self.win - self.loss
     }
 }
 
-impl<V: Copy + std::ops::Add<V, Output=V>> WDL<V> {
+impl<V: Copy + std::ops::Add<V, Output = V>> WDL<V> {
     pub fn sum(self) -> V {
         self.win + self.draw + self.loss
     }
@@ -135,11 +154,13 @@ impl POV for Outcome {
     type Output = OutcomeWDL;
     fn pov(self, pov: Player) -> OutcomeWDL {
         match self {
-            Outcome::WonBy(player) => if player == pov {
-                OutcomeWDL::Win
-            } else {
-                OutcomeWDL::Loss
-            },
+            Outcome::WonBy(player) => {
+                if player == pov {
+                    OutcomeWDL::Win
+                } else {
+                    OutcomeWDL::Loss
+                }
+            }
             Outcome::Draw => OutcomeWDL::Draw,
         }
     }
@@ -157,11 +178,15 @@ impl Flip for OutcomeWDL {
 
 impl<V: Copy> Flip for WDL<V> {
     fn flip(self) -> Self {
-        WDL { win: self.loss, draw: self.draw, loss: self.win }
+        WDL {
+            win: self.loss,
+            draw: self.draw,
+            loss: self.win,
+        }
     }
 }
 
-impl<V: Copy + std::ops::Add<V, Output=V>> std::ops::Add<WDL<V>> for WDL<V> {
+impl<V: Copy + std::ops::Add<V, Output = V>> std::ops::Add<WDL<V>> for WDL<V> {
     type Output = WDL<V>;
 
     fn add(self, rhs: WDL<V>) -> Self::Output {
@@ -173,7 +198,7 @@ impl<V: Copy + std::ops::Add<V, Output=V>> std::ops::Add<WDL<V>> for WDL<V> {
     }
 }
 
-impl<V: Copy + std::ops::Sub<V, Output=V>> std::ops::Sub<WDL<V>> for WDL<V> {
+impl<V: Copy + std::ops::Sub<V, Output = V>> std::ops::Sub<WDL<V>> for WDL<V> {
     type Output = WDL<V>;
 
     fn sub(self, rhs: WDL<V>) -> Self::Output {
@@ -185,16 +210,20 @@ impl<V: Copy + std::ops::Sub<V, Output=V>> std::ops::Sub<WDL<V>> for WDL<V> {
     }
 }
 
-impl<V: Copy + std::ops::Add<V, Output=V>> std::ops::AddAssign<WDL<V>> for WDL<V> {
+impl<V: Copy + std::ops::Add<V, Output = V>> std::ops::AddAssign<WDL<V>> for WDL<V> {
     fn add_assign(&mut self, rhs: WDL<V>) {
         *self = *self + rhs;
     }
 }
 
-impl<V: Copy + std::ops::Div<V, Output=V>> std::ops::Div<V> for WDL<V> {
+impl<V: Copy + std::ops::Div<V, Output = V>> std::ops::Div<V> for WDL<V> {
     type Output = WDL<V>;
 
     fn div(self, rhs: V) -> Self::Output {
-        WDL { win: self.win / rhs, draw: self.draw / rhs, loss: self.loss / rhs }
+        WDL {
+            win: self.win / rhs,
+            draw: self.draw / rhs,
+            loss: self.loss / rhs,
+        }
     }
 }

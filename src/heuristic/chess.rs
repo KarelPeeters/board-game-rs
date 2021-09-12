@@ -1,4 +1,4 @@
-use chess::{ALL_PIECES, Piece};
+use chess::{Piece, ALL_PIECES};
 
 use crate::ai::minimax::Heuristic;
 use crate::ai::solver::SolverHeuristic;

@@ -7,7 +7,7 @@ use rand::Rng;
 
 use crate::board::{Board, BoardAvailableMoves, Outcome, Player};
 use crate::symmetry::D4Symmetry;
-use crate::util::bits::{BitIter, get_nth_set_bit};
+use crate::util::bits::{get_nth_set_bit, BitIter};
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Coord(u8);
@@ -114,8 +114,7 @@ impl Board for STTTBoard {
     fn is_available_move(&self, mv: Self::Move) -> bool {
         assert!(!self.is_done(), "Board must not be done");
 
-        has_bit(self.macro_mask, mv.om()) &&
-            !has_bit(compact_grid(self.grids[mv.om() as usize]), mv.os())
+        has_bit(self.macro_mask, mv.om()) && !has_bit(compact_grid(self.grids[mv.om() as usize]), mv.os())
     }
 
     fn random_available_move(&self, rng: &mut impl Rng) -> Self::Move {
@@ -201,7 +200,6 @@ impl<'a> BoardAvailableMoves<'a, STTTBoard> for STTTBoard {
 pub type CoordIter = std::iter::Map<std::ops::Range<u8>, fn(u8) -> Coord>;
 
 impl Coord {
-
     pub fn all() -> CoordIter {
         (0..81).map(Self::from_o)
     }
@@ -267,7 +265,10 @@ pub struct STTTMoveIterator<'a> {
 impl<'a> InternalIterator for STTTMoveIterator<'a> {
     type Item = Coord;
 
-    fn find_map<R, F>(self, mut f: F) -> Option<R> where F: FnMut(Self::Item) -> Option<R> {
+    fn find_map<R, F>(self, mut f: F) -> Option<R>
+    where
+        F: FnMut(Self::Item) -> Option<R>,
+    {
         for om in BitIter::new(self.board.macro_mask) {
             let free_grid = (!compact_grid(self.board.grids[om as usize])) & STTTBoard::FULL_MASK;
             for os in BitIter::new(free_grid) {
@@ -301,10 +302,8 @@ fn is_win_grid(grid: u32) -> bool {
     debug_assert!(has_mask(STTTBoard::FULL_MASK, grid));
 
     const WIN_GRIDS: [u32; 16] = [
-        2155905152, 4286611584, 4210076288, 4293962368,
-        3435954304, 4291592320, 4277971584, 4294748800,
-        2863300736, 4294635760, 4210731648, 4294638320,
-        4008607872, 4294897904, 4294967295, 4294967295
+        2155905152, 4286611584, 4210076288, 4293962368, 3435954304, 4291592320, 4277971584, 4294748800, 2863300736,
+        4294635760, 4210731648, 4294638320, 4008607872, 4294897904, 4294967295, 4294967295,
     ];
     has_bit(WIN_GRIDS[(grid / 32) as usize], (grid % 32) as u8)
 }
@@ -347,7 +346,7 @@ fn symbol_from_tuple(is_available: bool, is_last: bool, player: Option<Player>) 
         (false, true, Some(Player::B)) => 'O',
         (true, false, None) => '.',
         (false, false, None) => ' ',
-        _ => unreachable!("Invalid tile state {:?}", tuple)
+        _ => unreachable!("Invalid tile state {:?}", tuple),
     }
 }
 
@@ -359,7 +358,7 @@ fn symbol_to_tuple(c: char) -> (bool, bool, Option<Player>) {
         'O' => (false, true, Some(Player::B)),
         ' ' => (false, false, None),
         '.' => (true, false, None),
-        _ => panic!("unexpected character '{}'", c)
+        _ => panic!("unexpected character '{}'", c),
     }
 }
 

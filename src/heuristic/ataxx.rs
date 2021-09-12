@@ -11,11 +11,17 @@ pub struct AtaxxTileHeuristic {
 
 impl AtaxxTileHeuristic {
     pub fn new(tile_factor: i32, surface_factor: i32) -> Self {
-        AtaxxTileHeuristic { tile_factor, surface_factor }
+        AtaxxTileHeuristic {
+            tile_factor,
+            surface_factor,
+        }
     }
 
     pub fn greedy() -> Self {
-        AtaxxTileHeuristic { tile_factor: 1, surface_factor: 0 }
+        AtaxxTileHeuristic {
+            tile_factor: 1,
+            surface_factor: 0,
+        }
     }
 }
 

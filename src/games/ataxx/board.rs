@@ -140,12 +140,9 @@ impl Board for AtaxxBoard {
         let next_tiles = self.tiles_pov().0;
 
         match mv {
-            Move::Pass =>
-                self.must_pass(next_tiles),
-            Move::Copy { to } =>
-                (self.free_tiles() & next_tiles.copy_targets()).has(to),
-            Move::Jump { from, to } =>
-                self.free_tiles().has(to) && next_tiles.has(from) && from.distance(to) == 2,
+            Move::Pass => self.must_pass(next_tiles),
+            Move::Copy { to } => (self.free_tiles() & next_tiles.copy_targets()).has(to),
+            Move::Jump { from, to } => self.free_tiles().has(to) && next_tiles.has(from) && from.distance(to) == 2,
         }
     }
 
@@ -163,14 +160,17 @@ impl Board for AtaxxBoard {
         let jump_targets = free_tiles & next_tiles.jump_targets();
 
         let copy_count = copy_targets.count() as u32;
-        let jump_count: u32 = jump_targets.into_iter().map(|to| {
-            (next_tiles & Tiles::coord(to).jump_targets()).count() as u32
-        }).sum();
+        let jump_count: u32 = jump_targets
+            .into_iter()
+            .map(|to| (next_tiles & Tiles::coord(to).jump_targets()).count() as u32)
+            .sum();
 
         let index = rng.gen_range(0..(copy_count + jump_count));
 
         if index < copy_count {
-            Move::Copy { to: copy_targets.get_nth(index) }
+            Move::Copy {
+                to: copy_targets.get_nth(index),
+            }
         } else {
             let mut left = index - copy_count;
             for to in jump_targets {
@@ -199,9 +199,7 @@ impl Board for AtaxxBoard {
                 self.next_player = self.next_player.other();
                 return;
             }
-            Move::Copy { to } => {
-                to
-            }
+            Move::Copy { to } => to,
             Move::Jump { from, to } => {
                 *next_tiles &= !Tiles::coord(from);
                 to
@@ -241,7 +239,10 @@ impl Board for AtaxxBoard {
         match mv {
             Move::Pass => Move::Pass,
             Move::Copy { to } => Move::Copy { to: to.map(sym) },
-            Move::Jump { from, to } => Move::Jump { from: from.map(sym), to: to.map(sym) },
+            Move::Jump { from, to } => Move::Jump {
+                from: from.map(sym),
+                to: to.map(sym),
+            },
         }
     }
 }
@@ -271,14 +272,23 @@ impl<'a> BoardAvailableMoves<'a, AtaxxBoard> for AtaxxBoard {
 impl<'a> InternalIterator for AllMoveIterator {
     type Item = Move;
 
-    fn find_map<R, F>(self, mut f: F) -> Option<R> where F: FnMut(Self::Item) -> Option<R> {
-        if let Some(x) = f(Move::Pass) { return Some(x); };
+    fn find_map<R, F>(self, mut f: F) -> Option<R>
+    where
+        F: FnMut(Self::Item) -> Option<R>,
+    {
+        if let Some(x) = f(Move::Pass) {
+            return Some(x);
+        };
         for to in Coord::all() {
-            if let Some(x) = f(Move::Copy { to }) { return Some(x); };
+            if let Some(x) = f(Move::Copy { to }) {
+                return Some(x);
+            };
         }
         for to in Coord::all() {
             for from in Tiles::coord(to).jump_targets() {
-                if let Some(x) = f(Move::Jump { from, to }) { return Some(x); };
+                if let Some(x) = f(Move::Jump { from, to }) {
+                    return Some(x);
+                };
             }
         }
         None
@@ -288,7 +298,10 @@ impl<'a> InternalIterator for AllMoveIterator {
 impl<'a> InternalIterator for MoveIterator<'a> {
     type Item = Move;
 
-    fn find_map<R, F>(self, mut f: F) -> Option<R> where F: FnMut(Self::Item) -> Option<R> {
+    fn find_map<R, F>(self, mut f: F) -> Option<R>
+    where
+        F: FnMut(Self::Item) -> Option<R>,
+    {
         let board = self.board;
         let next_tiles = board.tiles_pov().0;
         let free_tiles = board.free_tiles();
@@ -301,14 +314,18 @@ impl<'a> InternalIterator for MoveIterator<'a> {
         // copy moves
         let copy_targets = free_tiles & next_tiles.copy_targets();
         for to in copy_targets {
-            if let Some(x) = f(Move::Copy { to }) { return Some(x); }
+            if let Some(x) = f(Move::Copy { to }) {
+                return Some(x);
+            }
         }
 
         // jump moves
         let jump_targets = free_tiles & next_tiles.jump_targets();
         for to in jump_targets {
             for from in next_tiles & Tiles::coord(to).jump_targets() {
-                if let Some(x) = f(Move::Jump { from, to }) { return Some(x); }
+                if let Some(x) = f(Move::Jump { from, to }) {
+                    return Some(x);
+                }
             }
         }
 

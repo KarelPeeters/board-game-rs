@@ -12,7 +12,9 @@ pub fn random_board_with_moves<B: Board>(start: &B, n: u32, rng: &mut impl Rng) 
     'newtry: loop {
         let mut board = start.clone();
         for _ in 0..n {
-            if board.is_done() { continue 'newtry; }
+            if board.is_done() {
+                continue 'newtry;
+            }
             board.play(board.random_available_move(rng))
         }
         return board;
@@ -25,7 +27,9 @@ pub fn random_board_with_outcome<B: Board>(start: &B, outcome: Outcome, rng: &mu
         let mut board = start.clone();
         loop {
             if let Some(actual) = board.outcome() {
-                if actual == outcome { return board; }
+                if actual == outcome {
+                    return board;
+                }
                 break;
             }
 
@@ -37,8 +41,11 @@ pub fn random_board_with_outcome<B: Board>(start: &B, outcome: Outcome, rng: &mu
 /// Generate a `Board` by playing random moves until a forced win in `depth` moves is found for `start.next_player`.
 pub fn random_board_with_forced_win<B: Board>(start: &B, depth: u32, rng: &mut impl Rng) -> B {
     if !B::can_lose_after_move() {
-        assert!(depth % 2 == 1, "forced win in an even number of moves is impossible \
-                                (because the last move would be by the opponent)");
+        assert!(
+            depth % 2 == 1,
+            "forced win in an even number of moves is impossible \
+                                (because the last move would be by the opponent)"
+        );
     }
 
     random_board_with_depth_condition(start, depth, rng, |board, depth| {
@@ -55,7 +62,12 @@ pub fn random_board_with_double_forced_draw<B: Board>(start: &B, depth: u32, rng
 }
 
 /// Generate a random board such that `cond(board, depth) & !cond(board, depth-1)`.
-fn random_board_with_depth_condition<B: Board>(start: &B, depth: u32, rng: &mut impl Rng, cond: impl Fn(&B, u32) -> bool) -> B {
+fn random_board_with_depth_condition<B: Board>(
+    start: &B,
+    depth: u32,
+    rng: &mut impl Rng,
+    cond: impl Fn(&B, u32) -> bool,
+) -> B {
     loop {
         let mut board = start.clone();
 
@@ -63,12 +75,16 @@ fn random_board_with_depth_condition<B: Board>(start: &B, depth: u32, rng: &mut 
             let deep_match = cond(&board, depth);
             if deep_match {
                 let shallow_match = depth > 0 && cond(&board, depth - 1);
-                if shallow_match { break; }
+                if shallow_match {
+                    break;
+                }
 
                 return board;
             }
 
-            if board.is_done() { break; }
+            if board.is_done() {
+                break;
+            }
             board.play(board.random_available_move(rng));
         }
     }

@@ -56,18 +56,23 @@ impl<B: Board, R: Rng> Bot<B> for RolloutBot<R> {
     fn select_move(&mut self, board: &B) -> B::Move {
         let rollouts_per_move = self.rollouts / board.available_moves().count() as u32;
 
-        board.available_moves().max_by_key(|&mv| {
-            let child = board.clone_and_play(mv);
+        board
+            .available_moves()
+            .max_by_key(|&mv| {
+                let child = board.clone_and_play(mv);
 
-            let score: i64 = (0..rollouts_per_move).map(|_| {
-                let mut copy = child.clone();
-                while !copy.is_done() {
-                    copy.play(copy.random_available_move(&mut self.rng))
-                }
-                copy.outcome().unwrap().pov(board.next_player()).sign::<i64>()
-            }).sum();
+                let score: i64 = (0..rollouts_per_move)
+                    .map(|_| {
+                        let mut copy = child.clone();
+                        while !copy.is_done() {
+                            copy.play(copy.random_available_move(&mut self.rng))
+                        }
+                        copy.outcome().unwrap().pov(board.next_player()).sign::<i64>()
+                    })
+                    .sum();
 
-            score
-        }).unwrap()
+                score
+            })
+            .unwrap()
     }
 }

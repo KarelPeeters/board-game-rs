@@ -4,6 +4,6 @@ pub use mv::*;
 pub use tiles::*;
 
 mod board;
-mod tiles;
-mod mv;
 mod io;
+mod mv;
+mod tiles;

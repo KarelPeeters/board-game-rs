@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 
 use rand::distributions::Distribution;
-use rand::Rng;
 use rand::seq::SliceRandom;
+use rand::Rng;
 
 /// The symmetry group associated with a Board. An instance of this group maps a board and moves such that everything
 /// about the board and its state is invariant under this mapping.
@@ -17,8 +17,7 @@ pub struct SymmetryDistribution;
 
 impl<S: Symmetry + Sized> Distribution<S> for SymmetryDistribution {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> S {
-        *S::all().choose(rng)
-            .expect("A symmetry group cannot be empty")
+        *S::all().choose(rng).expect("A symmetry group cannot be empty")
     }
 }
 
@@ -27,9 +26,15 @@ impl<S: Symmetry + Sized> Distribution<S> for SymmetryDistribution {
 pub struct UnitSymmetry;
 
 impl Symmetry for UnitSymmetry {
-    fn all() -> &'static [Self] { &[Self] }
-    fn identity() -> Self { Self }
-    fn inverse(self) -> Self { Self }
+    fn all() -> &'static [Self] {
+        &[Self]
+    }
+    fn identity() -> Self {
+        Self
+    }
+    fn inverse(self) -> Self {
+        Self
+    }
 }
 
 /// The D4 symmetry group that can represent any combination of
@@ -48,13 +53,23 @@ pub struct D4Symmetry {
 
 impl D4Symmetry {
     pub const fn new(transpose: bool, flip_x: bool, flip_y: bool) -> Self {
-        D4Symmetry { transpose, flip_x, flip_y }
+        D4Symmetry {
+            transpose,
+            flip_x,
+            flip_y,
+        }
     }
 
-    pub fn map_xy<V: Copy + std::ops::Sub<Output=V>>(self, mut x: V, mut y: V, max: V) -> (V, V) {
-        if self.transpose { std::mem::swap(&mut x, &mut y) };
-        if self.flip_x { x = max - x };
-        if self.flip_y { y = max - y };
+    pub fn map_xy<V: Copy + std::ops::Sub<Output = V>>(self, mut x: V, mut y: V, max: V) -> (V, V) {
+        if self.transpose {
+            std::mem::swap(&mut x, &mut y)
+        };
+        if self.flip_x {
+            x = max - x
+        };
+        if self.flip_y {
+            y = max - y
+        };
         (x, y)
     }
 }

@@ -17,7 +17,8 @@ fn ataxx_few() {
 
 #[test]
 fn ataxx_close() {
-    board_test_main(&AtaxxBoard::from_fen("ooooooo/xxxxooo/oxxxoo1/oxxxooo/ooxoooo/xxxxxoo/xxxxxxx x 0 1"))
+    let board = AtaxxBoard::from_fen("ooooooo/xxxxooo/oxxxoo1/oxxxooo/ooxoooo/xxxxxoo/xxxxxxx x 0 1");
+    board_test_main(&board)
 }
 
 #[test]

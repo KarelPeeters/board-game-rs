@@ -32,21 +32,31 @@ impl Heuristic<STTTBoard> for STTTTileHeuristic {
         }
 
         // tile
-        let tile_value = Coord::all().map(|c| {
-            self.oo_factor(c.om()) * self.oo_factor(c.os()) *
-                board.tile(c).map_or(0, |p| p.sign(board.next_player()))
-        }).sum::<i32>();
+        let tile_value = Coord::all()
+            .map(|c| {
+                self.oo_factor(c.om())
+                    * self.oo_factor(c.os())
+                    * board.tile(c).map_or(0, |p| p.sign(board.next_player()))
+            })
+            .sum::<i32>();
 
         // macro
-        let macr_value = (0..9).map(|om| {
-            self.oo_factor(om) *
-                board.macr(om).map_or(0, |p| p.sign(board.next_player()))
-        }).sum::<i32>() * self.macro_factor;
+        let macr_value = (0..9)
+            .map(|om| self.oo_factor(om) * board.macr(om).map_or(0, |p| p.sign(board.next_player())))
+            .sum::<i32>()
+            * self.macro_factor;
 
         tile_value + macr_value
     }
 
-    fn value_update(&self, board: &STTTBoard, board_value: i32, board_length: u32, mv: Coord, child: &STTTBoard) -> i32 {
+    fn value_update(
+        &self,
+        board: &STTTBoard,
+        board_value: i32,
+        board_length: u32,
+        mv: Coord,
+        child: &STTTBoard,
+    ) -> i32 {
         // win
         if board.outcome().is_some() {
             return self.value(board, board_length + 1);
@@ -72,7 +82,7 @@ impl STTTTileHeuristic {
             1 | 3 | 5 | 7 => 0,
             0 | 2 | 6 | 8 => 1,
             4 => 2,
-            _ => panic!("Invalid oo value {}", oo)
+            _ => panic!("Invalid oo value {}", oo),
         };
         self.oo_factors[index]
     }

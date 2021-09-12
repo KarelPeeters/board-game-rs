@@ -15,15 +15,16 @@ impl AtaxxBoard {
         let mut board = AtaxxBoard::empty();
 
         let regex = Regex::new(FEN_REGEX).unwrap();
-        let captures = regex.captures(fen)
-            .unwrap_or_else(|| panic!("Invalid fen {:?}", fen));
+        let captures = regex.captures(fen).unwrap_or_else(|| panic!("Invalid fen {:?}", fen));
         assert_eq!(1 + 7 + 3, captures.len());
 
         for y in (0..7).rev() {
             let line = &captures[7 - y];
             let mut x = 0;
             for c in line.chars() {
-                if x >= 7 { panic!("Line {:?} too long", line) }
+                if x >= 7 {
+                    panic!("Line {:?} too long", line)
+                }
                 let tiles = Tiles::coord(Coord::from_xy(x, y as u8));
                 match c {
                     'x' => board.tiles_a |= tiles,
@@ -89,7 +90,13 @@ impl AtaxxBoard {
             }
         }
 
-        write!(&mut s, " {} {} 1", player_symbol(self.next_player), self.moves_since_last_copy).unwrap();
+        write!(
+            &mut s,
+            " {} {} 1",
+            player_symbol(self.next_player),
+            self.moves_since_last_copy
+        )
+        .unwrap();
 
         s
     }
@@ -122,7 +129,12 @@ impl Display for AtaxxBoard {
             }
 
             if y == 3 {
-                write!(f, "    {}  {}", player_symbol(self.next_player), self.moves_since_last_copy)?;
+                write!(
+                    f,
+                    "    {}  {}",
+                    player_symbol(self.next_player),
+                    self.moves_since_last_copy
+                )?;
             }
             writeln!(f)?;
         }

@@ -1,16 +1,17 @@
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
+use std::panic::RefUnwindSafe;
 
 use internal_iterator::InternalIterator;
 use rand::Rng;
 
 use crate::symmetry::Symmetry;
-use std::panic::RefUnwindSafe;
 
 /// The main trait of this crate. Represents the state of a game.
 /// Each game implementation is supposed to provide it's own constructors to allow for customizable start positions.
 pub trait Board: 'static + Debug + Display + Clone + Eq + Hash + Send + Sync + RefUnwindSafe
-    where for<'a> Self: BoardAvailableMoves<'a, Self>
+where
+    for<'a> Self: BoardAvailableMoves<'a, Self>,
 {
     /// The type used to represent moves on this board.
     type Move: Debug + Eq + Ord + Hash + Copy + Send + Sync + RefUnwindSafe;
@@ -70,8 +71,8 @@ pub trait Board: 'static + Debug + Display + Clone + Eq + Hash + Send + Sync + R
 /// A helper trait to get the correct lifetimes for [BoardAvailableMoves::available_moves].
 /// This is a workaround to get generic associated types, See <https://github.com/rust-lang/rust/issues/44265>.
 pub trait BoardAvailableMoves<'a, B: Board> {
-    type MoveIterator: InternalIterator<Item=B::Move>;
-    type AllMoveIterator: InternalIterator<Item=B::Move>;
+    type MoveIterator: InternalIterator<Item = B::Move>;
+    type AllMoveIterator: InternalIterator<Item = B::Move>;
 
     /// All theoretically possible moves, for any possible board.
     /// Moves returned by `available_moves` will always be a subset of these moves.
@@ -113,7 +114,7 @@ impl Player {
         }
     }
 
-    pub fn sign<V: num::One + std::ops::Neg<Output=V>>(self, pov: Player) -> V {
+    pub fn sign<V: num::One + std::ops::Neg<Output = V>>(self, pov: Player) -> V {
         if self == pov {
             V::one()
         } else {

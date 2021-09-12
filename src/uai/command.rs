@@ -40,35 +40,36 @@ mod parse {
     use nom::bytes::complete::{tag, take_until, take_while};
     use nom::character::complete::digit1;
     use nom::combinator::{eof, map, value};
-    use nom::IResult;
     use nom::sequence::{preceded, terminated, tuple};
+    use nom::IResult;
 
     use crate::uai::command::{Command, GoTimeSettings, Position};
 
     pub fn command(input: &str) -> IResult<&str, Command> {
         let int = || map(digit1, |s: &str| s.parse().unwrap());
 
-        let move_time = preceded(
-            tag("movetime "),
-            map(int(), GoTimeSettings::Move),
-        );
+        let move_time = preceded(tag("movetime "), map(int(), GoTimeSettings::Move));
 
         let clock_time = map(
             tuple((
-                tag("btime "), int(),
-                tag(" wtime "), int(),
-                tag(" binc "), int(),
-                tag(" winc "), int(),
+                tag("btime "),
+                int(),
+                tag(" wtime "),
+                int(),
+                tag(" binc "),
+                int(),
+                tag(" winc "),
+                int(),
             )),
-            |(_, b_time, _, w_time, _, b_inc, _, w_inc)| {
-                GoTimeSettings::Clock { b_time, w_time, b_inc, w_inc }
+            |(_, b_time, _, w_time, _, b_inc, _, w_inc)| GoTimeSettings::Clock {
+                b_time,
+                w_time,
+                b_inc,
+                w_inc,
             },
         );
 
-        let go = preceded(
-            tag("go "),
-            map(alt((move_time, clock_time)), Command::Go),
-        );
+        let go = preceded(tag("go "), map(alt((move_time, clock_time)), Command::Go));
 
         let position = preceded(
             tag("position "),
@@ -84,15 +85,8 @@ mod parse {
         let set_option = preceded(
             tag("setoption "),
             map(
-                tuple((
-                    tag("name "),
-                    take_until(" "),
-                    tag(" value "),
-                    take_while(|_| true)
-                )),
-                |(_, name, _, value)| {
-                    Command::SetOption { name, value }
-                },
+                tuple((tag("name "), take_until(" "), tag(" value "), take_while(|_| true))),
+                |(_, name, _, value)| Command::SetOption { name, value },
             ),
         );
 

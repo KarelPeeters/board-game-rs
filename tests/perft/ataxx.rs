@@ -5,6 +5,7 @@ use crate::perft::perft_main;
 ///Test cases from <https://github.com/kz04px/libataxx/blob/master/tests/perft.cpp>, edited to remove move counters.
 #[test]
 fn ataxx_perft() {
+    #[rustfmt::skip]
     perft_main(
         AtaxxBoard::from_fen,
         Some(AtaxxBoard::to_fen),

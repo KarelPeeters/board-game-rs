@@ -1,5 +1,5 @@
-use std::collections::{BTreeMap, HashSet};
 use std::collections::hash_map::RandomState;
+use std::collections::{BTreeMap, HashSet};
 use std::iter::FromIterator;
 use std::panic::catch_unwind;
 
@@ -10,9 +10,9 @@ use rand_xoshiro::Xoroshiro64StarStar;
 use board_game::board::Board;
 use board_game::symmetry::Symmetry;
 
-mod sttt;
 mod ataxx;
 mod chess;
+mod sttt;
 
 pub fn board_test_main<B: Board>(board: &B) {
     println!("Currently testing board\n{:?}\n{}", board, board);
@@ -49,7 +49,11 @@ fn test_available_match<B: Board>(board: &B) {
     // check that every generated move is indeed available, and that it is contained within all possible moves
     for &mv in &available {
         assert!(board.is_available_move(mv), "generated move {:?} is not available", mv);
-        assert!(all.contains(&mv), "generated move {:?} is not in all_possible_moves", mv);
+        assert!(
+            all.contains(&mv),
+            "generated move {:?} is not in all_possible_moves",
+            mv
+        );
     }
 
     // check that every available move is generated
@@ -62,8 +66,16 @@ fn test_available_match<B: Board>(board: &B) {
     }
 
     // check that there are no duplicates anywhere
-    assert_eq!(all.len(), HashSet::<_, RandomState>::from_iter(&all).len(), "Found duplicate move");
-    assert_eq!(available.len(), HashSet::<_, RandomState>::from_iter(&available).len(), "Found duplicate move");
+    assert_eq!(
+        all.len(),
+        HashSet::<_, RandomState>::from_iter(&all).len(),
+        "Found duplicate move"
+    );
+    assert_eq!(
+        available.len(),
+        HashSet::<_, RandomState>::from_iter(&available).len(),
+        "Found duplicate move"
+    );
 }
 
 /// Test whether the random move distribution is uniform using
@@ -80,7 +92,10 @@ fn test_random_available_uniform<B: Board>(board: &B) {
     let total_samples = 1000 * available_move_count;
     let expected_samples = total_samples as f32 / available_move_count as f32;
 
-    println!("Available moves: {}, samples: {}, expected: {}", available_move_count, total_samples, expected_samples);
+    println!(
+        "Available moves: {}, samples: {}, expected: {}",
+        available_move_count, total_samples, expected_samples
+    );
 
     let mut counts: BTreeMap<B::Move, u32> = BTreeMap::new();
     for _ in 0..total_samples {
@@ -93,8 +108,16 @@ fn test_random_available_uniform<B: Board>(board: &B) {
     }
 
     for (&mv, &count) in &counts {
-        assert!((count as f32) > 0.8 * expected_samples, "Move {:?} not generated often enough", mv);
-        assert!((count as f32) < 1.2 * expected_samples, "Move {:?} generated too often", mv);
+        assert!(
+            (count as f32) > 0.8 * expected_samples,
+            "Move {:?} not generated often enough",
+            mv
+        );
+        assert!(
+            (count as f32) < 1.2 * expected_samples,
+            "Move {:?} generated too often",
+            mv
+        );
     }
 }
 
@@ -123,11 +146,8 @@ fn test_symmetry<B: Board>(board: &B) {
         assert_eq!(board.next_player(), mapped.next_player());
 
         if !board.is_done() {
-            let mut expected_moves: Vec<B::Move> = board.available_moves()
-                .map(|c| B::map_move(sym, c))
-                .collect();
-            let mut actual_moves: Vec<B::Move> = mapped.available_moves()
-                .collect();
+            let mut expected_moves: Vec<B::Move> = board.available_moves().map(|c| B::map_move(sym, c)).collect();
+            let mut actual_moves: Vec<B::Move> = mapped.available_moves().collect();
 
             expected_moves.sort();
             actual_moves.sort();

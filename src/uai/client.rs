@@ -1,5 +1,5 @@
-use std::io::{BufRead, BufReader, BufWriter, Read};
 use std::io::Write;
+use std::io::{BufRead, BufReader, BufWriter, Read};
 use std::time::Instant;
 
 use crate::board::{Board, Player};
@@ -8,7 +8,8 @@ use crate::uai::command::{Command, GoTimeSettings, Position};
 
 pub fn run(
     mut bot: impl FnMut(&AtaxxBoard, u32) -> (Move, String),
-    name: &str, author: &str,
+    name: &str,
+    author: &str,
     input: impl Read,
     output: impl Write,
     log: impl Write,
@@ -34,8 +35,7 @@ pub fn run(
         writeln!(log, "> {}", line).unwrap();
         println!("> {}", line);
 
-        let command = Command::parse(line)
-            .unwrap_or_else(|_| panic!("Failed to parse command '{}'", line));
+        let command = Command::parse(line).unwrap_or_else(|_| panic!("Failed to parse command '{}'", line));
 
         match command {
             Command::Uai => {
@@ -47,7 +47,11 @@ pub fn run(
                 writeln!(output, "readyok")?;
             }
             Command::SetOption { name, value } => {
-                writeln!(output, "info < ignoring command setoption, name={}, value={}", name, value)?;
+                writeln!(
+                    output,
+                    "info < ignoring command setoption, name={}, value={}",
+                    name, value
+                )?;
             }
             Command::NewGame => {
                 curr_board = Some(AtaxxBoard::default());
@@ -59,8 +63,7 @@ pub fn run(
                 });
             }
             Command::Go(time_settings) => {
-                let curr_board = curr_board.as_ref()
-                    .expect("Received go command without having a board");
+                let curr_board = curr_board.as_ref().expect("Received go command without having a board");
 
                 let time_to_use = match time_settings {
                     GoTimeSettings::Move(time) => time * 95 / 100,

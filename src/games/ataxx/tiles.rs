@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter};
 
 use crate::games::ataxx::mv::Coord;
 use crate::symmetry::D4Symmetry;
-use crate::util::bits::{BitIter, get_nth_set_bit};
+use crate::util::bits::{get_nth_set_bit, BitIter};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Tiles(u64);
@@ -81,8 +81,14 @@ impl Tiles {
 
     pub fn copy_targets(self) -> Self {
         // counterclockwise starting from left
-        self.left() | self.left().down() | self.down() | self.right().down()
-            | self.right() | self.right().up() | self.up() | self.left().up()
+        self.left()
+            | self.left().down()
+            | self.down()
+            | self.right().down()
+            | self.right()
+            | self.right().up()
+            | self.up()
+            | self.left().up()
     }
 
     pub fn jump_targets(self) -> Self {

@@ -1,5 +1,5 @@
-use std::fmt::{Display, Formatter};
 use std::fmt::Write;
+use std::fmt::{Display, Formatter};
 
 use chess::{BoardStatus, ChessMove, Color, MoveGen, Piece};
 use internal_iterator::{Internal, InternalIterator, IteratorExt};
@@ -19,7 +19,10 @@ pub struct ChessBoard {
 
 impl ChessBoard {
     pub fn new(inner: chess::Board, reversible_moves: u32) -> Self {
-        ChessBoard { inner, reversible_moves }
+        ChessBoard {
+            inner,
+            reversible_moves,
+        }
     }
 
     pub fn inner(&self) -> &chess::Board {
@@ -66,9 +69,16 @@ impl Board for ChessBoard {
 
         let capture = self.inner.color_on(mv.get_dest()).is_some();
         let pawn_move = self.inner.piece_on(mv.get_source()) == Some(Piece::Pawn);
-        let reversible_moves = if capture || pawn_move { 0 } else { self.reversible_moves + 1 };
+        let reversible_moves = if capture || pawn_move {
+            0
+        } else {
+            self.reversible_moves + 1
+        };
 
-        ChessBoard { inner: self.inner.make_move_new(mv), reversible_moves }
+        ChessBoard {
+            inner: self.inner.make_move_new(mv),
+            reversible_moves,
+        }
     }
 
     fn outcome(&self) -> Option<Outcome> {
@@ -78,7 +88,7 @@ impl Board for ChessBoard {
             match self.inner.status() {
                 BoardStatus::Ongoing => None,
                 BoardStatus::Stalemate => Some(Outcome::Draw),
-                BoardStatus::Checkmate => Some(Outcome::WonBy(self.next_player().other()))
+                BoardStatus::Checkmate => Some(Outcome::WonBy(self.next_player().other())),
             }
         }
     }
@@ -97,7 +107,10 @@ pub struct AllMoveIterator;
 
 impl InternalIterator for AllMoveIterator {
     type Item = ChessMove;
-    fn find_map<R, F>(self, mut f: F) -> Option<R> where F: FnMut(Self::Item) -> Option<R> {
+    fn find_map<R, F>(self, mut f: F) -> Option<R>
+    where
+        F: FnMut(Self::Item) -> Option<R>,
+    {
         for from in chess::ALL_SQUARES {
             for to in chess::ALL_SQUARES {
                 if let Some(x) = f(ChessMove::new(from, to, None)) {
@@ -148,7 +161,11 @@ impl Default for ChessBoard {
 
 impl Display for ChessBoard {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ChessBoard(\"{}\", reversible_moves: {})", self.inner, self.reversible_moves)
+        write!(
+            f,
+            "ChessBoard(\"{}\", reversible_moves: {})",
+            self.inner, self.reversible_moves
+        )
     }
 }
 
@@ -157,7 +174,9 @@ pub fn moves_to_pgn(moves: &[ChessMove]) -> String {
     let f = &mut result;
 
     for (i, mv) in moves.iter().enumerate() {
-        if i % 2 == 0 { write!(f, "{}. ", 1 + i / 2).unwrap(); }
+        if i % 2 == 0 {
+            write!(f, "{}. ", 1 + i / 2).unwrap();
+        }
 
         write!(f, "{}{}", mv.get_source(), mv.get_dest()).unwrap();
         if let Some(promotion) = mv.get_promotion() {
