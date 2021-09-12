@@ -1,7 +1,6 @@
-#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Command<'a> {
-    UAI,
+    Uai,
     IsReady,
     NewGame,
     Quit,
@@ -99,7 +98,7 @@ mod parse {
 
         let main = alt((
             value(Command::NewGame, tag("uainewgame")),
-            value(Command::UAI, tag("uai")),
+            value(Command::Uai, tag("uai")),
             value(Command::IsReady, tag("isready")),
             value(Command::Quit, tag("quit")),
             position,
@@ -119,7 +118,7 @@ mod tests {
 
     #[test]
     fn basics() {
-        assert_eq!(Ok(Command::UAI), Command::parse("uai"));
+        assert_eq!(Ok(Command::Uai), Command::parse("uai"));
         assert_eq!(Ok(Command::IsReady), Command::parse("isready"));
         assert_eq!(Ok(Command::NewGame), Command::parse("uainewgame"));
         assert_eq!(Ok(Command::Quit), Command::parse("quit"));

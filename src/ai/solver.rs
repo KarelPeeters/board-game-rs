@@ -41,28 +41,27 @@ pub fn find_forcing_winner(board: &impl Board, depth: u32) -> Option<Player> {
 
 /// Return whether this board is a double forced draw, ie. no matter what either player does the game can only end in a draw.
 /// Returns `None` if the result is unknown.
-pub fn is_double_forced_draw(board: &impl Board, depth: u32) -> Result<bool, ()> {
+pub fn is_double_forced_draw(board: &impl Board, depth: u32) -> Option<bool> {
     if let Some(outcome) = board.outcome() {
-        return Ok(outcome == Outcome::Draw);
+        return Some(outcome == Outcome::Draw);
     }
-    if depth == 0 { return Err(()); }
+    if depth == 0 { return None; }
 
-    //TODO this is kind of ugly, consider writing a function try_fold or something
-    //  that handles this back and forth conversion
+    //TODO this Some/None mapping is super confusing, maybe add try_fold to internal_iterator and use that
     let result = board.available_moves().find_map(|mv| {
         let child = board.clone_and_play(mv);
 
         match is_double_forced_draw(&child, depth - 1) {
-            Ok(true) => None,
-            Ok(false) => Some(false),
-            Err(()) => Some(true),
+            Some(true) => None,
+            Some(false) => Some(false),
+            None => Some(true),
         }
     });
 
     match result {
-        Some(true) => Err(()),
-        Some(false) => Ok(false),
-        None => Ok(true)
+        Some(true) => None,
+        Some(false) => Some(false),
+        None => Some(true)
     }
 }
 

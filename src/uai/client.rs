@@ -38,7 +38,7 @@ pub fn run(
             .unwrap_or_else(|_| panic!("Failed to parse command '{}'", line));
 
         match command {
-            Command::UAI => {
+            Command::Uai => {
                 writeln!(output, "id name {}", name)?;
                 writeln!(output, "id author {}", author)?;
                 writeln!(output, "uaiok")?;

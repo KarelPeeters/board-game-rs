@@ -40,7 +40,6 @@ impl Default for STTTBoard {
 }
 
 impl STTTBoard {
-    #[allow(clippy::unusual_byte_groupings)]
     const FULL_MASK: u32 = 0b111_111_111;
 
     pub fn tile(&self, coord: Coord) -> Option<Player> {
@@ -287,7 +286,6 @@ fn map_oo(sym: D4Symmetry, oo: u8) -> u8 {
     x + y * 3
 }
 
-#[allow(clippy::unusual_byte_groupings)]
 fn map_grid(sym: D4Symmetry, grid: u32) -> u32 {
     // this could be implemented faster but it's not on a hot path
     let mut result = 0;
