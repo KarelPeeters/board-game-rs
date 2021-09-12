@@ -1,7 +1,7 @@
 #![warn(missing_debug_implementations)]
 
 //! A [Board](crate::board::Board) abstraction for deterministic two player games.
-//! This code to be generic over the actual game, so it only needs to written once.
+//! This allows for code to be generic over the actual game, so it only needs to written once.
 //!
 //! # Features
 //!
