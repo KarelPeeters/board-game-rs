@@ -1,3 +1,4 @@
+//! Utilities to run bots against each other and report the results.
 use std::fmt::Debug;
 use std::fmt::Write;
 use std::ops::Add;
@@ -11,6 +12,12 @@ use rayon::iter::ParallelIterator;
 use crate::ai::Bot;
 use crate::board::{Board, Outcome};
 
+/// Run `bot_l` against `bot_r` against each other on the board given by `start`.
+///
+/// `games_per_side` games are run, except if `both_sides` is true, in
+/// which case a match consists of two games where players switch sides.
+///
+/// Progress indications can be displayed at intervals of `print_progress_every`.
 #[must_use]
 pub fn run<B: Board, L: Bot<B>, R: Bot<B>>(
     start: impl Fn() -> B + Sync,
@@ -20,9 +27,9 @@ pub fn run<B: Board, L: Bot<B>, R: Bot<B>>(
     both_sides: bool,
     print_progress_every: Option<u32>,
 ) -> BotGameResult {
-    // this instantiates both both at least once so we catch errors before starting a bunch of threads
-    let debug_l = debug_to_sting(&bot_l());
-    let debug_r = debug_to_sting(&bot_r());
+    // this instantiates both at least once so we catch errors before starting a bunch of threads
+    let debug_l = debug_to_string(&bot_l());
+    let debug_r = debug_to_string(&bot_r());
 
     let progress_counter = AtomicU32::default();
     let game_count = if both_sides { 2 * games_per_side } else { games_per_side };
@@ -73,6 +80,8 @@ pub fn run<B: Board, L: Bot<B>, R: Bot<B>>(
             }
         }
 
+        // SAFETY: unwrap is safe because we could only break out of the
+        // for loop if `board.is_done()` is true.
         let outcome = board.outcome().unwrap();
         let win_first = (outcome == Outcome::WonBy(player_first)) as u32;
         let win_second = (outcome == Outcome::WonBy(player_first.other())) as u32;
@@ -125,6 +134,7 @@ impl std::ops::Add for ReductionResult {
     }
 }
 
+/// Structure returned by the function [`run`].
 #[derive(Debug)]
 pub struct BotGameResult {
     pub game_count: u32,
@@ -149,7 +159,7 @@ pub struct BotGameResult {
     pub debug_r: String,
 }
 
-fn debug_to_sting(d: &impl Debug) -> String {
+fn debug_to_string(d: &impl Debug) -> String {
     let mut s = String::new();
     write!(&mut s, "{:?}", d).unwrap();
     s

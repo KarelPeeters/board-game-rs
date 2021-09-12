@@ -1,7 +1,18 @@
+//! Utilities with compact bit data structures.
 use num::{PrimInt, Unsigned};
 use num::traits::WrappingSub;
 
 #[derive(Debug)]
+/// Iterator over the indices of the set bits of an integer,
+/// from least to most significant.
+///
+/// # Example
+///
+/// ```
+/// use board_game::util::bits::BitIter;
+/// let b = BitIter::new(0b10011u32);
+/// assert_eq!(b.collect::<Vec<_>>(), vec![0, 1, 4]);
+/// ```
 pub struct BitIter<N: PrimInt + Unsigned> {
     left: N,
 }

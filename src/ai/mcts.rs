@@ -356,7 +356,7 @@ pub fn mcts_build_tree<B: Board>(root_board: &B, iterations: u64, exploration_we
         //we've solved the root node, so we're done
         if tree[0].solution().is_some() { break; }
 
-        mcts_solver_step(&mut tree, 0, &root_board, exploration_weight, rng);
+        mcts_solver_step(&mut tree, 0, root_board, exploration_weight, rng);
     }
 
     tree

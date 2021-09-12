@@ -76,7 +76,7 @@ fn abs_distance(a: u8, b: u8) -> u8 {
 
 impl Coord {
     pub fn to_uai(self) -> String {
-        format!("{}{}", ('a' as u8 + self.x()) as char, self.y() + 1)
+        format!("{}{}", (b'a' + self.x()) as char, self.y() + 1)
     }
 
     pub fn from_uai(s: &str) -> Coord {

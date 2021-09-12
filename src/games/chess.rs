@@ -51,6 +51,8 @@ impl Board for ChessBoard {
         assert!(!self.is_done());
         let mut move_gen = MoveGen::new_legal(&self.inner);
         let picked = rng.gen_range(0..move_gen.len());
+        // SAFETY: unwrap is safe because the index is less than the
+        // number of objects in the iterator.
         move_gen.nth(picked).unwrap()
     }
 

@@ -51,7 +51,7 @@ impl AtaxxBoard {
         if self.tiles_b.has(coord) {
             return Some(Player::B);
         }
-        return None;
+        None
     }
 
     pub fn tiles_a(&self) -> Tiles {

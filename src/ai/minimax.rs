@@ -212,6 +212,14 @@ impl<B: Board, H: Heuristic<B>, R: Rng> MiniMaxBot<B, H, R> {
 impl<B: Board, H: Heuristic<B> + Debug, R: Rng> Bot<B> for MiniMaxBot<B, H, R> {
     fn select_move(&mut self, board: &B) -> B::Move {
         assert!(!board.is_done());
+        // SAFETY: unwrap is safe because:
+        // * depth > 0 (see [`MiniMaxBot::new`])
+        // * the board is not done (see assert)
+        // * the assert in [`minimax`] states that
+        //     best_move.is_none() => board.is_done() || depth == 0
+        //   by contraposition, we have
+        //     !board.is_done() && depth > 0 => best_move.is_some()
+        // hence best_move.is_some()
         minimax(board, &self.heuristic, self.depth, &mut self.rng).best_move.unwrap()
     }
 }

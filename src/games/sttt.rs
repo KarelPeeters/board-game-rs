@@ -40,6 +40,7 @@ impl Default for STTTBoard {
 }
 
 impl STTTBoard {
+    #[allow(clippy::unusual_byte_groupings)]
     const FULL_MASK: u32 = 0b111_111_111;
 
     pub fn tile(&self, coord: Coord) -> Option<Player> {
@@ -203,7 +204,7 @@ pub type CoordIter = std::iter::Map<std::ops::Range<u8>, fn(u8) -> Coord>;
 impl Coord {
 
     pub fn all() -> CoordIter {
-        (0..81).map(|o| Self::from_o(o))
+        (0..81).map(Self::from_o)
     }
 
     pub fn all_yx() -> CoordIter {
@@ -286,6 +287,7 @@ fn map_oo(sym: D4Symmetry, oo: u8) -> u8 {
     x + y * 3
 }
 
+#[allow(clippy::unusual_byte_groupings)]
 fn map_grid(sym: D4Symmetry, grid: u32) -> u32 {
     // this could be implemented faster but it's not on a hot path
     let mut result = 0;

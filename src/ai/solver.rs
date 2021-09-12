@@ -42,8 +42,9 @@ pub fn find_forcing_winner(board: &impl Board, depth: u32) -> Option<Player> {
 /// Return whether this board is a double forced draw, ie. no matter what either player does the game can only end in a draw.
 /// Returns `None` if the result is unknown.
 pub fn is_double_forced_draw(board: &impl Board, depth: u32) -> Result<bool, ()> {
-    if board.outcome() == Some(Outcome::Draw) { return Ok(true); }
-    if board.outcome().is_some() { return Ok(false); }
+    if let Some(outcome) = board.outcome() {
+        return Ok(outcome == Outcome::Draw);
+    }
     if depth == 0 { return Err(()); }
 
     //TODO this is kind of ugly, consider writing a function try_fold or something

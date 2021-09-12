@@ -17,7 +17,7 @@ impl Heuristic<ChessBoard> for ChessPieceValueHeuristic {
     fn value(&self, board: &ChessBoard, length: u32) -> Self::V {
         if board.is_done() {
             return SolverHeuristic.value(board, length);
-        };
+        }
 
         let mut total = 0;
 
@@ -31,10 +31,12 @@ impl Heuristic<ChessBoard> for ChessPieceValueHeuristic {
             };
 
             for square in *board.inner().pieces(piece) {
-                let matches = board.inner().color_on(square).unwrap() == board.inner().side_to_move();
-                let sign = if matches { 1 } else { -1 };
-
-                total += value * sign;
+                // SAFETY: unwrap is safe because `square` contains a piece.
+                if board.inner().color_on(square).unwrap() == board.inner().side_to_move() {
+                    total += value;
+                } else {
+                    total -= value;
+                }
             }
         }
 

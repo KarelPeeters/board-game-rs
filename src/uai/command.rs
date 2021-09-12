@@ -1,3 +1,4 @@
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Command<'a> {
     UAI,
@@ -50,7 +51,7 @@ mod parse {
 
         let move_time = preceded(
             tag("movetime "),
-            map(int(), |n| GoTimeSettings::Move(n)),
+            map(int(), GoTimeSettings::Move),
         );
 
         let clock_time = map(
@@ -118,9 +119,9 @@ mod tests {
 
     #[test]
     fn basics() {
-        assert_eq!(Command::UAI, Command::parse("uai").unwrap());
-        assert_eq!(Command::IsReady, Command::parse("isready").unwrap());
-        assert_eq!(Command::NewGame, Command::parse("uainewgame").unwrap());
-        assert_eq!(Command::Quit, Command::parse("quit").unwrap());
+        assert_eq!(Ok(Command::UAI), Command::parse("uai"));
+        assert_eq!(Ok(Command::IsReady), Command::parse("isready"));
+        assert_eq!(Ok(Command::NewGame), Command::parse("uainewgame"));
+        assert_eq!(Ok(Command::Quit), Command::parse("quit"));
     }
 }

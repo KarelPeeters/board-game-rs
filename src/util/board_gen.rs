@@ -1,3 +1,4 @@
+//! Utilities to generate a `Board` in a random state.
 use rand::Rng;
 
 use crate::ai::solver::{find_forcing_winner, is_double_forced_draw};
@@ -18,6 +19,7 @@ pub fn random_board_with_moves<B: Board>(start: &B, n: u32, rng: &mut impl Rng) 
     }
 }
 
+/// Generate a random `Board` with a specific `Outcome`.
 pub fn random_board_with_outcome<B: Board>(start: &B, outcome: Outcome, rng: &mut impl Rng) -> B {
     loop {
         let mut board = start.clone();
