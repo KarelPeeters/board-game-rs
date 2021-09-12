@@ -45,7 +45,7 @@ impl Heuristic<AtaxxBoard> for AtaxxTileHeuristic {
     }
 
     fn value(&self, board: &AtaxxBoard, length: u32) -> Self::V {
-        if let Some(_) = board.outcome() {
+        if board.is_done() {
             // return near-max values for wins/draws/losses
             SolverHeuristic.value(board, length)
         } else {

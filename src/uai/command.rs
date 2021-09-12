@@ -1,3 +1,4 @@
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Command<'a> {
     UAI,
@@ -50,7 +51,7 @@ mod parse {
 
         let move_time = preceded(
             tag("movetime "),
-            map(int(), |n| GoTimeSettings::Move(n)),
+            map(int(), GoTimeSettings::Move),
         );
 
         let clock_time = map(

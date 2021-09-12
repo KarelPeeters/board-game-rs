@@ -33,7 +33,7 @@ fn perft_recurse<B: Board + Hash>(map: &mut HashMap<(B, u32), u64>, board: B, de
     });
 
     map.insert(key, p);
-    return p;
+    p
 }
 
 /// Structure returned by [`average_game_stats`].
