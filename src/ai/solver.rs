@@ -49,21 +49,22 @@ pub fn is_double_forced_draw(board: &impl Board, depth: u32) -> Option<bool> {
         return None;
     }
 
-    //TODO this Some/None mapping is super confusing, maybe add try_fold to internal_iterator and use that
-    let result = board.available_moves().find_map(|mv| {
+    let mut unknown = false;
+    let draw_or_unknown = board.available_moves().all(|mv| {
         let child = board.clone_and_play(mv);
-
         match is_double_forced_draw(&child, depth - 1) {
-            Some(true) => None,
-            Some(false) => Some(false),
-            None => Some(true),
+            Some(draw) => draw,
+            None => {
+                unknown = true;
+                true
+            }
         }
     });
 
-    match result {
-        Some(true) => None,
-        Some(false) => Some(false),
-        None => Some(true),
+    if draw_or_unknown && unknown {
+        None
+    } else {
+        Some(draw_or_unknown)
     }
 }
 
