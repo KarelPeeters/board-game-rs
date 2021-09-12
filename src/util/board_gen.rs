@@ -8,10 +8,10 @@ pub fn random_board_with_moves<B: Board>(start: &B, n: u32, rng: &mut impl Rng) 
     //this implementation could be made faster with backtracking instead of starting from scratch,
     // but this only starts to matter for very high n and that's not really the main use case
 
-    loop {
+    'newtry: loop {
         let mut board = start.clone();
         for _ in 0..n {
-            if board.is_done() { break; }
+            if board.is_done() { continue 'newtry; }
             board.play(board.random_available_move(rng))
         }
         return board;
