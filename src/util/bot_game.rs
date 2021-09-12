@@ -80,6 +80,8 @@ pub fn run<B: Board, L: Bot<B>, R: Bot<B>>(
             }
         }
 
+        // SAFETY: unwrap is safe because we could only break out of the
+        // for loop if `board.is_done()` is true.
         let outcome = board.outcome().unwrap();
         let win_first = (outcome == Outcome::WonBy(player_first)) as u32;
         let win_second = (outcome == Outcome::WonBy(player_first.other())) as u32;
