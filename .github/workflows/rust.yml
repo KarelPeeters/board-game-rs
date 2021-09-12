@@ -19,4 +19,4 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-targets
       - name: Rustfmt
-          run: cargo fmt -- --check
+        run: cargo fmt -- --check
