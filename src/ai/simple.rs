@@ -1,3 +1,4 @@
+//! Two simple bots: `RandomBot` and `RolloutBot`.
 use std::fmt::{Debug, Formatter};
 
 use internal_iterator::InternalIterator;
@@ -7,6 +8,7 @@ use crate::ai::Bot;
 use crate::board::Board;
 use crate::wdl::POV;
 
+/// Bot that choses moves randomly uniformly among possible moves.
 pub struct RandomBot<R: Rng> {
     rng: R,
 }
@@ -29,6 +31,10 @@ impl<B: Board, R: Rng> Bot<B> for RandomBot<R> {
     }
 }
 
+/// Bot that choses moves after simulating random games for each of them.
+///
+/// The same number of simulations `rollouts / nb_moves` is done for
+/// each move, and the move resulting in the best average score is selected.
 pub struct RolloutBot<R: Rng> {
     rollouts: u32,
     rng: R,
