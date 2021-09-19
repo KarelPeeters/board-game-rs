@@ -10,7 +10,7 @@ use crate::symmetry::UnitSymmetry;
 
 pub const MAX_REVERSIBLE_MOVES: u32 = 100;
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Default, Debug, Clone, Eq, PartialEq, Hash)]
 pub struct ChessBoard {
     inner: chess::Board,
     /// The number of consecutive reversible moves, resets when an irreversible move is played.
@@ -143,19 +143,17 @@ impl<'a> BoardAvailableMoves<'a, ChessBoard> for ChessBoard {
     }
 }
 
-fn color_to_player(color: Color) -> Player {
+pub fn color_to_player(color: Color) -> Player {
     match color {
         Color::White => Player::A,
         Color::Black => Player::B,
     }
 }
 
-impl Default for ChessBoard {
-    fn default() -> Self {
-        ChessBoard {
-            inner: chess::Board::default(),
-            reversible_moves: 0,
-        }
+pub fn player_to_color(player: Player) -> Color {
+    match player {
+        Player::A => Color::White,
+        Player::B => Color::Black,
     }
 }
 

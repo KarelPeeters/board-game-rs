@@ -112,6 +112,12 @@ impl<V: num::Float> WDL<V> {
     }
 }
 
+impl<V> WDL<V> {
+    pub fn to_slice(self) -> [V; 3] {
+        [self.win, self.draw, self.loss]
+    }
+}
+
 impl<V: Copy> WDL<V> {
     pub fn cast<W>(self) -> WDL<W>
     where

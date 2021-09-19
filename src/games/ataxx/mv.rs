@@ -38,6 +38,11 @@ impl Coord {
         Coord(x + 8 * y)
     }
 
+    pub fn from_dense_i(i: u8) -> Coord {
+        assert!(i < 7 * 7);
+        Coord(i)
+    }
+
     pub fn from_sparse_i(i: u8) -> Coord {
         Coord::from_xy(i % 8, i / 8)
     }
