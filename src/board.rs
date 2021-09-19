@@ -100,9 +100,7 @@ pub enum Outcome {
 }
 
 impl Player {
-    pub fn both() -> [Player; 2] {
-        return [Player::A, Player::B];
-    }
+    pub const BOTH: [Player; 2] = [Player::A, Player::B];
 
     pub fn other(self) -> Player {
         match self {
