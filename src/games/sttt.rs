@@ -1,5 +1,5 @@
 use std::fmt;
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 
 use internal_iterator::{Internal, InternalIterator, IteratorExt};
 use itertools::Itertools;
@@ -250,6 +250,12 @@ impl Coord {
 }
 
 impl Debug for Coord {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "({}, {})", self.om(), self.os())
+    }
+}
+
+impl Display for Coord {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         write!(f, "({}, {})", self.om(), self.os())
     }

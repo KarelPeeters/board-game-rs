@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
-use std::panic::RefUnwindSafe;
+use std::panic::{RefUnwindSafe, UnwindSafe};
 
 use internal_iterator::InternalIterator;
 use rand::Rng;
@@ -9,12 +9,12 @@ use crate::symmetry::Symmetry;
 
 /// The main trait of this crate. Represents the state of a game.
 /// Each game implementation is supposed to provide it's own constructors to allow for customizable start positions.
-pub trait Board: 'static + Debug + Display + Clone + Eq + Hash + Send + Sync + RefUnwindSafe
+pub trait Board: 'static + Debug + Display + Clone + Eq + Hash + Send + Sync + UnwindSafe + RefUnwindSafe
 where
     for<'a> Self: BoardAvailableMoves<'a, Self>,
 {
     /// The type used to represent moves on this board.
-    type Move: Debug + Eq + Ord + Hash + Copy + Send + Sync + RefUnwindSafe;
+    type Move: Debug + Display + Eq + Ord + Hash + Copy + Send + Sync + UnwindSafe + RefUnwindSafe;
 
     /// The type used to represent board symmetries.
     type Symmetry: Symmetry;

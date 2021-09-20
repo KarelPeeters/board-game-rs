@@ -1,5 +1,5 @@
 use std::cmp::max;
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 
 use crate::games::ataxx::tiles::Tiles;
 use crate::symmetry::D4Symmetry;
@@ -21,6 +21,12 @@ impl Debug for Coord {
 }
 
 impl Debug for Move {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_uai())
+    }
+}
+
+impl Display for Move {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_uai())
     }
