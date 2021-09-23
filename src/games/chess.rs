@@ -8,9 +8,11 @@ use rand::Rng;
 use crate::board::{Board, BoardAvailableMoves, Outcome, Player};
 use crate::symmetry::UnitSymmetry;
 
-pub const MAX_REVERSIBLE_MOVES: u32 = 100;
+//TODO increase this again to match real chess
+//TODO implement 3-fold repetition rule (or was it 5-fold? doesn't matter, just implement 2-fold somewhere!)
+pub const MAX_LEGALLY_REVERSIBLE_MOVES: u32 = 100;
 
-#[derive(Default, Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct ChessBoard {
     inner: chess::Board,
     /// The number of consecutive reversible moves, resets when an irreversible move is played.
@@ -54,8 +56,6 @@ impl Board for ChessBoard {
         assert!(!self.is_done());
         let mut move_gen = MoveGen::new_legal(&self.inner);
         let picked = rng.gen_range(0..move_gen.len());
-        // SAFETY: unwrap is safe because the index is less than the
-        // number of objects in the iterator.
         move_gen.nth(picked).unwrap()
     }
 
@@ -69,7 +69,7 @@ impl Board for ChessBoard {
 
         let capture = self.inner.color_on(mv.get_dest()).is_some();
         let pawn_move = self.inner.piece_on(mv.get_source()) == Some(Piece::Pawn);
-        let reversible_moves = if capture || pawn_move {
+        let legally_reversible_moves = if capture || pawn_move {
             0
         } else {
             self.reversible_moves + 1
@@ -77,12 +77,12 @@ impl Board for ChessBoard {
 
         ChessBoard {
             inner: self.inner.make_move_new(mv),
-            reversible_moves,
+            reversible_moves: legally_reversible_moves,
         }
     }
 
     fn outcome(&self) -> Option<Outcome> {
-        if self.reversible_moves >= MAX_REVERSIBLE_MOVES {
+        if self.reversible_moves >= MAX_LEGALLY_REVERSIBLE_MOVES {
             Some(Outcome::Draw)
         } else {
             match self.inner.status() {
