@@ -157,6 +157,15 @@ pub fn player_to_color(player: Player) -> Color {
     }
 }
 
+impl Default for ChessBoard {
+    fn default() -> Self {
+        ChessBoard {
+            inner: chess::Board::default(),
+            reversible_moves: 0,
+        }
+    }
+}
+
 impl Display for ChessBoard {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
