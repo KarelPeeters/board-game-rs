@@ -82,7 +82,7 @@ impl Board for ChessBoard {
     }
 
     fn outcome(&self) -> Option<Outcome> {
-        if self.reversible_moves >= MAX_LEGALLY_REVERSIBLE_MOVES {
+        if self.reversible_moves > MAX_LEGALLY_REVERSIBLE_MOVES {
             Some(Outcome::Draw)
         } else {
             match self.inner.status() {
