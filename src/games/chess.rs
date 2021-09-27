@@ -106,7 +106,9 @@ impl Board for ChessBoard {
             self.non_pawn_or_capture_moves + 1
         };
 
-        let reset_history = capture || pawn_move || removed_en_passant || removed_castle;
+        // reset history if any non-reversible move is made or there is no limit on repetitions
+        let reset_history =
+            capture || pawn_move || removed_en_passant || removed_castle || self.rules.max_repetitions.is_none();
         let new_history = if reset_history {
             vec![]
         } else {
