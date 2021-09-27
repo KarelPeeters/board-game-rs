@@ -25,3 +25,5 @@ fn chess_en_passant() {
 
     board_test_main(&board);
 }
+
+//TODO add tests for 50 move and 3-move rule

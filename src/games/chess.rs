@@ -1,5 +1,6 @@
-use std::fmt::Write;
+use std::fmt::{Debug, Write};
 use std::fmt::{Display, Formatter};
+use std::hash::Hash;
 
 use chess::{BoardStatus, ChessMove, Color, MoveGen, Piece};
 use internal_iterator::{Internal, InternalIterator, IteratorExt};
@@ -8,30 +9,52 @@ use rand::Rng;
 use crate::board::{Board, BoardAvailableMoves, Outcome, Player};
 use crate::symmetry::UnitSymmetry;
 
-//TODO increase this again to match real chess
-//TODO implement 3-fold repetition rule (or was it 5-fold? doesn't matter, just implement 2-fold somewhere!)
-pub const MAX_LEGALLY_REVERSIBLE_MOVES: u32 = 100;
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct Rules {
+    max_repetitions: Option<u16>,
+    max_moves_without_pawn_or_capture: Option<u16>,
+    max_game_length: Option<u16>,
+}
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct ChessBoard {
     inner: chess::Board,
-    /// The number of consecutive reversible moves, resets when an irreversible move is played.
-    reversible_moves: u32,
+    rules: Rules,
+
+    // 0 if this is the first time this position was reached
+    //TODO remove pub and create getters
+    pub repetitions: u16,
+    pub non_pawn_or_capture_moves: u16,
+    pub game_length: u16,
+
+    history: Vec<u64>,
 }
 
 impl ChessBoard {
-    pub fn new(inner: chess::Board, reversible_moves: u32) -> Self {
+    pub fn default_with_rules(rules: Rules) -> Self {
+        Self::new(chess::Board::default(), rules)
+    }
+
+    //TODO expose other fields in constructor again
+    pub fn new(inner: chess::Board, rules: Rules) -> Self {
         ChessBoard {
             inner,
-            reversible_moves,
+            rules,
+            repetitions: 0,
+            non_pawn_or_capture_moves: 0,
+            game_length: 0,
+            history: vec![],
         }
     }
 
     pub fn inner(&self) -> &chess::Board {
         &self.inner
     }
-    pub fn reversible_moves(&self) -> u32 {
-        self.reversible_moves
+}
+
+impl Default for ChessBoard {
+    fn default() -> Self {
+        ChessBoard::default_with_rules(Rules::default())
     }
 }
 
@@ -67,22 +90,50 @@ impl Board for ChessBoard {
     fn clone_and_play(&self, mv: Self::Move) -> Self {
         assert!(!self.is_done());
 
+        let new_inner = self.inner.make_move_new(mv);
+
+        let side_to_move = self.inner.side_to_move();
+        let moved_piece = self.inner.piece_on(mv.get_source());
+
         let capture = self.inner.color_on(mv.get_dest()).is_some();
-        let pawn_move = self.inner.piece_on(mv.get_source()) == Some(Piece::Pawn);
-        let legally_reversible_moves = if capture || pawn_move {
+        let pawn_move = moved_piece == Some(Piece::Pawn);
+        let removed_en_passant = self.inner.en_passant().is_some();
+        let removed_castle = self.inner.castle_rights(side_to_move) != new_inner.castle_rights(side_to_move);
+
+        let new_non_pawn_or_capture_moves = if capture || pawn_move {
             0
         } else {
-            self.reversible_moves + 1
+            self.non_pawn_or_capture_moves + 1
         };
 
+        // reset history if any non-reversible move is made or there is no limit on repetitions
+        let reset_history =
+            capture || pawn_move || removed_en_passant || removed_castle || self.rules.max_repetitions.is_none();
+        let new_history = if reset_history {
+            vec![]
+        } else {
+            let mut new_history = self.history.clone();
+            new_history.push(self.inner.get_hash());
+            new_history
+        };
+
+        let repetitions = new_history.iter().filter(|&&h| new_inner.get_hash() == h).count() as u16;
+
         ChessBoard {
-            inner: self.inner.make_move_new(mv),
-            reversible_moves: legally_reversible_moves,
+            inner: new_inner,
+            rules: self.rules,
+            repetitions,
+            non_pawn_or_capture_moves: new_non_pawn_or_capture_moves,
+            game_length: self.game_length + 1,
+            history: new_history,
         }
     }
 
     fn outcome(&self) -> Option<Outcome> {
-        if self.reversible_moves > MAX_LEGALLY_REVERSIBLE_MOVES {
+        if self
+            .rules
+            .is_draw(self.repetitions, self.non_pawn_or_capture_moves, self.game_length)
+        {
             Some(Outcome::Draw)
         } else {
             match self.inner.status() {
@@ -157,11 +208,38 @@ pub fn player_to_color(player: Player) -> Color {
     }
 }
 
-impl Default for ChessBoard {
+impl Rules {
+    pub fn ccrl() -> Self {
+        Rules {
+            max_repetitions: None,
+            max_moves_without_pawn_or_capture: Some(100),
+            max_game_length: None,
+        }
+    }
+
+    pub fn unlimited() -> Self {
+        Rules {
+            max_repetitions: None,
+            max_moves_without_pawn_or_capture: None,
+            max_game_length: None,
+        }
+    }
+
+    pub fn is_draw(self, repetitions: u16, non_pawn_or_capture_moves: u16, game_length: u16) -> bool {
+        self.max_repetitions.map_or(false, |m| repetitions > m)
+            || self
+                .max_moves_without_pawn_or_capture
+                .map_or(false, |m| non_pawn_or_capture_moves > m)
+            || self.max_game_length.map_or(false, |m| game_length > m)
+    }
+}
+
+impl Default for Rules {
     fn default() -> Self {
-        ChessBoard {
-            inner: chess::Board::default(),
-            reversible_moves: 0,
+        Rules {
+            max_repetitions: Some(3),
+            max_moves_without_pawn_or_capture: Some(100),
+            max_game_length: None,
         }
     }
 }
@@ -170,8 +248,8 @@ impl Display for ChessBoard {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "ChessBoard(\"{}\", reversible_moves: {})",
-            self.inner, self.reversible_moves
+            "ChessBoard {{ inner: \"{}\", game_length: {}, non_pawn_or_capture_moves: {}, repetitions: {}, rules: {:?}, history: {:?} }}",
+            self.inner, self.game_length, self.non_pawn_or_capture_moves, self.repetitions, self.rules, self.history
         )
     }
 }
