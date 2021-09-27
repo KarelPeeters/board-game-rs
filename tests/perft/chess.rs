@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use board_game::games::chess::ChessBoard;
+use board_game::games::chess::{ChessBoard, Rules};
 
 use crate::perft::perft_main;
 
@@ -9,7 +9,7 @@ use crate::perft::perft_main;
 fn chess_perft() {
     #[rustfmt::skip]
         perft_main(
-        |s| ChessBoard::new(chess::Board::from_str(s).unwrap(), 0),
+        |s| ChessBoard::new(chess::Board::from_str(s).unwrap(), Rules::default()),
         Some(|b: &ChessBoard| b.inner().to_string()),
         vec![
             ("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", vec![1, 20, 400, 8902, 197281, 4865609]),
