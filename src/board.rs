@@ -71,8 +71,8 @@ where
 /// A helper trait to get the correct lifetimes for [BoardAvailableMoves::available_moves].
 /// This is a workaround to get generic associated types, See <https://github.com/rust-lang/rust/issues/44265>.
 pub trait BoardAvailableMoves<'a, B: Board> {
-    type MoveIterator: InternalIterator<Item = B::Move>;
     type AllMoveIterator: InternalIterator<Item = B::Move>;
+    type MoveIterator: InternalIterator<Item = B::Move>;
 
     /// All theoretically possible moves, for any possible board.
     /// Moves returned by `available_moves` will always be a subset of these moves.
@@ -122,5 +122,38 @@ impl Player {
         } else {
             -V::one()
         }
+    }
+}
+
+/// A helper struct that can be used to implement [Board::available_moves]
+/// based on [Board::all_possible_moves] and [Board::is_available_move].
+/// This may be a lot slower then directly generating the available moves.
+#[derive(Debug)]
+pub struct BruteforceMoveIterator<'a, B: Board> {
+    board: &'a B,
+}
+
+impl<'a, B: Board> BruteforceMoveIterator<'a, B> {
+    pub fn new(board: &'a B) -> Self {
+        BruteforceMoveIterator { board }
+    }
+}
+
+impl<'a, B: Board> InternalIterator for BruteforceMoveIterator<'a, B> {
+    type Item = B::Move;
+
+    fn find_map<R, F>(self, mut f: F) -> Option<R>
+    where
+        F: FnMut(Self::Item) -> Option<R>,
+    {
+        B::all_possible_moves().find_map(
+            |mv: B::Move| {
+                if self.board.is_available_move(mv) {
+                    f(mv)
+                } else {
+                    None
+                }
+            },
+        )
     }
 }

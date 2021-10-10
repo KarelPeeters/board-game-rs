@@ -181,8 +181,8 @@ impl InternalIterator for AllMoveIterator {
 }
 
 impl<'a> BoardAvailableMoves<'a, ChessBoard> for ChessBoard {
-    type MoveIterator = Internal<MoveGen>;
     type AllMoveIterator = AllMoveIterator;
+    type MoveIterator = Internal<MoveGen>;
 
     fn all_possible_moves() -> Self::AllMoveIterator {
         AllMoveIterator

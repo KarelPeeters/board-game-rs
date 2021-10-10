@@ -13,6 +13,7 @@ use board_game::symmetry::Symmetry;
 mod ataxx;
 mod chess;
 mod sttt;
+mod ttt;
 
 pub fn board_test_main<B: Board>(board: &B) {
     println!("Currently testing board\n{:?}\n{}", board, board);

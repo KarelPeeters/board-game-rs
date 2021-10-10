@@ -159,6 +159,7 @@ impl<'a> BoardAvailableMoves<'a, DummyGame> for DummyGame {
     type MoveIterator = Internal<std::ops::Range<usize>>;
 
     fn all_possible_moves() -> Self::AllMoveIterator {
+        //TODO questionable, maybe we could take &self here and base us on that?
         (0..).into_internal()
     }
 
