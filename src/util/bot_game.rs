@@ -36,7 +36,7 @@ pub fn run<B: Board, L: Bot<B>, R: Bot<B>>(
 
     let starts = (0..games_per_side).map(|_| start()).collect_vec();
 
-    let result: ReductionResult = (0..games_per_side)
+    let result: ReductionResult = (0..game_count)
         .into_par_iter()
         .panic_fuse()
         .map(|game_i| {
@@ -79,7 +79,7 @@ pub fn run<B: Board, L: Bot<B>, R: Bot<B>>(
             if let Some(print_progress) = print_progress_every {
                 let progress = progress_counter.fetch_add(1, Ordering::Relaxed) + 1;
                 if progress % print_progress == 0 {
-                    println!("Progress: {}", progress as f32 / games_per_side as f32);
+                    println!("Progress: {}", progress as f32 / game_count as f32);
                 }
             }
 
