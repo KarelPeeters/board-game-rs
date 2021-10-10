@@ -1,9 +1,11 @@
-use crate::board::{Board, BoardAvailableMoves, BruteforceMoveIterator, Outcome, Player};
-use crate::symmetry::UnitSymmetry;
-use internal_iterator::{Internal, IteratorExt};
 use std::fmt::{Display, Formatter};
 use std::iter::Map;
 use std::ops::Range;
+
+use internal_iterator::{Internal, IteratorExt};
+
+use crate::board::{Board, BoardAvailableMoves, BruteforceMoveIterator, Outcome, Player};
+use crate::symmetry::UnitSymmetry;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Coord(usize);
@@ -37,10 +39,24 @@ impl Default for TTTBoard {
 }
 
 impl Coord {
-    pub fn new(x: usize, y: usize) -> Self {
+    pub fn from_xy(x: usize, y: usize) -> Self {
         assert!(x < 3);
         assert!(y < 3);
         Coord(y * 3 + x)
+    }
+
+    pub fn from_i(i: usize) -> Self {
+        assert!(i < 9);
+        Coord(i)
+    }
+
+    pub fn all() -> Map<Range<usize>, fn(usize) -> Coord> {
+        let f: fn(usize) -> Coord = Coord;
+        (0..9).map(f)
+    }
+
+    pub fn i(self) -> usize {
+        self.0
     }
 
     pub fn x(self) -> usize {
@@ -49,6 +65,12 @@ impl Coord {
 
     pub fn y(self) -> usize {
         self.0 / 3
+    }
+}
+
+impl TTTBoard {
+    pub fn tile(&self, coord: Coord) -> Option<Player> {
+        self.tiles[coord.0]
     }
 }
 
@@ -77,7 +99,7 @@ impl Board for TTTBoard {
 
         let won = LINES.iter().any(|line| {
             line.iter()
-                .all(|&(lx, ly)| self.tiles[Coord::new(lx, ly).0] == Some(self.next_player))
+                .all(|&(lx, ly)| self.tiles[Coord::from_xy(lx, ly).0] == Some(self.next_player))
         });
         let draw = self.tiles.iter().all(|tile| tile.is_some());
 
@@ -110,8 +132,7 @@ impl<'a> BoardAvailableMoves<'a, TTTBoard> for TTTBoard {
     type MoveIterator = BruteforceMoveIterator<'a, TTTBoard>;
 
     fn all_possible_moves() -> Self::AllMoveIterator {
-        let f: fn(usize) -> Coord = Coord;
-        (0..9).map(f).into_internal()
+        Coord::all().into_internal()
     }
 
     fn available_moves(&'a self) -> Self::MoveIterator {
@@ -140,7 +161,7 @@ impl Display for TTTBoard {
         for y in 0..3 {
             write!(f, "|")?;
             for x in 0..3 {
-                let coord = Coord::new(x, y);
+                let coord = Coord::from_xy(x, y);
                 write!(f, "{}", tile_to_char(self.tiles[coord.0]))?;
             }
             write!(f, "|")?;
