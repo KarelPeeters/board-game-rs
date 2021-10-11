@@ -1,4 +1,4 @@
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::iter::Map;
 use std::ops::Range;
 
@@ -7,7 +7,7 @@ use internal_iterator::{Internal, IteratorExt};
 use crate::board::{Board, BoardAvailableMoves, BruteforceMoveIterator, Outcome, Player};
 use crate::symmetry::UnitSymmetry;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Coord(usize);
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -149,9 +149,15 @@ fn tile_to_char(tile: Option<Player>) -> char {
     }
 }
 
+impl Debug for Coord {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        write!(f, "Coord({}, {})", self.x(), self.y())
+    }
+}
+
 impl Display for Coord {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Coord({}, {})", self.x(), self.y())
+        write!(f, "({}, {})", self.x(), self.y())
     }
 }
 

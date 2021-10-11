@@ -251,7 +251,7 @@ impl Coord {
 
 impl Debug for Coord {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "({}, {})", self.om(), self.os())
+        write!(f, "Coord({}, {})", self.om(), self.os())
     }
 }
 
