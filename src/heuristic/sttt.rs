@@ -1,7 +1,9 @@
+use std::cmp::max;
+
 use crate::ai::minimax::Heuristic;
+use crate::ai::solver::SolverHeuristic;
 use crate::board::Board;
 use crate::games::sttt::{Coord, STTTBoard};
-use crate::wdl::POV;
 
 #[derive(Debug)]
 pub struct STTTTileHeuristic {
@@ -21,14 +23,10 @@ impl Default for STTTTileHeuristic {
 impl Heuristic<STTTBoard> for STTTTileHeuristic {
     type V = i32;
 
-    fn bound(&self) -> i32 {
-        i32::MAX
-    }
-
     fn value(&self, board: &STTTBoard, length: u32) -> i32 {
         // done
-        if let Some(outcome) = board.outcome() {
-            return outcome.pov(board.next_player()).sign::<i32>() * (self.bound() - length as i32);
+        if board.is_done() {
+            return SolverHeuristic.value(board, length).to_i32();
         }
 
         // tile
@@ -73,6 +71,10 @@ impl Heuristic<STTTBoard> for STTTTileHeuristic {
         }
 
         -neg_child_value
+    }
+
+    fn merge(old: Self::V, new: Self::V) -> (Self::V, bool) {
+        (max(old, new), new >= old)
     }
 }
 

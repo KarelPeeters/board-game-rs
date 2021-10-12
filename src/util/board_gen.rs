@@ -1,8 +1,10 @@
 //! Utilities to generate a `Board` in a random state.
 use rand::Rng;
 
-use crate::ai::solver::{find_forcing_winner, is_double_forced_draw};
+pub use crate::ai::solver::is_double_forced_draw;
+use crate::ai::solver::solve_value;
 use crate::board::{Board, Outcome};
+use crate::wdl::OutcomeWDL;
 
 /// Generate a `Board` by playing `n` random moves on `start`.
 pub fn random_board_with_moves<B: Board>(start: &B, n: u32, rng: &mut impl Rng) -> B {
@@ -38,7 +40,8 @@ pub fn random_board_with_outcome<B: Board>(start: &B, outcome: Outcome, rng: &mu
     }
 }
 
-/// Generate a `Board` by playing random moves until a forced win in `depth` moves is found for `start.next_player`.
+/// Generate a `Board` by playing random moves until a forced win in `depth` moves is found
+/// for `board.next_player`, which may be different from `start.next_player`.
 pub fn random_board_with_forced_win<B: Board>(start: &B, depth: u32, rng: &mut impl Rng) -> B {
     if !B::can_lose_after_move() {
         assert!(
@@ -49,7 +52,7 @@ pub fn random_board_with_forced_win<B: Board>(start: &B, depth: u32, rng: &mut i
     }
 
     random_board_with_depth_condition(start, depth, rng, |board, depth| {
-        find_forcing_winner(board, depth) == Some(board.next_player())
+        solve_value(board, depth).to_outcome_wdl() == Some(OutcomeWDL::Win)
     })
 }
 

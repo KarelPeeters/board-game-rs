@@ -1,3 +1,5 @@
+use std::cmp::max;
+
 use crate::ai::minimax::Heuristic;
 use crate::ai::solver::SolverHeuristic;
 use crate::board::Board;
@@ -46,17 +48,17 @@ impl AtaxxTileHeuristic {
 impl Heuristic<AtaxxBoard> for AtaxxTileHeuristic {
     type V = i32;
 
-    fn bound(&self) -> Self::V {
-        i32::MAX
-    }
-
     fn value(&self, board: &AtaxxBoard, length: u32) -> Self::V {
         if board.is_done() {
             // return near-max values for wins/draws/losses
-            SolverHeuristic.value(board, length)
+            SolverHeuristic.value(board, length).to_i32()
         } else {
             let (next, other) = board.tiles_pov();
             self.player_score(board, next) - self.player_score(board, other)
         }
+    }
+
+    fn merge(old: Self::V, new: Self::V) -> (Self::V, bool) {
+        (max(old, new), new >= old)
     }
 }

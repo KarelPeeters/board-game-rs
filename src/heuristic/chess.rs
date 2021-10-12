@@ -1,3 +1,5 @@
+use std::cmp::max;
+
 use chess::{Piece, ALL_PIECES};
 
 use crate::ai::minimax::Heuristic;
@@ -11,13 +13,9 @@ pub struct ChessPieceValueHeuristic;
 impl Heuristic<ChessBoard> for ChessPieceValueHeuristic {
     type V = i32;
 
-    fn bound(&self) -> i32 {
-        i32::MAX
-    }
-
     fn value(&self, board: &ChessBoard, length: u32) -> Self::V {
         if board.is_done() {
-            return SolverHeuristic.value(board, length);
+            return SolverHeuristic.value(board, length).to_i32();
         }
 
         let mut total = 0;
@@ -42,5 +40,9 @@ impl Heuristic<ChessBoard> for ChessPieceValueHeuristic {
         }
 
         total
+    }
+
+    fn merge(old: Self::V, new: Self::V) -> (Self::V, bool) {
+        (max(old, new), new >= old)
     }
 }
