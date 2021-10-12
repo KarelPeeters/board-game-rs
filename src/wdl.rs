@@ -71,6 +71,15 @@ impl OutcomeWDL {
         }
     }
 
+    /// The reverse of [Outcome::pov].
+    pub fn un_pov(self, pov: Player) -> Outcome {
+        match self {
+            OutcomeWDL::Win => Outcome::WonBy(pov),
+            OutcomeWDL::Draw => Outcome::Draw,
+            OutcomeWDL::Loss => Outcome::WonBy(pov.other()),
+        }
+    }
+
     /// Combine outcomes together in minimax-style.. `None` means unknown.
     pub fn best<I: IntoIterator<Item = Option<OutcomeWDL>>>(children: I) -> Option<OutcomeWDL> {
         let mut any_unknown = false;
