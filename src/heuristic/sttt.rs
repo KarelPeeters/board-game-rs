@@ -1,4 +1,4 @@
-use std::cmp::max;
+use std::cmp::{max, Ordering};
 
 use crate::ai::minimax::Heuristic;
 use crate::ai::solver::SolverHeuristic;
@@ -73,8 +73,8 @@ impl Heuristic<STTTBoard> for STTTTileHeuristic {
         -neg_child_value
     }
 
-    fn merge(old: Self::V, new: Self::V) -> (Self::V, bool) {
-        (max(old, new), new >= old)
+    fn merge(old: Self::V, new: Self::V) -> (Self::V, Ordering) {
+        (max(old, new), new.cmp(&old))
     }
 }
 

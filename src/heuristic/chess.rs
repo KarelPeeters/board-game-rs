@@ -1,4 +1,4 @@
-use std::cmp::max;
+use std::cmp::{max, Ordering};
 
 use chess::{Piece, ALL_PIECES};
 
@@ -42,7 +42,7 @@ impl Heuristic<ChessBoard> for ChessPieceValueHeuristic {
         total
     }
 
-    fn merge(old: Self::V, new: Self::V) -> (Self::V, bool) {
-        (max(old, new), new >= old)
+    fn merge(old: Self::V, new: Self::V) -> (Self::V, Ordering) {
+        (max(old, new), new.cmp(&old))
     }
 }

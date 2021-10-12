@@ -1,10 +1,11 @@
+use std::cmp::Ordering;
 use std::fmt::{Debug, Formatter};
 use std::ops::Neg;
 
 use internal_iterator::InternalIterator;
 use rand::Rng;
 
-use crate::ai::minimax::{minimax, minimax_value, Heuristic, MinimaxResult};
+use crate::ai::minimax::{minimax, minimax_all_moves, minimax_value, Heuristic, MinimaxResult};
 use crate::ai::Bot;
 use crate::board::{Board, Outcome};
 use crate::wdl::{OutcomeWDL, POV};
@@ -36,7 +37,7 @@ impl<B: Board> Heuristic<B> for SolverHeuristic {
             })
     }
 
-    fn merge(old: SolverValue, new: SolverValue) -> (SolverValue, bool) {
+    fn merge(old: SolverValue, new: SolverValue) -> (SolverValue, Ordering) {
         SolverValue::merge(old, new)
     }
 }
@@ -59,31 +60,26 @@ impl SolverValue {
         }
     }
 
-    /// Return `(best_value, new >= old)`,
+    /// Return `(best_value, cmp(new, old))`,
     /// where best_value properly accounts for shortest win, longest loss and draw vs unknown.
-    pub fn merge(old: SolverValue, new: SolverValue) -> (SolverValue, bool) {
+    pub fn merge(old: SolverValue, new: SolverValue) -> (SolverValue, Ordering) {
         use SolverValue::*;
 
         match (old, new) {
             // prefer shortest win and longest loss
-            (WinIn(old_n), WinIn(new_n)) => (if new_n <= old_n { new } else { old }, new_n <= old_n),
-            (LossIn(old_n), LossIn(new_n)) => (if new_n >= old_n { new } else { old }, new_n >= old_n),
+            (WinIn(old_n), WinIn(new_n)) => (if new_n <= old_n { new } else { old }, new_n.cmp(&old_n).reverse()),
+            (LossIn(old_n), LossIn(new_n)) => (if new_n >= old_n { new } else { old }, new_n.cmp(&old_n)),
 
             // win/loss is better/worse then everything else
-            (WinIn(_), _) => (old, false),
-            (LossIn(_), _) => (new, true),
-            (_, WinIn(_)) => (new, true),
-            (_, LossIn(_)) => (old, false),
+            (WinIn(_), _) => (old, Ordering::Less),
+            (LossIn(_), _) => (new, Ordering::Greater),
+            (_, WinIn(_)) => (new, Ordering::Greater),
+            (_, LossIn(_)) => (old, Ordering::Less),
 
             // draw and unknown are the same, but return unknown if either is unknown
-            (Draw, Draw) => (Draw, true),
-            (Unknown | Draw, Unknown | Draw) => (Unknown, true),
+            (Draw, Draw) => (Draw, Ordering::Equal),
+            (Unknown | Draw, Unknown | Draw) => (Unknown, Ordering::Equal),
         }
-    }
-
-    /// Return whether `left >= right`.
-    pub fn gte(left: SolverValue, right: SolverValue) -> bool {
-        SolverValue::merge(right, left).1
     }
 
     /// Return whether `child` could a child of the optimally combined `parent`.
@@ -95,7 +91,8 @@ impl SolverValue {
             SolverValue::Unknown => panic!("This function does not work for unknown values"),
         };
 
-        SolverValue::gte(child, best_child)
+        // evaluate child >= best_child since this is from the other POV
+        SolverValue::merge(best_child, child).1.is_ge()
     }
 }
 
@@ -114,6 +111,10 @@ impl Neg for SolverValue {
 
 pub fn solve<B: Board>(board: &B, depth: u32, rng: &mut impl Rng) -> MinimaxResult<SolverValue, B::Move> {
     minimax(board, &SolverHeuristic, depth, rng)
+}
+
+pub fn solve_all_moves<B: Board>(board: &B, depth: u32) -> MinimaxResult<SolverValue, Vec<B::Move>> {
+    minimax_all_moves(board, &SolverHeuristic, depth)
 }
 
 pub fn solve_value<B: Board>(board: &B, depth: u32) -> SolverValue {

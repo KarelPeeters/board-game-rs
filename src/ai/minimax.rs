@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
 use std::ops::Neg;
@@ -33,18 +34,18 @@ pub trait Heuristic<B: Board> {
         self.value(child, board_length + 1)
     }
 
-    /// Merge old and new into a new value, and return whether the new value is at least as good the old one.
-    /// For standard minimax searches this can simply be implemented as: `(max(old, new), new >= old)`
-    fn merge(old: Self::V, new: Self::V) -> (Self::V, bool);
+    /// Merge old and new into a new value, and compare their values.
+    /// For standard minimax searches this can simply be implemented as: `(max(old, new), new.cmp(old))`
+    fn merge(old: Self::V, new: Self::V) -> (Self::V, Ordering);
 }
 
 #[derive(Debug)]
-pub struct MinimaxResult<V, M> {
+pub struct MinimaxResult<V, R> {
     /// The value of this board.
     pub value: V,
 
-    /// The best move to play, `None` is the board is done or the search depth was 0.
-    pub best_move: Option<M>,
+    /// The result of the [MoveSelector], `None` if the board is done or the depth was zero.
+    pub best_move: Option<R>,
 }
 
 /// Evaluate the board using minimax with the given heuristic up to the given depth.
@@ -64,7 +65,7 @@ pub fn minimax<B: Board, H: Heuristic<B>>(
         depth,
         None,
         None,
-        RandomBestMoveSelector::new(rng),
+        RandomMoveSelector::new(rng),
     );
 
     if result.best_move.is_none() {
@@ -74,8 +75,32 @@ pub fn minimax<B: Board, H: Heuristic<B>>(
     result
 }
 
-/// Evaluate the board using minimax with the given heuristic up to the given depth.
-/// Only returns the value without selecting a move, and so doesn't require an `Rng`.
+/// Variant of [minimax] that returns all moves that tie for the best value.
+pub fn minimax_all_moves<B: Board, H: Heuristic<B>>(
+    board: &B,
+    heuristic: &H,
+    depth: u32,
+) -> MinimaxResult<H::V, Vec<B::Move>> {
+    let result = negamax_recurse(
+        heuristic,
+        board,
+        heuristic.value(board, 0),
+        0,
+        depth,
+        None,
+        None,
+        AllMoveSelector::new(),
+    );
+
+    if result.best_move.is_none() {
+        assert!(board.is_done() || depth == 0, "Implementation error in negamax");
+    }
+
+    result
+}
+
+/// Variant of [minimax] that only returns the value and not the best move.
+/// The advantage is that no rng is necessary to break ties between best moves.
 pub fn minimax_value<B: Board, H: Heuristic<B>>(board: &B, heuristic: &H, depth: u32) -> H::V {
     negamax_recurse(
         heuristic,
@@ -90,45 +115,103 @@ pub fn minimax_value<B: Board, H: Heuristic<B>>(board: &B, heuristic: &H, depth:
     .value
 }
 
-/// This is a trait so negamax_recurse is instantiated twice,
-/// once for the top-level search with move selection and once for deeper nodes without any moves.
-trait MoveSelector {
-    fn accept(&mut self) -> bool;
+/// The selection procedure for selecting the best move to be returned by [negamax_recurse].
+trait MoveSelector<M> {
+    type Result;
+
+    fn reset(&mut self);
+
+    fn accept(&mut self, mv: M);
+
+    fn finish(self) -> Self::Result;
 }
 
 /// Don't accept any move.
+#[derive(Debug)]
 struct NoMoveSelector;
 
-impl MoveSelector for NoMoveSelector {
-    fn accept(&mut self) -> bool {
-        false
-    }
+impl<M> MoveSelector<M> for NoMoveSelector {
+    type Result = ();
+
+    fn reset(&mut self) {}
+
+    fn accept(&mut self, _: M) {}
+
+    fn finish(self) {}
 }
 
-/// Implement each move with equal probability,
+/// Accept each move with equal probability,
 /// implemented using [reservoir sampling](https://en.wikipedia.org/wiki/Reservoir_sampling).
-struct RandomBestMoveSelector<'a, R: Rng> {
-    rng: &'a mut R,
+#[derive(Debug)]
+struct RandomMoveSelector<M, R: Rng> {
+    picked: Option<M>,
     count: u32,
+    rng: R,
 }
 
-impl<'a, R: Rng> RandomBestMoveSelector<'a, R> {
-    pub fn new(rng: &'a mut R) -> Self {
-        RandomBestMoveSelector { rng, count: 0 }
+impl<R: Rng, M> RandomMoveSelector<M, R> {
+    pub fn new(rng: R) -> Self {
+        RandomMoveSelector {
+            picked: None,
+            count: 0,
+            rng,
+        }
     }
 }
 
-impl<R: Rng> MoveSelector for RandomBestMoveSelector<'_, R> {
-    fn accept(&mut self) -> bool {
+impl<M, R: Rng> MoveSelector<M> for RandomMoveSelector<M, R> {
+    type Result = M;
+
+    fn reset(&mut self) {
+        self.count = 0;
+        self.picked = None;
+    }
+
+    fn accept(&mut self, mv: M) {
         self.count += 1;
-        self.rng.gen_range(0..self.count) == 0
+        if self.rng.gen_range(0..self.count) == 0 {
+            self.picked = Some(mv)
+        }
+    }
+
+    fn finish(self) -> Self::Result {
+        self.picked.expect("we should have selected a move by now")
+    }
+}
+
+#[derive(Debug)]
+struct AllMoveSelector<M> {
+    moves: Vec<M>,
+}
+
+impl<M> AllMoveSelector<M> {
+    pub fn new() -> Self {
+        AllMoveSelector {
+            moves: Default::default(),
+        }
+    }
+}
+
+impl<M> MoveSelector<M> for AllMoveSelector<M> {
+    type Result = Vec<M>;
+
+    fn reset(&mut self) {
+        self.moves.clear();
+    }
+
+    fn accept(&mut self, mv: M) {
+        self.moves.push(mv)
+    }
+
+    fn finish(self) -> Self::Result {
+        self.moves
     }
 }
 
 /// The core minimax implementation.
 /// Alpha-Beta Negamax, implementation based on
 /// <https://en.wikipedia.org/wiki/Negamax#Negamax_with_alpha_beta_pruning>
-fn negamax_recurse<B: Board, H: Heuristic<B>>(
+fn negamax_recurse<B: Board, H: Heuristic<B>, S: MoveSelector<B::Move>>(
     heuristic: &H,
     board: &B,
     board_heuristic: H::V,
@@ -136,8 +219,8 @@ fn negamax_recurse<B: Board, H: Heuristic<B>>(
     depth_left: u32,
     alpha: Option<H::V>,
     beta: Option<H::V>,
-    mut move_selector: impl MoveSelector,
-) -> MinimaxResult<H::V, B::Move> {
+    mut move_selector: S,
+) -> MinimaxResult<H::V, S::Result> {
     if depth_left == 0 || board.is_done() {
         return MinimaxResult {
             value: board_heuristic,
@@ -146,8 +229,6 @@ fn negamax_recurse<B: Board, H: Heuristic<B>>(
     }
 
     let mut best_value = None;
-    let mut best_move: Option<B::Move> = None;
-
     let mut alpha = alpha;
 
     let early = board.available_moves().for_each_control(|mv: B::Move| {
@@ -166,17 +247,22 @@ fn negamax_recurse<B: Board, H: Heuristic<B>>(
         )
         .value;
 
-        let (new_best_value, is_gte) =
-            best_value.map_or((child_value, true), |best_value| H::merge(best_value, child_value));
+        let (new_best_value, ordering) = best_value.map_or((child_value, Ordering::Greater), |best_value| {
+            H::merge(best_value, child_value)
+        });
         let new_alpha = alpha.map_or(new_best_value, |alpha| H::merge(alpha, new_best_value).0);
 
         best_value = Some(new_best_value);
-        if is_gte && move_selector.accept() {
-            best_move = Some(mv);
+
+        if ordering.is_gt() {
+            move_selector.reset();
+        }
+        if ordering.is_ge() {
+            move_selector.accept(mv);
         }
         alpha = Some(new_alpha);
 
-        if beta.map_or(false, |beta| H::merge(beta, new_alpha).1) {
+        if beta.map_or(false, |beta| H::merge(beta, new_alpha).1.is_ge()) {
             Break(MinimaxResult {
                 value: new_best_value,
                 best_move: None,
@@ -191,7 +277,7 @@ fn negamax_recurse<B: Board, H: Heuristic<B>>(
     } else {
         MinimaxResult {
             value: best_value.unwrap(),
-            best_move,
+            best_move: Some(move_selector.finish()),
         }
     }
 }
