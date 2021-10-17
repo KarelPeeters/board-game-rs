@@ -10,6 +10,12 @@ pub trait Symmetry: 'static + Debug + Copy + Clone + Eq + PartialEq + Send + Syn
     fn all() -> &'static [Self];
     fn identity() -> Self;
     fn inverse(self) -> Self;
+
+    /// Whether this symmetry is the unit symmetry,
+    /// which means that it only contains the single element returned by [Symmetry::identity].
+    fn is_unit() -> bool {
+        Self::all().len() == 1
+    }
 }
 
 #[derive(Debug)]

@@ -125,11 +125,16 @@ fn test_random_available_uniform<B: Board>(board: &B) {
 fn test_symmetry<B: Board>(board: &B) {
     println!("symmetries:");
 
+    let all = B::Symmetry::all();
+    assert!(all.contains(&B::Symmetry::identity()));
+
     for &sym in B::Symmetry::all() {
         let sym_inv = sym.inverse();
 
         println!("{:?}", sym);
         println!("inverse: {:?}", sym_inv);
+
+        assert!(all.contains(&sym_inv));
 
         let mapped = board.map(sym);
         let back = mapped.map(sym_inv);
