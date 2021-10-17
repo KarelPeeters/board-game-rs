@@ -10,7 +10,7 @@ use crate::board::Board;
 use crate::util::internal_ext::Control::{Break, Continue};
 use crate::util::internal_ext::InternalIteratorExt;
 
-pub trait Heuristic<B: Board> {
+pub trait Heuristic<B: Board>: Debug {
     /// The type used to represent the heuristic value of a board.
     type V: Copy + Neg<Output = Self::V>;
 
@@ -289,7 +289,7 @@ pub struct MiniMaxBot<B: Board, H: Heuristic<B>, R: Rng> {
     ph: PhantomData<B>,
 }
 
-impl<B: Board, H: Heuristic<B> + Debug, R: Rng> Debug for MiniMaxBot<B, H, R> {
+impl<B: Board, H: Heuristic<B>, R: Rng> Debug for MiniMaxBot<B, H, R> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
