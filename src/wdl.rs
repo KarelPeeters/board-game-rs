@@ -122,6 +122,10 @@ impl<V: num::Float> WDL<V> {
 }
 
 impl<V> WDL<V> {
+    pub fn new(win: V, draw: V, loss: V) -> Self {
+        WDL { win, draw, loss }
+    }
+
     pub fn to_slice(self) -> [V; 3] {
         [self.win, self.draw, self.loss]
     }
