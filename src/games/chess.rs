@@ -13,7 +13,6 @@ use crate::symmetry::UnitSymmetry;
 pub struct Rules {
     max_repetitions: Option<u16>,
     max_moves_without_pawn_or_capture: Option<u16>,
-    max_game_length: Option<u16>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -25,7 +24,6 @@ pub struct ChessBoard {
     //TODO remove pub and create getters
     pub repetitions: u16,
     pub non_pawn_or_capture_moves: u16,
-    pub game_length: u16,
 
     history: Vec<u64>,
 }
@@ -42,7 +40,6 @@ impl ChessBoard {
             rules,
             repetitions: 0,
             non_pawn_or_capture_moves: 0,
-            game_length: 0,
             history: vec![],
         }
     }
@@ -84,56 +81,42 @@ impl Board for ChessBoard {
 
     fn play(&mut self, mv: Self::Move) {
         assert!(!self.is_done());
-        *self = self.clone_and_play(mv)
-    }
 
-    fn clone_and_play(&self, mv: Self::Move) -> Self {
-        assert!(!self.is_done());
+        // keep track of stats for reversible moves
+        let old_side_to_move = self.inner.side_to_move();
+        let old_castle_rights = self.inner.castle_rights(old_side_to_move);
+        let moved_piece = self.inner.piece_on(mv.get_source()).unwrap();
 
-        let new_inner = self.inner.make_move_new(mv);
+        // make the move
+        let old_inner = self.inner;
+        self.inner = old_inner.make_move_new(mv);
 
-        let side_to_move = self.inner.side_to_move();
-        let moved_piece = self.inner.piece_on(mv.get_source());
+        // use stats to see if this was a reversible move
+        let was_capture = self.inner.color_on(mv.get_dest()).is_some();
+        let was_pawn_move = moved_piece == Piece::Pawn;
+        let removed_castle = old_castle_rights != self.inner.castle_rights(old_side_to_move);
 
-        let capture = self.inner.color_on(mv.get_dest()).is_some();
-        let pawn_move = moved_piece == Some(Piece::Pawn);
-        let removed_en_passant = self.inner.en_passant().is_some();
-        let removed_castle = self.inner.castle_rights(side_to_move) != new_inner.castle_rights(side_to_move);
-
-        let new_non_pawn_or_capture_moves = if capture || pawn_move {
-            0
+        // update move counter
+        if was_capture || was_pawn_move {
+            self.non_pawn_or_capture_moves = 0
         } else {
-            self.non_pawn_or_capture_moves + 1
+            self.non_pawn_or_capture_moves += 1
         };
 
-        // reset history if any non-reversible move is made or there is no limit on repetitions
-        let reset_history =
-            capture || pawn_move || removed_en_passant || removed_castle || self.rules.max_repetitions.is_none();
-        let new_history = if reset_history {
-            vec![]
+        // update history
+        let reset_history = was_capture || was_pawn_move || removed_castle || self.rules.max_repetitions.is_none();
+        if reset_history {
+            self.history.clear()
         } else {
-            let mut new_history = self.history.clone();
-            new_history.push(self.inner.get_hash());
-            new_history
-        };
-
-        let repetitions = new_history.iter().filter(|&&h| new_inner.get_hash() == h).count() as u16;
-
-        ChessBoard {
-            inner: new_inner,
-            rules: self.rules,
-            repetitions,
-            non_pawn_or_capture_moves: new_non_pawn_or_capture_moves,
-            game_length: self.game_length + 1,
-            history: new_history,
+            self.history.push(self.inner.get_hash())
         }
+
+        // update repetition counter based on history
+        self.repetitions = self.history.iter().filter(|&&h| self.inner.get_hash() == h).count() as u16;
     }
 
     fn outcome(&self) -> Option<Outcome> {
-        if self
-            .rules
-            .is_draw(self.repetitions, self.non_pawn_or_capture_moves, self.game_length)
-        {
+        if self.rules.is_draw(self.repetitions, self.non_pawn_or_capture_moves) {
             Some(Outcome::Draw)
         } else {
             match self.inner.status() {
@@ -213,7 +196,6 @@ impl Rules {
         Rules {
             max_repetitions: None,
             max_moves_without_pawn_or_capture: Some(100),
-            max_game_length: None,
         }
     }
 
@@ -221,16 +203,15 @@ impl Rules {
         Rules {
             max_repetitions: None,
             max_moves_without_pawn_or_capture: None,
-            max_game_length: None,
         }
     }
 
-    pub fn is_draw(self, repetitions: u16, non_pawn_or_capture_moves: u16, game_length: u16) -> bool {
-        self.max_repetitions.map_or(false, |m| repetitions > m)
-            || self
-                .max_moves_without_pawn_or_capture
-                .map_or(false, |m| non_pawn_or_capture_moves > m)
-            || self.max_game_length.map_or(false, |m| game_length > m)
+    pub fn is_draw(self, repetitions: u16, non_pawn_or_capture_moves: u16) -> bool {
+        let draw_repetitions = self.max_repetitions.map_or(false, |m| repetitions > m);
+        let draw_reversible = self
+            .max_moves_without_pawn_or_capture
+            .map_or(false, |m| non_pawn_or_capture_moves > m);
+        draw_repetitions || draw_reversible
     }
 }
 
@@ -239,18 +220,13 @@ impl Default for Rules {
         Rules {
             max_repetitions: Some(3),
             max_moves_without_pawn_or_capture: Some(100),
-            max_game_length: None,
         }
     }
 }
 
 impl Display for ChessBoard {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "ChessBoard {{ inner: \"{}\", game_length: {}, non_pawn_or_capture_moves: {}, repetitions: {}, rules: {:?}, history: {:?} }}",
-            self.inner, self.game_length, self.non_pawn_or_capture_moves, self.repetitions, self.rules, self.history
-        )
+        write!(f, "{:?}", self)
     }
 }
 

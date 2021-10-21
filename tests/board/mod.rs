@@ -12,6 +12,7 @@ use board_game::symmetry::Symmetry;
 
 mod ataxx;
 mod chess;
+mod max_moves;
 mod sttt;
 mod ttt;
 
