@@ -131,6 +131,13 @@ impl<V> WDL<V> {
     }
 }
 
+impl<V: num::One + num::Zero + PartialEq> WDL<V> {
+    pub fn try_to_outcome_wdl(self) -> Result<OutcomeWDL, ()> {
+        let outcomes = [OutcomeWDL::Win, OutcomeWDL::Draw, OutcomeWDL::Loss];
+        outcomes.iter().copied().find(|&o| o.to_wdl() == self).ok_or(())
+    }
+}
+
 impl<V: Copy> WDL<V> {
     pub fn cast<W>(self) -> WDL<W>
     where
