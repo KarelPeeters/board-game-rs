@@ -4,6 +4,8 @@ use rand::Rng;
 
 use crate::board::{Board, BoardAvailableMoves, Outcome, Player};
 
+/// A wrapper around an existing board that has the same behaviour,
+/// except that the outcome is a draw after a fixed number of moves has been played.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct MaxMovesBoard<B: Board> {
     inner: B,
@@ -18,6 +20,10 @@ impl<B: Board> MaxMovesBoard<B> {
             moves: 0,
             max_moves,
         }
+    }
+
+    pub fn inner(&self) -> &B {
+        &self.inner
     }
 }
 
@@ -86,6 +92,6 @@ impl<'a, B: Board> BoardAvailableMoves<'a, MaxMovesBoard<B>> for MaxMovesBoard<B
 
 impl<B: Board> Display for MaxMovesBoard<B> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}\nmoves: {}/{}", self.inner, self.moves, self.max_moves)
+        write!(f, "{}\nmoves: {}/{:?}", self.inner, self.moves, self.max_moves)
     }
 }
