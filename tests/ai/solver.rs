@@ -47,7 +47,7 @@ fn solver_ttt_loss() {
 
 #[test]
 fn solver_ttt_consistent() {
-    let boards = all_possible_boards(&TTTBoard::default(), false, 20);
+    let boards = all_possible_boards(&TTTBoard::default(), 20, false);
 
     for board in boards {
         let eval = solve_all_moves(&board, 20);

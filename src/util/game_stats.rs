@@ -72,17 +72,17 @@ pub fn average_game_stats<B: Board>(start: &B, mut bot: impl Bot<B>, n: u64) -> 
 /// The returned vec does not contain duplicate elements.
 ///
 /// **Warning**: This function can easily take a long time to terminate or not terminate at all depending on the game.
-pub fn all_possible_boards<B: Board>(start: &B, include_done: bool, depth: u32) -> Vec<B> {
+pub fn all_possible_boards<B: Board>(start: &B, depth: u32, include_done: bool) -> Vec<B> {
     let mut set = HashSet::new();
     let mut result = vec![];
-    all_possible_boards_impl(start, include_done, depth, &mut result, &mut set);
+    all_possible_boards_impl(start, depth, include_done, &mut result, &mut set);
     result
 }
 
 fn all_possible_boards_impl<B: Board>(
     start: &B,
-    include_done: bool,
     depth: u32,
+    include_done: bool,
     result: &mut Vec<B>,
     set: &mut HashSet<B>,
 ) {
@@ -99,5 +99,5 @@ fn all_possible_boards_impl<B: Board>(
 
     start
         .available_moves()
-        .for_each(|mv| all_possible_boards_impl(&start.clone_and_play(mv), include_done, depth - 1, result, set))
+        .for_each(|mv| all_possible_boards_impl(&start.clone_and_play(mv), depth - 1, include_done, result, set))
 }
