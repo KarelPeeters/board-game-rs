@@ -68,16 +68,24 @@ pub fn average_game_stats<B: Board>(start: &B, mut bot: impl Bot<B>, n: u64) -> 
     }
 }
 
-/// Generate the set of all possible board positions reachable from the given board.
-/// This function can easily take a long time to terminate or not terminate at all depending on the game.
-pub fn all_possible_boards<B: Board>(start: &B, include_done: bool) -> Vec<B> {
+/// Generate the set of all possible board positions reachable from the given board, in `depth` moves or less.
+/// The returned vec does not contain duplicate elements.
+///
+/// **Warning**: This function can easily take a long time to terminate or not terminate at all depending on the game.
+pub fn all_possible_boards<B: Board>(start: &B, include_done: bool, depth: u32) -> Vec<B> {
     let mut set = HashSet::new();
     let mut result = vec![];
-    all_possible_boards_impl(start, include_done, &mut result, &mut set);
+    all_possible_boards_impl(start, include_done, depth, &mut result, &mut set);
     result
 }
 
-fn all_possible_boards_impl<B: Board>(start: &B, include_done: bool, result: &mut Vec<B>, set: &mut HashSet<B>) {
+fn all_possible_boards_impl<B: Board>(
+    start: &B,
+    include_done: bool,
+    depth: u32,
+    result: &mut Vec<B>,
+    set: &mut HashSet<B>,
+) {
     if !include_done && start.is_done() {
         return;
     }
@@ -85,11 +93,11 @@ fn all_possible_boards_impl<B: Board>(start: &B, include_done: bool, result: &mu
         return;
     }
     result.push(start.clone());
-    if start.is_done() {
+    if start.is_done() || depth == 0 {
         return;
     }
 
     start
         .available_moves()
-        .for_each(|mv| all_possible_boards_impl(&start.clone_and_play(mv), include_done, result, set))
+        .for_each(|mv| all_possible_boards_impl(&start.clone_and_play(mv), include_done, depth - 1, result, set))
 }
