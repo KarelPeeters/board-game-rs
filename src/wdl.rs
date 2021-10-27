@@ -242,6 +242,18 @@ impl<V: Copy + std::ops::Add<V, Output = V>> std::ops::AddAssign<WDL<V>> for WDL
     }
 }
 
+impl<V: Copy + std::ops::Mul<V, Output = V>> std::ops::Mul<V> for WDL<V> {
+    type Output = WDL<V>;
+
+    fn mul(self, rhs: V) -> Self::Output {
+        WDL {
+            win: self.win * rhs,
+            draw: self.draw * rhs,
+            loss: self.loss * rhs,
+        }
+    }
+}
+
 impl<V: Copy + std::ops::Div<V, Output = V>> std::ops::Div<V> for WDL<V> {
     type Output = WDL<V>;
 
