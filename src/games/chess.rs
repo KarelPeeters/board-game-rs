@@ -226,7 +226,11 @@ impl Default for Rules {
 
 impl Display for ChessBoard {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(
+            f,
+            "ChessBoard {{ inner: \"{}\", non_pawn_or_capture_moves: {}, repetitions: {}, rules: {:?}, history: {:?} }}",
+            self.inner, self.non_pawn_or_capture_moves, self.repetitions, self.rules, self.history
+        )
     }
 }
 
