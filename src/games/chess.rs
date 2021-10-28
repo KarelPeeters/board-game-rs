@@ -1,6 +1,8 @@
+use std::borrow::Cow;
 use std::fmt::{Debug, Write};
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
+use std::str::FromStr;
 
 use chess::{BoardStatus, ChessMove, Color, MoveGen, Piece};
 use internal_iterator::{Internal, InternalIterator, IteratorExt};
@@ -46,6 +48,30 @@ impl ChessBoard {
 
     pub fn inner(&self) -> &chess::Board {
         &self.inner
+    }
+
+    pub fn parse_move(&self, mv: &str) -> Result<ChessMove, chess::Error> {
+        // first try parsing it as a pgn move
+        if let Ok(mv) = ChessMove::from_str(mv) {
+            return Ok(mv);
+        }
+
+        // the chess crate move parsing is kind of strange, so we need to help it a bit
+        let removed_chars: &[char] = &['=', '+', '#'];
+        let mv = if mv.contains(removed_chars) {
+            Cow::from(mv.replace(removed_chars, ""))
+        } else {
+            Cow::from(mv)
+        };
+
+        match ChessMove::from_san(self.inner(), &mv) {
+            Ok(mv) => Ok(mv),
+            Err(original_err) => {
+                // try appending e.p. to get it to parse an en passant move
+                let mv_ep = mv.into_owned() + " e.p.";
+                ChessMove::from_san(self.inner(), &mv_ep).map_err(|_| original_err)
+            }
+        }
     }
 }
 
