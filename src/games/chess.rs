@@ -85,15 +85,16 @@ impl Board for ChessBoard {
         // keep track of stats for reversible moves
         let old_side_to_move = self.inner.side_to_move();
         let old_castle_rights = self.inner.castle_rights(old_side_to_move);
+
         let moved_piece = self.inner.piece_on(mv.get_source()).unwrap();
+        let was_capture = self.inner.color_on(mv.get_dest()).is_some();
+        let was_pawn_move = moved_piece == Piece::Pawn;
 
         // make the move
         let old_inner = self.inner;
         self.inner = old_inner.make_move_new(mv);
 
-        // use stats to see if this was a reversible move
-        let was_capture = self.inner.color_on(mv.get_dest()).is_some();
-        let was_pawn_move = moved_piece == Piece::Pawn;
+        // collect more stats
         let removed_castle = old_castle_rights != self.inner.castle_rights(old_side_to_move);
 
         // update move counter
