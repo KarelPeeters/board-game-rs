@@ -255,8 +255,12 @@ impl Display for ChessBoard {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "ChessBoard {{ inner: \"{}\", non_pawn_or_capture_moves: {}, repetitions: {}, rules: {:?}, history: {:?} }}",
-            self.inner, self.non_pawn_or_capture_moves, self.repetitions, self.rules, self.history
+            "ChessBoard {{ inner: \"{}\", cr: {}, ci: {}, h: {}, rules: {:?} }}",
+            self.inner,
+            self.repetitions,
+            self.non_pawn_or_capture_moves,
+            self.history.len(),
+            self.rules
         )
     }
 }
