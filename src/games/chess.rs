@@ -234,10 +234,10 @@ impl Rules {
     }
 
     pub fn is_draw(self, repetitions: u16, non_pawn_or_capture_moves: u16) -> bool {
-        let draw_repetitions = self.max_repetitions.map_or(false, |m| repetitions > m);
+        let draw_repetitions = self.max_repetitions.map_or(false, |m| repetitions >= m);
         let draw_reversible = self
             .max_moves_without_pawn_or_capture
-            .map_or(false, |m| non_pawn_or_capture_moves > m);
+            .map_or(false, |m| non_pawn_or_capture_moves >= m);
         draw_repetitions || draw_reversible
     }
 }
