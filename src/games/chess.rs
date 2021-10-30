@@ -32,11 +32,16 @@ pub struct ChessBoard {
 
 impl ChessBoard {
     pub fn default_with_rules(rules: Rules) -> Self {
-        Self::new(chess::Board::default(), rules)
+        Self::new_without_history(chess::Board::default(), rules)
     }
 
-    //TODO expose other fields in constructor again
-    pub fn new(inner: chess::Board, rules: Rules) -> Self {
+    pub fn new_without_history_fen(fen: &str, rules: Rules) -> Self {
+        Self::new_without_history(chess::Board::from_str(fen).unwrap(), rules)
+    }
+
+    /// Construct a new board from an inner chess board, without any history (including repetition and reset counters).
+    /// To get a board _with_ history start from the initial board and play the moves on it instead.
+    pub fn new_without_history(inner: chess::Board, rules: Rules) -> Self {
         ChessBoard {
             inner,
             rules,
@@ -139,6 +144,7 @@ impl Board for ChessBoard {
         }
 
         // update repetition counter based on history
+        //TODO we only need to check every other board position here
         self.repetitions = self.history.iter().filter(|&&h| self.inner.get_hash() == h).count() as u16;
     }
 
