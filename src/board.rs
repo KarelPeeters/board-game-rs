@@ -116,6 +116,13 @@ impl Player {
         }
     }
 
+    pub fn to_char(self) -> char {
+        match self {
+            Player::A => 'A',
+            Player::B => 'B',
+        }
+    }
+
     pub fn sign<V: num::One + std::ops::Neg<Output = V>>(self, pov: Player) -> V {
         if self == pov {
             V::one()
