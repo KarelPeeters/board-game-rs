@@ -30,6 +30,12 @@ pub struct ChessBoard {
     history: Vec<u64>,
 }
 
+#[derive(Debug, Clone)]
+pub struct ParseMoveError {
+    mv: String,
+    error: chess::Error,
+}
+
 impl ChessBoard {
     pub fn default_with_rules(rules: Rules) -> Self {
         Self::new_without_history(chess::Board::default(), rules)
@@ -55,7 +61,7 @@ impl ChessBoard {
         &self.inner
     }
 
-    pub fn parse_move(&self, mv: &str) -> Result<ChessMove, chess::Error> {
+    pub fn parse_move(&self, mv: &str) -> Result<ChessMove, ParseMoveError> {
         // first try parsing it as a pgn move
         if let Ok(mv) = ChessMove::from_str(mv) {
             return Ok(mv);
@@ -73,8 +79,11 @@ impl ChessBoard {
             Ok(mv) => Ok(mv),
             Err(original_err) => {
                 // try appending e.p. to get it to parse an en passant move
-                let mv_ep = mv.into_owned() + " e.p.";
-                ChessMove::from_san(self.inner(), &mv_ep).map_err(|_| original_err)
+                let mv_ep = mv.to_owned() + " e.p.";
+                ChessMove::from_san(self.inner(), &mv_ep).map_err(|_| ParseMoveError {
+                    mv: mv.into_owned(),
+                    error: original_err,
+                })
             }
         }
     }
