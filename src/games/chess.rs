@@ -158,7 +158,7 @@ impl Board for ChessBoard {
     }
 
     fn outcome(&self) -> Option<Outcome> {
-        if self.rules.is_draw(self.repetitions, self.non_pawn_or_capture_moves) {
+        if self.rules.is_draw(self) {
             Some(Outcome::Draw)
         } else {
             match self.inner.status() {
@@ -234,13 +234,6 @@ pub fn player_to_color(player: Player) -> Color {
 }
 
 impl Rules {
-    pub fn ccrl() -> Self {
-        Rules {
-            max_repetitions: None,
-            max_moves_without_pawn_or_capture: Some(100),
-        }
-    }
-
     pub fn unlimited() -> Self {
         Rules {
             max_repetitions: None,
@@ -248,12 +241,13 @@ impl Rules {
         }
     }
 
-    pub fn is_draw(self, repetitions: u16, non_pawn_or_capture_moves: u16) -> bool {
-        let draw_repetitions = self.max_repetitions.map_or(false, |m| repetitions >= m);
+    pub fn is_draw(self, board: &ChessBoard) -> bool {
+        let draw_repetitions = self.max_repetitions.map_or(false, |m| board.repetitions >= m);
         let draw_reversible = self
             .max_moves_without_pawn_or_capture
-            .map_or(false, |m| non_pawn_or_capture_moves >= m);
-        draw_repetitions || draw_reversible
+            .map_or(false, |m| board.non_pawn_or_capture_moves >= m);
+        let only_kings = board.inner.combined().popcnt() == 2;
+        draw_repetitions || draw_reversible || only_kings
     }
 }
 
