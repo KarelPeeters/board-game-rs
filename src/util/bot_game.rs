@@ -1,13 +1,12 @@
 //! Utilities to run bots against each other and report the results.
+use itertools::Itertools;
+use rayon::iter::IntoParallelIterator;
+use rayon::iter::ParallelIterator;
 use std::fmt::Debug;
 use std::fmt::Write;
 use std::ops::Add;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
-
-use itertools::Itertools;
-use rayon::iter::IntoParallelIterator;
-use rayon::iter::ParallelIterator;
 
 use crate::ai::Bot;
 use crate::board::{Board, Outcome};
@@ -26,6 +25,7 @@ pub fn run<B: Board, L: Bot<B>, R: Bot<B>>(
     games_per_side: u32,
     both_sides: bool,
     print_progress_every: Option<u32>,
+    print_boards: bool,
 ) -> BotGameResult {
     // this instantiates both at least once so we catch errors before starting a bunch of threads
     let debug_l = debug_to_string(&bot_l());
@@ -74,6 +74,10 @@ pub fn run<B: Board, L: Bot<B>, R: Bot<B>>(
                 };
 
                 board.play(mv);
+
+                if print_boards {
+                    println!("{}", board);
+                }
             }
 
             if let Some(print_progress) = print_progress_every {
