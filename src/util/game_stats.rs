@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 
 use internal_iterator::InternalIterator;
+use rand::Rng;
 
 use crate::ai::Bot;
 use crate::board::Board;
@@ -100,4 +101,22 @@ fn all_possible_boards_impl<B: Board>(
     start
         .available_moves()
         .for_each(|mv| all_possible_boards_impl(&start.clone_and_play(mv), depth - 1, include_done, result, set))
+}
+
+/// Collect all available moves form `n` games played until the end with random moves.
+/// Also returns the number of time each move was availalbe.
+pub fn all_available_moves_sampled<B: Board>(start: &B, n: u64, rng: &mut impl Rng) -> HashMap<B::Move, u64> {
+    let mut moves = HashMap::default();
+
+    for _ in 0..n {
+        let mut curr = start.clone();
+        while !curr.is_done() {
+            curr.available_moves().for_each(|mv| {
+                *moves.entry(mv).or_default() += 1;
+            });
+            curr.play(curr.random_available_move(rng));
+        }
+    }
+
+    moves
 }
