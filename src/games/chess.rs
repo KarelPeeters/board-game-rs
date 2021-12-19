@@ -4,7 +4,7 @@ use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 use std::str::FromStr;
 
-use chess::{BoardStatus, ChessMove, Color, File, MoveGen, Piece, Square};
+use chess::{BoardStatus, ChessMove, Color, File, MoveGen, Piece};
 use internal_iterator::{Internal, InternalIterator, IteratorExt};
 use rand::Rng;
 
