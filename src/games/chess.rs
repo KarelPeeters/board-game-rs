@@ -324,9 +324,12 @@ pub fn chess_game_to_pgn(white: &str, black: &str, start: &ChessBoard, moves: &[
 
 impl Replay<ChessBoard> {
     pub fn to_pgn(&self) -> String {
+        let full_l = format!("L: {}", self.debug_l);
+        let full_r = format!("R: {}", self.debug_r);
+
         let (white, black) = match self.player_l {
-            Player::A => (&self.debug_l, &self.debug_r),
-            Player::B => (&self.debug_r, &self.debug_l),
+            Player::A => (&full_l, &full_r),
+            Player::B => (&full_r, &full_l),
         };
         chess_game_to_pgn(white, black, &self.start, &self.moves)
     }
