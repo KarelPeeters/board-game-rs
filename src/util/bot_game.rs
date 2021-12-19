@@ -110,6 +110,8 @@ fn play_single_game<B: Board>(start: &B, flip: bool, bot_l: &mut impl Bot<B>, bo
                     total_time_r,
                     move_count_l,
                     move_count_r,
+                    debug_l: debug_to_string(bot_l),
+                    debug_r: debug_to_string(bot_r),
                 }
             }
         }
@@ -128,6 +130,9 @@ pub struct Replay<B: Board> {
     pub total_time_r: f32,
     pub move_count_l: u32,
     pub move_count_r: u32,
+
+    pub debug_l: String,
+    pub debug_r: String,
 }
 
 /// Structure returned by the function [`run`].

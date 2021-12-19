@@ -4,12 +4,13 @@ use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 use std::str::FromStr;
 
-use chess::{BoardStatus, ChessMove, Color, MoveGen, Piece};
+use chess::{BoardStatus, ChessMove, Color, File, MoveGen, Piece, Square};
 use internal_iterator::{Internal, InternalIterator, IteratorExt};
 use rand::Rng;
 
 use crate::board::{Board, BoardAvailableMoves, Outcome, Player};
 use crate::symmetry::UnitSymmetry;
+use crate::util::bot_game::Replay;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Rules {
@@ -86,6 +87,30 @@ impl ChessBoard {
                 })
             }
         }
+    }
+
+    pub fn to_san(&self, mv: ChessMove) -> String {
+        assert!(self.is_available_move(mv));
+
+        let piece = match self.inner.piece_on(mv.get_source()).unwrap() {
+            Piece::Pawn => "".to_string(),
+            Piece::King => match (mv.get_source().get_file(), mv.get_dest().get_file()) {
+                (File::E, File::G) => return "O-O".to_string(),
+                (File::E, File::C) => return "O-O-O".to_string(),
+                _ => "K".to_string(),
+            },
+            piece => piece.to_string(Color::White),
+        };
+
+        let mut result = String::new();
+        let f = &mut result;
+
+        write!(f, "{}{}{}", piece, mv.get_source(), mv.get_dest()).unwrap();
+        if let Some(promotion) = mv.get_promotion() {
+            write!(f, "={}", promotion.to_string(Color::White)).unwrap();
+        }
+
+        result
     }
 }
 
@@ -274,22 +299,35 @@ impl Display for ChessBoard {
     }
 }
 
-pub fn moves_to_pgn(moves: &[ChessMove]) -> String {
+pub fn chess_game_to_pgn(white: &str, black: &str, start: &ChessBoard, moves: &[ChessMove]) -> String {
     let mut result = String::new();
     let f = &mut result;
 
-    for (i, mv) in moves.iter().enumerate() {
+    writeln!(f, "[White \"{}\"]", white).unwrap();
+    writeln!(f, "[Black \"{}\"]", black).unwrap();
+    writeln!(f, "[FEN \"{}\"]", start.inner).unwrap();
+
+    let mut board = start.clone();
+
+    for (i, &mv) in moves.iter().enumerate() {
         if i % 2 == 0 {
             write!(f, "{}. ", 1 + i / 2).unwrap();
         }
 
-        write!(f, "{}{}", mv.get_source(), mv.get_dest()).unwrap();
-        if let Some(promotion) = mv.get_promotion() {
-            write!(f, "={}", promotion.to_string(Color::White)).unwrap()
-        };
+        write!(f, "{} ", board.to_san(mv)).unwrap();
 
-        write!(f, " ").unwrap();
+        board.play(mv);
     }
 
     result
+}
+
+impl Replay<ChessBoard> {
+    pub fn to_pgn(&self) -> String {
+        let (white, black) = match self.player_l {
+            Player::A => (&self.debug_l, &self.debug_r),
+            Player::B => (&self.debug_r, &self.debug_l),
+        };
+        chess_game_to_pgn(white, black, &self.start, &self.moves)
+    }
 }
