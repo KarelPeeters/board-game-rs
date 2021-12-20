@@ -1,6 +1,7 @@
 //! Utilities to run bots against each other and report the results.
 use std::fmt::Write;
 use std::fmt::{Debug, Formatter};
+use std::sync::Mutex;
 use std::time::Instant;
 
 use itertools::Itertools;
@@ -25,7 +26,7 @@ pub fn run<B: Board, L: Bot<B>, R: Bot<B>>(
     bot_r: impl Fn() -> R + Sync,
     games_per_side: u32,
     both_sides: bool,
-    callback: impl Fn(&Replay<B>) -> () + Sync,
+    callback: impl Fn(WDL<u32>, &Replay<B>) -> () + Sync,
 ) -> BotGameResult<B> {
     let callback = &callback;
 
@@ -36,6 +37,8 @@ pub fn run<B: Board, L: Bot<B>, R: Bot<B>>(
     let game_count = if both_sides { 2 * games_per_side } else { games_per_side };
     let starts = (0..games_per_side).map(|_| start()).collect_vec();
 
+    let partial_wdl = Mutex::new(WDL::<u32>::default());
+
     let replays: Vec<Replay<B>> = (0..game_count)
         .into_par_iter()
         .panic_fuse()
@@ -45,7 +48,11 @@ pub fn run<B: Board, L: Bot<B>, R: Bot<B>>(
             let start = &starts[pair_i as usize];
 
             let replay = play_single_game(start, flip, &mut bot_l(), &mut bot_r());
-            callback(&replay);
+
+            let mut partial_wdl = partial_wdl.lock().unwrap();
+            *partial_wdl += replay.outcome.pov(replay.player_l).to_wdl();
+            callback(*partial_wdl, &replay);
+
             replay
         })
         .collect();
