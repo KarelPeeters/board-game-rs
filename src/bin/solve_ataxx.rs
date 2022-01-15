@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::Instant;
 
 use fnv::FnvHashMap;
@@ -36,6 +37,7 @@ fn main() {
     }
 }
 
+#[repr(packed)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 struct ReducedBoard {
     tiles_next: Tiles,
