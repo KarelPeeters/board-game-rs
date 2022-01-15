@@ -12,13 +12,13 @@ pub const MAX_MOVES_SINCE_LAST_COPY: u8 = 100;
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct AtaxxBoard {
-    pub(super) size: u8,
-    pub(super) tiles_a: Tiles,
-    pub(super) tiles_b: Tiles,
-    pub(super) gaps: Tiles,
-    pub(super) moves_since_last_copy: u8,
-    pub(super) next_player: Player,
-    pub(super) outcome: Option<Outcome>,
+    pub(crate) size: u8,
+    pub(crate) tiles_a: Tiles,
+    pub(crate) tiles_b: Tiles,
+    pub(crate) gaps: Tiles,
+    pub(crate) moves_since_last_copy: u8,
+    pub(crate) next_player: Player,
+    pub(crate) outcome: Option<Outcome>,
 }
 
 impl Default for AtaxxBoard {
