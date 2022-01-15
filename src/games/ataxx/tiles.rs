@@ -43,6 +43,10 @@ impl Tiles {
         Tiles(1 << coord.sparse_i())
     }
 
+    pub fn inner(self) -> u64 {
+        self.0
+    }
+
     pub fn has(self, coord: Coord) -> bool {
         (self.0 >> coord.sparse_i()) & 1 != 0
     }
