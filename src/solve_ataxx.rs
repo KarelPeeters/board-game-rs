@@ -12,14 +12,14 @@ use crate::wdl::{Flip, OutcomeWDL, POV};
 //TODO extra recently used cache for better cache coherency?
 
 pub fn main() {
-    let board = AtaxxBoard::diagonal(5);
+    let board = AtaxxBoard::diagonal(4);
     println!("{}", board);
 
     let mut storage = Storage::default();
 
     let start = Instant::now();
 
-    let s = solve_ataxx(&board, &mut storage, 0);
+    let s = solve_ataxx(&board, &mut storage, 0, 100, &start);
 
     // println!("Storage:");
     // for (k, v) in &storage {
@@ -32,10 +32,13 @@ pub fn main() {
     println!("solution:     {:?}", s);
     println!("took:         {:?}", start.elapsed());
 
+    println!();
     board.available_moves().for_each(|mv| {
-        let s2 = solve_ataxx(&board.clone_and_play(mv), &mut storage, 1);
+        let s2 = solve_ataxx(&board.clone_and_play(mv), &mut storage, 1, 0, &start);
         println!("{}: {:?}", mv, s2);
-    })
+    });
+
+    println!("took:         {:?}", start.elapsed());
 }
 
 type Storage = FnvHashMap<ReducedBoard, Info>;
@@ -85,7 +88,17 @@ pub struct Info {
     outcome: Option<OutcomeWDL>,
 }
 
-fn solve_ataxx(board_original: &AtaxxBoard, storage: &mut Storage, depth: u32) -> OutcomeWDL {
+fn solve_ataxx(
+    board_original: &AtaxxBoard,
+    storage: &mut Storage,
+    depth: u32,
+    print_depth: u32,
+    start: &Instant,
+) -> OutcomeWDL {
+    if depth < print_depth {
+        print_curr_depth(depth, print_depth, start);
+    }
+
     if let Some(outcome) = board_original.outcome() {
         return outcome.pov(board_original.next_player());
     }
@@ -117,13 +130,14 @@ fn solve_ataxx(board_original: &AtaxxBoard, storage: &mut Storage, depth: u32) -
         .collect();
 
     // order from low to high by opponent tiles
+    // TODO why does subtracting our own tiles not improve things?
     next_boards.sort_by_key(|b| b.tiles_pov().0.count());
 
     // recurse with minimax
     let outcome = OutcomeWDL::best(
         next_boards
             .iter()
-            .map(|b| solve_ataxx(b, storage, depth + 1).flip())
+            .map(|b| solve_ataxx(b, storage, depth + 1, print_depth, start).flip())
             .into_internal(),
     );
 
@@ -133,4 +147,15 @@ fn solve_ataxx(board_original: &AtaxxBoard, storage: &mut Storage, depth: u32) -
     info.outcome = Some(outcome);
 
     outcome
+}
+
+fn print_curr_depth(depth: u32, max_depth: u32, start: &Instant) {
+    for _ in 0..depth {
+        print!(" ");
+    }
+    print!("{}", depth);
+    for _ in depth..max_depth {
+        print!(" ");
+    }
+    println!("{:?}", start.elapsed());
 }
