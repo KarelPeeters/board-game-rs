@@ -33,8 +33,8 @@ pub struct ChessBoard {
 
 #[derive(Debug, Clone)]
 pub struct ParseMoveError {
-    mv: String,
-    error: chess::Error,
+    pub mv: String,
+    pub error: chess::Error,
 }
 
 impl ChessBoard {
@@ -194,11 +194,11 @@ impl Board for ChessBoard {
         }
     }
 
-    fn map(&self, _: Self::Symmetry) -> Self {
+    fn map(&self, _: UnitSymmetry) -> Self {
         self.clone()
     }
 
-    fn map_move(_: Self::Symmetry, mv: Self::Move) -> Self::Move {
+    fn map_move(&self, _: UnitSymmetry, mv: Self::Move) -> Self::Move {
         mv
     }
 }

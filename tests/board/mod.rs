@@ -153,7 +153,7 @@ fn test_symmetry<B: Board>(board: &B) {
         assert_eq!(board.next_player(), mapped.next_player());
 
         if !board.is_done() {
-            let mut expected_moves: Vec<B::Move> = board.available_moves().map(|c| B::map_move(sym, c)).collect();
+            let mut expected_moves: Vec<B::Move> = board.available_moves().map(|c| board.map_move(sym, c)).collect();
             let mut actual_moves: Vec<B::Move> = mapped.available_moves().collect();
 
             expected_moves.sort();

@@ -2,6 +2,7 @@ use std::cmp::max;
 use std::fmt::{Debug, Display, Formatter};
 
 use crate::games::ataxx::tiles::Tiles;
+use crate::games::ataxx::AtaxxBoard;
 use crate::symmetry::D4Symmetry;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -35,17 +36,17 @@ impl Display for Move {
 impl Coord {
     pub fn all() -> impl Iterator<Item = Coord> {
         // this is kind of stupid but it works
-        Tiles::full().into_iter()
+        Tiles::full(8).into_iter()
     }
 
     pub fn from_xy(x: u8, y: u8) -> Coord {
-        assert!(x < 7);
-        assert!(y < 7);
+        assert!(x < 8);
+        assert!(y < 8);
         Coord(x + 8 * y)
     }
 
     pub fn from_dense_i(i: u8) -> Coord {
-        assert!(i < 7 * 7);
+        assert!(i < 8 * 8);
         Coord(i)
     }
 
@@ -65,18 +66,15 @@ impl Coord {
         self.0
     }
 
-    pub fn dense_i(self) -> u8 {
-        self.x() + 7 * self.y()
-    }
-
     pub fn distance(self, other: Coord) -> u8 {
         let dx = abs_distance(self.x(), other.x());
         let dy = abs_distance(self.y(), other.y());
         max(dx, dy)
     }
 
-    pub fn map(self, sym: D4Symmetry) -> Coord {
-        let (x, y) = sym.map_xy(self.x(), self.y(), 6);
+    pub fn map(self, size: u8, sym: D4Symmetry) -> Coord {
+        assert!(size <= AtaxxBoard::MAX_SIZE);
+        let (x, y) = sym.map_xy(self.x(), self.y(), size - 1);
         Coord::from_xy(x, y)
     }
 }

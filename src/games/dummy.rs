@@ -22,22 +22,25 @@
 //! // * the fourth move leads to a draw
 //! // * the fifth move leads to a victory by B
 //! ```
-use crate::board::{Board, BoardAvailableMoves, Outcome, Player};
-use crate::symmetry::UnitSymmetry;
-use internal_iterator::{Internal, IteratorExt};
-use nom::error::Error;
-use nom::Finish;
 use std::fmt;
 use std::str::FromStr;
 
+use internal_iterator::{Internal, IteratorExt};
+use nom::error::Error;
+use nom::Finish;
+
+use crate::board::{Board, BoardAvailableMoves, Outcome, Player};
+use crate::symmetry::UnitSymmetry;
+
 mod parse {
-    use super::*;
     use nom::branch::alt;
     use nom::character::complete::{char, one_of};
     use nom::combinator::{eof, map};
     use nom::multi::many1;
     use nom::sequence::{delimited, terminated};
     use nom::IResult;
+
+    use super::*;
 
     fn outcome(input: &str) -> IResult<&str, Outcome> {
         map(one_of("AB="), |c| match c {
@@ -145,11 +148,11 @@ impl Board for DummyGame {
         }
     }
 
-    fn map(&self, _sym: Self::Symmetry) -> Self {
+    fn map(&self, _: UnitSymmetry) -> Self {
         self.clone()
     }
 
-    fn map_move(_sym: Self::Symmetry, mv: Self::Move) -> Self::Move {
+    fn map_move(&self, _: UnitSymmetry, mv: Self::Move) -> Self::Move {
         mv
     }
 }

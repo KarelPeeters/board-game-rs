@@ -1,6 +1,7 @@
 use std::fmt::{Display, Formatter};
 
 use crate::games::ataxx::mv::Coord;
+use crate::games::ataxx::AtaxxBoard;
 use crate::symmetry::D4Symmetry;
 use crate::util::bits::{get_nth_set_bit, BitIter};
 
@@ -17,12 +18,21 @@ impl IntoIterator for Tiles {
 }
 
 impl Tiles {
-    pub const FULL_MASK: u64 = 0x7F_7F_7F_7F_7F_7F_7F;
-    pub const CORNERS_A: Tiles = Tiles(0x_01_00_00_00_00_00_40);
-    pub const CORNERS_B: Tiles = Tiles(0x_40_00_00_00_00_00_01);
+    pub fn full(size: u8) -> Tiles {
+        const FULL_MASKS: [u64; 9] = [
+            0x0000000000000000,
+            0x0000000000000001,
+            0x0000000000000303,
+            0x0000000000070707,
+            0x000000000f0f0f0f,
+            0x0000001f1f1f1f1f,
+            0x00003f3f3f3f3f3f,
+            0x007f7f7f7f7f7f7f,
+            0xffffffffffffffff,
+        ];
 
-    pub fn full() -> Tiles {
-        Tiles(Self::FULL_MASK)
+        assert!(size <= 8);
+        Tiles(FULL_MASKS[size as usize])
     }
 
     pub fn empty() -> Tiles {
@@ -39,10 +49,6 @@ impl Tiles {
 
     pub fn is_empty(self) -> bool {
         self.0 == 0
-    }
-
-    pub fn is_full(self) -> bool {
-        self.0 == Self::FULL_MASK
     }
 
     pub fn count(self) -> u8 {
@@ -63,58 +69,64 @@ impl Tiles {
         Tiles(self.0 & !(1 << coord.sparse_i()))
     }
 
-    pub fn left(self) -> Self {
-        Tiles((self.0 >> 1) & Self::FULL_MASK)
+    pub fn not(self, size: u8) -> Self {
+        Tiles(!self.0) & Tiles::full(size)
     }
 
-    pub fn right(self) -> Self {
-        Tiles((self.0 << 1) & Self::FULL_MASK)
+    pub fn left(self, size: u8) -> Self {
+        Tiles(self.0 >> 1) & Tiles::full(size)
     }
 
-    pub fn down(self) -> Self {
-        Tiles((self.0 >> 8) & Self::FULL_MASK)
+    pub fn right(self, size: u8) -> Self {
+        Tiles(self.0 << 1) & Tiles::full(size)
     }
 
-    pub fn up(self) -> Self {
-        Tiles((self.0 << 8) & Self::FULL_MASK)
+    pub fn down(self, size: u8) -> Self {
+        Tiles(self.0 >> 8) & Tiles::full(size)
     }
 
-    pub fn copy_targets(self) -> Self {
+    pub fn up(self, size: u8) -> Self {
+        Tiles(self.0 << 8) & Tiles::full(size)
+    }
+
+    pub fn copy_targets(self, size: u8) -> Self {
         // counterclockwise starting from left
-        self.left()
-            | self.left().down()
-            | self.down()
-            | self.right().down()
-            | self.right()
-            | self.right().up()
-            | self.up()
-            | self.left().up()
+        self.left(size)
+            | self.left(size).down(size)
+            | self.down(size)
+            | self.right(size).down(size)
+            | self.right(size)
+            | self.right(size).up(size)
+            | self.up(size)
+            | self.left(size).up(size)
     }
 
-    pub fn jump_targets(self) -> Self {
+    pub fn jump_targets(self, size: u8) -> Self {
         // counterclockwise starting from left.left
-        self.left().left()
-            | self.left().left().down()
-            | self.left().left().down().down()
-            | self.left().down().down()
-            | self.down().down()
-            | self.right().down().down()
-            | self.right().right().down().down()
-            | self.right().right().down()
-            | self.right().right()
-            | self.right().right().up()
-            | self.right().right().up().up()
-            | self.right().up().up()
-            | self.up().up()
-            | self.left().up().up()
-            | self.left().left().up().up()
-            | self.left().left().up()
+        self.left(size).left(size)
+            | self.left(size).left(size).down(size)
+            | self.left(size).left(size).down(size).down(size)
+            | self.left(size).down(size).down(size)
+            | self.down(size).down(size)
+            | self.right(size).down(size).down(size)
+            | self.right(size).right(size).down(size).down(size)
+            | self.right(size).right(size).down(size)
+            | self.right(size).right(size)
+            | self.right(size).right(size).up(size)
+            | self.right(size).right(size).up(size).up(size)
+            | self.right(size).up(size).up(size)
+            | self.up(size).up(size)
+            | self.left(size).up(size).up(size)
+            | self.left(size).left(size).up(size).up(size)
+            | self.left(size).left(size).up(size)
     }
 
-    pub fn map(self, sym: D4Symmetry) -> Tiles {
+    pub fn map(self, size: u8, sym: D4Symmetry) -> Tiles {
+        assert!(size < AtaxxBoard::MAX_SIZE);
+
         let mut result = Tiles::empty();
         for c in self {
-            result = result.set(c.map(sym))
+            result = result.set(c.map(size, sym))
         }
         result
     }
@@ -122,23 +134,14 @@ impl Tiles {
 
 impl Display for Tiles {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        assert_eq!(self.0 & Tiles::FULL_MASK, self.0);
-        for y in (0..7).rev() {
-            for x in 0..7 {
+        for y in (0..8).rev() {
+            for x in 0..8 {
                 let coord = Coord::from_xy(x, y);
                 write!(f, "{}", if self.has(coord) { '1' } else { '.' })?;
             }
             writeln!(f)?;
         }
         Ok(())
-    }
-}
-
-impl std::ops::Not for Tiles {
-    type Output = Tiles;
-
-    fn not(self) -> Self::Output {
-        Tiles((!self.0) & Tiles::FULL_MASK)
     }
 }
 

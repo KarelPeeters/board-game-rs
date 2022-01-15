@@ -71,8 +71,8 @@ impl<B: Board> Board for MaxMovesBoard<B> {
         }
     }
 
-    fn map_move(sym: Self::Symmetry, mv: Self::Move) -> Self::Move {
-        B::map_move(sym, mv)
+    fn map_move(&self, sym: Self::Symmetry, mv: Self::Move) -> Self::Move {
+        B::map_move(self.inner(), sym, mv)
     }
 }
 

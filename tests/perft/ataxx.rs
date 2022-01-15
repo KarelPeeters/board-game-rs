@@ -7,7 +7,7 @@ use crate::perft::perft_main;
 fn ataxx_perft() {
     #[rustfmt::skip]
     perft_main(
-        AtaxxBoard::from_fen,
+        |s| AtaxxBoard::from_fen(s).unwrap(),
         Some(AtaxxBoard::to_fen),
         vec![
             ("7/7/7/7/7/7/7 x 0 1", vec![1, 0, 0, 0, 0]),

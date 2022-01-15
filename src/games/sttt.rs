@@ -170,7 +170,7 @@ impl Board for STTTBoard {
         STTTBoard {
             grids,
             main_grid: map_grid(sym, self.main_grid),
-            last_move: self.last_move.map(|c| Self::map_move(sym, c)),
+            last_move: self.last_move.map(|c| self.map_move(sym, c)),
             next_player: self.next_player,
             outcome: self.outcome,
             macro_mask: map_grid(sym, self.macro_mask),
@@ -178,7 +178,7 @@ impl Board for STTTBoard {
         }
     }
 
-    fn map_move(sym: D4Symmetry, mv: Coord) -> Coord {
+    fn map_move(&self, sym: D4Symmetry, mv: Coord) -> Coord {
         Coord::from_oo(map_oo(sym, mv.om()), map_oo(sym, mv.os()))
     }
 }

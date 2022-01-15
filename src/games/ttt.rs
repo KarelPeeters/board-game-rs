@@ -122,7 +122,7 @@ impl Board for TTTBoard {
         self.clone()
     }
 
-    fn map_move(_: Self::Symmetry, mv: Self::Move) -> Self::Move {
+    fn map_move(&self, _: Self::Symmetry, mv: Self::Move) -> Self::Move {
         mv
     }
 }

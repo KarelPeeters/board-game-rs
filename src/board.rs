@@ -65,7 +65,7 @@ where
     fn map(&self, sym: Self::Symmetry) -> Self;
 
     /// Map a move under the given symmetry.
-    fn map_move(sym: Self::Symmetry, mv: Self::Move) -> Self::Move;
+    fn map_move(&self, sym: Self::Symmetry, mv: Self::Move) -> Self::Move;
 }
 
 /// A helper trait to get the correct lifetimes for [BoardAvailableMoves::available_moves].

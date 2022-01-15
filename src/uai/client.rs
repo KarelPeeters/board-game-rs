@@ -59,7 +59,7 @@ pub fn run(
             Command::Position(position) => {
                 curr_board = Some(match position {
                     Position::StartPos => AtaxxBoard::default(),
-                    Position::Fen(fen) => AtaxxBoard::from_fen(fen),
+                    Position::Fen(fen) => AtaxxBoard::from_fen(fen).unwrap(),
                 });
             }
             Command::Go(time_settings) => {
