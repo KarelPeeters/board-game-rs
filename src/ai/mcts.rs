@@ -286,7 +286,7 @@ fn mcts_solver_step<B: Board>(
 
             //TODO maybe do this even earlier, and immediately stop pushing nodes -> but then children are inconsistent :(
             //  so what? who care about children somewhere deep in the tree!
-            let outcome = OutcomeWDL::best(children.iter().map(|c| tree[c].solution()).into_internal());
+            let outcome = OutcomeWDL::best_maybe(children.iter().map(|c| tree[c].solution()).into_internal());
             if let Some(outcome) = outcome.flip() {
                 tree[curr_node].mark_solved(outcome);
                 return (outcome, true);
@@ -331,7 +331,7 @@ fn mcts_solver_step<B: Board>(
 
     if proven {
         //check if we can prove the current node as well
-        let outcome = OutcomeWDL::best(children.iter().map(|c| tree[c].solution()).into_internal());
+        let outcome = OutcomeWDL::best_maybe(children.iter().map(|c| tree[c].solution()).into_internal());
         if let Some(outcome) = outcome.flip() {
             tree[curr_node].mark_solved(outcome);
             return (outcome, true);

@@ -83,10 +83,15 @@ impl OutcomeWDL {
         }
     }
 
-    pub fn best<I>(children: I) -> Option<OutcomeWDL>
-    where
-        I: IntoInternalIterator<Item = Option<OutcomeWDL>>,
-    {
+    /// Pick the best possible outcome, assuming `Win > Draw > Loss`.
+    /// Make sure to flip the child values as appropriate, this function assumes everything is form the parent POV.
+    pub fn best<I: IntoInternalIterator<Item = OutcomeWDL>>(children: I) -> OutcomeWDL {
+        Self::best_maybe(children.into_internal_iter().map(Some)).unwrap()
+    }
+
+    /// Pick the best possible outcome, assuming `Some(Win) > None > Some(Draw) > Some(Loss)`.
+    /// Make sure to flip the child values as appropriate, this function assumes everything is form the parent POV.
+    pub fn best_maybe<I: IntoInternalIterator<Item = Option<OutcomeWDL>>>(children: I) -> Option<OutcomeWDL> {
         let mut any_unknown = false;
         let mut all_known_are_loss = true;
 
