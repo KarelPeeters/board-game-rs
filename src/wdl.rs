@@ -1,6 +1,8 @@
 use cast_trait::Cast;
+use internal_iterator::IntoInternalIterator;
 
 use crate::board::{Outcome, Player};
+use crate::util::internal_ext::{Control, InternalIteratorExt};
 
 /// The outcome of a game from the POV of a certain player. Usually obtained using [Outcome::pov].
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -80,28 +82,33 @@ impl OutcomeWDL {
         }
     }
 
-    /// Combine outcomes together in minimax-style.. `None` means unknown.
-    pub fn best<I: IntoIterator<Item = Option<OutcomeWDL>>>(children: I) -> Option<OutcomeWDL> {
+    pub fn best<I>(children: I) -> Option<OutcomeWDL>
+    where
+        I: IntoInternalIterator<Item = Option<OutcomeWDL>>,
+    {
         let mut any_unknown = false;
         let mut all_known_are_loss = true;
 
-        for outcome in children {
-            match outcome {
+        let control = children.into_internal_iter().for_each_control(|child| {
+            match child {
                 None => {
                     any_unknown = true;
                 }
                 Some(OutcomeWDL::Win) => {
-                    //early exit, we've found a win
-                    return Some(OutcomeWDL::Win);
+                    return Control::Break(());
                 }
                 Some(OutcomeWDL::Draw) => {
                     all_known_are_loss = false;
                 }
                 Some(OutcomeWDL::Loss) => {}
             }
-        }
 
-        if any_unknown {
+            Control::Continue
+        });
+
+        if control.is_some() {
+            Some(OutcomeWDL::Win)
+        } else if any_unknown {
             None
         } else if all_known_are_loss {
             Some(OutcomeWDL::Loss)
