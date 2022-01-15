@@ -1,8 +1,7 @@
-use std::collections::HashMap;
 use std::time::Instant;
 
 use fnv::FnvHashMap;
-use internal_iterator::InternalIterator;
+use internal_iterator::{InternalIterator, IteratorExt};
 
 use board_game::board::{Board, BoardAvailableMoves};
 use board_game::games::ataxx::{AtaxxBoard, Tiles};
@@ -80,10 +79,16 @@ fn solve_ataxx(board: &AtaxxBoard, cache: &mut OutcomeCache, depth: u32) -> Opti
         return outcome;
     }
 
-    let result = OutcomeWDL::best(board.available_moves().map(|mv| {
-        let next = board.clone_and_play(mv);
-        solve_ataxx(&next, cache, depth - 1).flip()
-    }));
+    let mut next_boards: Vec<_> = board.available_moves().map(|mv| board.clone_and_play(mv)).collect();
+    //TODO why is this so counterintuitive?
+    next_boards.sort_by_key(|b| b.tiles_pov().1.count());
+
+    let result = OutcomeWDL::best(
+        next_boards
+            .iter()
+            .map(|b| solve_ataxx(b, cache, depth - 1).flip())
+            .into_internal(),
+    );
 
     cache.insert(key, result);
 
