@@ -1,7 +1,10 @@
 use internal_iterator::InternalIterator;
+use rand::rngs::SmallRng;
+use rand::{Rng, SeedableRng};
 
 use board_game::board::{Board, BoardAvailableMoves, Outcome, Player};
 use board_game::games::ataxx::{AtaxxBoard, Move};
+use board_game::util::board_gen::random_board_with_moves;
 
 use crate::board::board_test_main;
 
@@ -31,6 +34,31 @@ fn ataxx_sizes() {
         println!("{}", actual);
         println!("{}", expected);
         assert_eq!(actual, expected);
+    }
+}
+
+#[test]
+fn ataxx_check_tile_count() {
+    let mut rng = SmallRng::seed_from_u64(0);
+    for size in 5..AtaxxBoard::MAX_SIZE {
+        for _ in 0..100 {
+            let board = random_board_with_moves(&AtaxxBoard::diagonal(size), rng.gen_range(0..20), &mut rng);
+
+            let board_str = board.to_string();
+            println!("{}", board_str);
+
+            let x_bonus = (board.next_player() == Player::A) as usize;
+            let o_bonus = (board.next_player() == Player::B) as usize;
+
+            assert_eq!(
+                (board.tiles_a().count() as usize + x_bonus) * 2,
+                board_str.matches("x").count()
+            );
+            assert_eq!(
+                (board.tiles_b().count() as usize + o_bonus) * 2,
+                board_str.matches("o").count()
+            );
+        }
     }
 }
 
