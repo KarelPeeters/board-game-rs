@@ -12,7 +12,7 @@ use crate::wdl::{Flip, OutcomeWDL, POV};
 //TODO extra recently used cache for better cache coherency?
 
 pub fn main() {
-    let board = AtaxxBoard::diagonal(4);
+    let board = AtaxxBoard::diagonal(5);
     println!("{}", board);
 
     let mut storage = Storage::default();
