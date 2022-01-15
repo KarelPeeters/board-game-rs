@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
+use std::ops::ControlFlow;
 use std::panic::{RefUnwindSafe, UnwindSafe};
 
 use internal_iterator::InternalIterator;
@@ -123,7 +124,7 @@ impl Player {
         }
     }
 
-    pub fn sign<V: num::One + std::ops::Neg<Output = V>>(self, pov: Player) -> V {
+    pub fn sign<V: num_traits::One + std::ops::Neg<Output = V>>(self, pov: Player) -> V {
         if self == pov {
             V::one()
         } else {
@@ -149,18 +150,16 @@ impl<'a, B: Board> BruteforceMoveIterator<'a, B> {
 impl<'a, B: Board> InternalIterator for BruteforceMoveIterator<'a, B> {
     type Item = B::Move;
 
-    fn find_map<R, F>(self, mut f: F) -> Option<R>
+    fn try_for_each<R, F>(self, mut f: F) -> ControlFlow<R>
     where
-        F: FnMut(Self::Item) -> Option<R>,
+        F: FnMut(Self::Item) -> ControlFlow<R>,
     {
-        B::all_possible_moves().find_map(
-            |mv: B::Move| {
-                if self.board.is_available_move(mv) {
-                    f(mv)
-                } else {
-                    None
-                }
-            },
-        )
+        B::all_possible_moves().try_for_each(|mv: B::Move| {
+            if self.board.is_available_move(mv) {
+                f(mv)
+            } else {
+                ControlFlow::Continue(())
+            }
+        })
     }
 }

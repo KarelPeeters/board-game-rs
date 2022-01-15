@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::ops::ControlFlow;
 
 use internal_iterator::InternalIterator;
 use rand::Rng;
@@ -322,35 +323,30 @@ impl<'a> BoardAvailableMoves<'a, AtaxxBoard> for AtaxxBoard {
 impl<'a> InternalIterator for AllMoveIterator {
     type Item = Move;
 
-    fn find_map<R, F>(self, mut f: F) -> Option<R>
+    fn try_for_each<R, F>(self, mut f: F) -> ControlFlow<R>
     where
-        F: FnMut(Self::Item) -> Option<R>,
+        F: FnMut(Self::Item) -> ControlFlow<R>,
     {
-        if let Some(x) = f(Move::Pass) {
-            return Some(x);
-        };
+        f(Move::Pass)?;
         for to in Coord::all() {
-            if let Some(x) = f(Move::Copy { to }) {
-                return Some(x);
-            };
+            f(Move::Copy { to })?;
         }
         for to in Coord::all() {
             for from in Tiles::coord(to).jump_targets(8) {
-                if let Some(x) = f(Move::Jump { from, to }) {
-                    return Some(x);
-                };
+                f(Move::Jump { from, to })?;
             }
         }
-        None
+
+        ControlFlow::Continue(())
     }
 }
 
 impl<'a> InternalIterator for MoveIterator<'a> {
     type Item = Move;
 
-    fn find_map<R, F>(self, mut f: F) -> Option<R>
+    fn try_for_each<R, F>(self, mut f: F) -> ControlFlow<R>
     where
-        F: FnMut(Self::Item) -> Option<R>,
+        F: FnMut(Self::Item) -> ControlFlow<R>,
     {
         let board = self.board;
         let size = self.board.size;
@@ -365,21 +361,17 @@ impl<'a> InternalIterator for MoveIterator<'a> {
         // copy moves
         let copy_targets = free_tiles & next_tiles.copy_targets(size);
         for to in copy_targets {
-            if let Some(x) = f(Move::Copy { to }) {
-                return Some(x);
-            }
+            f(Move::Copy { to })?;
         }
 
         // jump moves
         let jump_targets = free_tiles & next_tiles.jump_targets(size);
         for to in jump_targets {
             for from in next_tiles & Tiles::coord(to).jump_targets(size) {
-                if let Some(x) = f(Move::Jump { from, to }) {
-                    return Some(x);
-                }
+                f(Move::Jump { from, to })?;
             }
         }
 
-        None
+        ControlFlow::Continue(())
     }
 }

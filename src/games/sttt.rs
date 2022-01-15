@@ -1,5 +1,6 @@
 use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
+use std::ops::ControlFlow;
 
 use internal_iterator::{Internal, InternalIterator, IteratorExt};
 use itertools::Itertools;
@@ -271,20 +272,18 @@ pub struct STTTMoveIterator<'a> {
 impl<'a> InternalIterator for STTTMoveIterator<'a> {
     type Item = Coord;
 
-    fn find_map<R, F>(self, mut f: F) -> Option<R>
+    fn try_for_each<R, F>(self, mut f: F) -> ControlFlow<R>
     where
-        F: FnMut(Self::Item) -> Option<R>,
+        F: FnMut(Self::Item) -> ControlFlow<R>,
     {
         for om in BitIter::new(self.board.macro_mask) {
             let free_grid = (!compact_grid(self.board.grids[om as usize])) & STTTBoard::FULL_MASK;
             for os in BitIter::new(free_grid) {
-                if let Some(r) = f(Coord::from_oo(om, os)) {
-                    return Some(r);
-                }
+                f(Coord::from_oo(om, os))?;
             }
         }
 
-        None
+        ControlFlow::Continue(())
     }
 }
 

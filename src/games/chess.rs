@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::fmt::{Debug, Write};
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
+use std::ops::ControlFlow;
 use std::str::FromStr;
 
 use chess::{BoardStatus, ChessMove, Color, File, MoveGen, Piece};
@@ -208,25 +209,22 @@ pub struct AllMoveIterator;
 
 impl InternalIterator for AllMoveIterator {
     type Item = ChessMove;
-    fn find_map<R, F>(self, mut f: F) -> Option<R>
+
+    fn try_for_each<R, F>(self, mut f: F) -> ControlFlow<R>
     where
-        F: FnMut(Self::Item) -> Option<R>,
+        F: FnMut(Self::Item) -> ControlFlow<R>,
     {
         for from in chess::ALL_SQUARES {
             for to in chess::ALL_SQUARES {
-                if let Some(x) = f(ChessMove::new(from, to, None)) {
-                    return Some(x);
-                }
+                f(ChessMove::new(from, to, None))?;
 
                 for piece in chess::PROMOTION_PIECES {
-                    if let Some(x) = f(ChessMove::new(from, to, Some(piece))) {
-                        return Some(x);
-                    }
+                    f(ChessMove::new(from, to, Some(piece)))?;
                 }
             }
         }
 
-        None
+        ControlFlow::Continue(())
     }
 }
 

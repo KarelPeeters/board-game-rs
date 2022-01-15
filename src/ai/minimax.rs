@@ -1,14 +1,13 @@
 use std::cmp::Ordering;
 use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
-use std::ops::Neg;
+use std::ops::{ControlFlow, Neg};
 
+use internal_iterator::InternalIterator;
 use rand::Rng;
 
 use crate::ai::Bot;
 use crate::board::Board;
-use crate::util::internal_ext::Control::{Break, Continue};
-use crate::util::internal_ext::InternalIteratorExt;
 
 pub trait Heuristic<B: Board>: Debug {
     /// The type used to represent the heuristic value of a board.
@@ -231,7 +230,7 @@ fn negamax_recurse<B: Board, H: Heuristic<B>, S: MoveSelector<B::Move>>(
     let mut best_value = None;
     let mut alpha = alpha;
 
-    let early = board.available_moves().for_each_control(|mv: B::Move| {
+    let early = board.available_moves().try_for_each(|mv: B::Move| {
         let child = board.clone_and_play(mv);
         let child_heuristic = heuristic.value_update(board, board_heuristic, length, mv, &child);
 
@@ -263,22 +262,21 @@ fn negamax_recurse<B: Board, H: Heuristic<B>, S: MoveSelector<B::Move>>(
         alpha = Some(new_alpha);
 
         if beta.map_or(false, |beta| H::merge(beta, new_alpha).1.is_ge()) {
-            Break(MinimaxResult {
+            ControlFlow::Break(MinimaxResult {
                 value: new_best_value,
                 best_move: None,
             })
         } else {
-            Continue
+            ControlFlow::Continue(())
         }
     });
 
-    if let Some(early) = early {
-        early
-    } else {
-        MinimaxResult {
+    match early {
+        ControlFlow::Break(early) => early,
+        ControlFlow::Continue(()) => MinimaxResult {
             value: best_value.unwrap(),
             best_move: Some(move_selector.finish()),
-        }
+        },
     }
 }
 

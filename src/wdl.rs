@@ -1,8 +1,9 @@
+use std::ops::ControlFlow;
+
 use cast_trait::Cast;
-use internal_iterator::IntoInternalIterator;
+use internal_iterator::{InternalIterator, IntoInternalIterator};
 
 use crate::board::{Outcome, Player};
-use crate::util::internal_ext::{Control, InternalIteratorExt};
 
 /// The outcome of a game from the POV of a certain player. Usually obtained using [Outcome::pov].
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -35,7 +36,7 @@ pub trait Flip {
 
 impl OutcomeWDL {
     /// Convert this to a WDL with a one at the correct place and zero otherwise.
-    pub fn to_wdl<V: num::One + num::Zero>(self) -> WDL<V> {
+    pub fn to_wdl<V: num_traits::One + num_traits::Zero>(self) -> WDL<V> {
         match self {
             OutcomeWDL::Win => WDL {
                 win: V::one(),
@@ -56,7 +57,7 @@ impl OutcomeWDL {
     }
 
     /// Convert a win to `1`, draw to `0` and loss to `-1`.
-    pub fn sign<V: num::Zero + num::One + std::ops::Neg<Output = V>>(self) -> V {
+    pub fn sign<V: num_traits::Zero + num_traits::One + std::ops::Neg<Output = V>>(self) -> V {
         match self {
             OutcomeWDL::Win => V::one(),
             OutcomeWDL::Draw => V::zero(),
@@ -65,7 +66,7 @@ impl OutcomeWDL {
     }
 
     /// Convert a win to `inf`, draw to `0` and loss to `-inf`.
-    pub fn inf_sign<V: num::Float>(self) -> V {
+    pub fn inf_sign<V: num_traits::Float>(self) -> V {
         match self {
             OutcomeWDL::Win => V::infinity(),
             OutcomeWDL::Draw => V::zero(),
@@ -89,13 +90,13 @@ impl OutcomeWDL {
         let mut any_unknown = false;
         let mut all_known_are_loss = true;
 
-        let control = children.into_internal_iter().for_each_control(|child| {
+        let control = children.into_internal_iter().try_for_each(|child| {
             match child {
                 None => {
                     any_unknown = true;
                 }
                 Some(OutcomeWDL::Win) => {
-                    return Control::Break(());
+                    return ControlFlow::Break(());
                 }
                 Some(OutcomeWDL::Draw) => {
                     all_known_are_loss = false;
@@ -103,10 +104,10 @@ impl OutcomeWDL {
                 Some(OutcomeWDL::Loss) => {}
             }
 
-            Control::Continue
+            ControlFlow::Continue(())
         });
 
-        if control.is_some() {
+        if let ControlFlow::Break(()) = control {
             Some(OutcomeWDL::Win)
         } else if any_unknown {
             None
@@ -118,7 +119,7 @@ impl OutcomeWDL {
     }
 }
 
-impl<V: num::Float> WDL<V> {
+impl<V: num_traits::Float> WDL<V> {
     pub fn nan() -> WDL<V> {
         WDL {
             win: V::nan(),
@@ -138,7 +139,7 @@ impl<V> WDL<V> {
     }
 }
 
-impl<V: num::One + num::Zero + PartialEq> WDL<V> {
+impl<V: num_traits::One + num_traits::Zero + PartialEq> WDL<V> {
     pub fn try_to_outcome_wdl(self) -> Result<OutcomeWDL, ()> {
         let outcomes = [OutcomeWDL::Win, OutcomeWDL::Draw, OutcomeWDL::Loss];
         outcomes.iter().copied().find(|&o| o.to_wdl() == self).ok_or(())

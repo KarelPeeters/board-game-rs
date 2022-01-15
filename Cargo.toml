@@ -9,16 +9,24 @@ keywords = ["board", "ai", "ataxx", "sttt"]
 categories = ["algorithms", "games"]
 repository = "https://github.com/KarelPeeters/board-game-rs"
 
+[features]
+default = []
+
 [dependencies]
 rand = { version = "0.8.4", features = ["small_rng"] }
-itertools = "0.10.1"
-rayon = "1.5.1"
-decorum = { version = "0.3.1", default-features = false, features = ["std"] }
-internal-iterator = "0.1.2"
-num = "0.4.0"
-nom = "7.0.0"
+itertools = "0.10.3"
+decorum = { version = "0.3.1", default-features = false }
+internal-iterator = "0.2.0"
+num-traits = "0.2.14"
+nom = "7.1.0"
 rand_xoshiro = "0.6.0"
 cast_trait = "0.1.2"
+
+# TODO rayon is only used in bot_game, maybe we can move that into a separate crate?
+rayon = "1.5.1"
+
+# TODO the chess crate is heavy (and takes a long time to build, see below "temp fix"), maybe replace it with
+#
 chess = "3.2.0"
 
 # temporary fix until https://github.com/jordanbray/chess/pull/67 is merged
