@@ -6,24 +6,30 @@ use std::panic::{RefUnwindSafe, UnwindSafe};
 use internal_iterator::InternalIterator;
 use rand::Rng;
 
-use crate::symmetry::Symmetry;
+use crate::symmetry::{Symmetry, UnitSymmetry};
+
+/// One of the two players.
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum Player {
+    A,
+    B,
+}
+
+/// The absolute outcome for a game.
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum Outcome {
+    WonBy(Player),
+    Draw,
+}
 
 /// The main trait of this crate. Represents the state of a game.
 /// Each game implementation is supposed to provide it's own constructors to allow for customizable start positions.
 pub trait Board: 'static + Debug + Display + Clone + Eq + Hash + Send + Sync + UnwindSafe + RefUnwindSafe
 where
-    for<'a> Self: BoardAvailableMoves<'a, Self>,
+    for<'a> Self: BoardAvailableMoves<'a, Self> + BoardSymmetry<Self>,
 {
     /// The type used to represent moves on this board.
     type Move: Debug + Display + Eq + Ord + Hash + Copy + Send + Sync + UnwindSafe + RefUnwindSafe;
-
-    /// The type used to represent board symmetries.
-    type Symmetry: Symmetry;
-
-    /// Whether the player who plays a move can lose by playing that move.
-    /// Symbolically whether `b.won_by() == Some(Winner::Player(b.next_player()))` can ever be true.
-    /// This may be pessimistic, returning `true` is always correct.
-    fn can_lose_after_move() -> bool;
 
     /// Return the next player to make a move.
     /// If the board is done this is the player that did not play the last move for consistency.
@@ -62,11 +68,10 @@ where
         self.outcome().is_some()
     }
 
-    /// Map this board under the given symmetry.
-    fn map(&self, sym: Self::Symmetry) -> Self;
-
-    /// Map a move under the given symmetry.
-    fn map_move(&self, sym: Self::Symmetry, mv: Self::Move) -> Self::Move;
+    /// Whether the player who plays a move can lose by playing that move.
+    /// Symbolically whether `b.won_by() == Some(Winner::Player(b.next_player()))` can ever be true.
+    /// This may be pessimistic, returning `true` is always correct.
+    fn can_lose_after_move() -> bool;
 }
 
 /// A helper trait to get the correct lifetimes for [BoardAvailableMoves::available_moves].
@@ -86,18 +91,32 @@ pub trait BoardAvailableMoves<'a, B: Board> {
     fn available_moves(&'a self) -> Self::MoveIterator;
 }
 
-/// One of the two players.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum Player {
-    A,
-    B,
+/// A helper trait that describes the ways in which a board is symmetric.
+/// For boards without any symmetry, implement [UnitBoardSymmetry] instead to reduce boilerplate.
+/// This is a separate trait specifically to allow this trick to work.
+pub trait BoardSymmetry<B: Board> {
+    /// The type used to represent symmetries.
+    type Symmetry: Symmetry;
+
+    /// Map this board under the given symmetry.
+    fn map(&self, sym: Self::Symmetry) -> Self;
+
+    /// Map a move under the given symmetry.
+    fn map_move(&self, sym: Self::Symmetry, mv: B::Move) -> B::Move;
 }
 
-/// The absolute outcome for a game.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum Outcome {
-    WonBy(Player),
-    Draw,
+pub trait UnitSymmetryBoard: Board {}
+
+impl<B: UnitSymmetryBoard> BoardSymmetry<B> for B {
+    type Symmetry = UnitSymmetry;
+
+    fn map(&self, _: Self::Symmetry) -> Self {
+        self.clone()
+    }
+
+    fn map_move(&self, _: Self::Symmetry, mv: B::Move) -> B::Move {
+        mv
+    }
 }
 
 impl Player {

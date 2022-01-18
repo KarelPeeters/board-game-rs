@@ -4,8 +4,7 @@ use std::ops::Range;
 
 use internal_iterator::{Internal, IteratorExt};
 
-use crate::board::{Board, BoardAvailableMoves, BruteforceMoveIterator, Outcome, Player};
-use crate::symmetry::UnitSymmetry;
+use crate::board::{Board, BoardAvailableMoves, BruteforceMoveIterator, Outcome, Player, UnitSymmetryBoard};
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Coord(usize);
@@ -76,11 +75,6 @@ impl TTTBoard {
 
 impl Board for TTTBoard {
     type Move = Coord;
-    type Symmetry = UnitSymmetry;
-
-    fn can_lose_after_move() -> bool {
-        false
-    }
 
     fn next_player(&self) -> Player {
         self.next_player
@@ -118,14 +112,12 @@ impl Board for TTTBoard {
         self.outcome
     }
 
-    fn map(&self, _: Self::Symmetry) -> Self {
-        self.clone()
-    }
-
-    fn map_move(&self, _: Self::Symmetry, mv: Self::Move) -> Self::Move {
-        mv
+    fn can_lose_after_move() -> bool {
+        false
     }
 }
+
+impl UnitSymmetryBoard for TTTBoard {}
 
 impl<'a> BoardAvailableMoves<'a, TTTBoard> for TTTBoard {
     type AllMoveIterator = Internal<Map<Range<usize>, fn(usize) -> Coord>>;

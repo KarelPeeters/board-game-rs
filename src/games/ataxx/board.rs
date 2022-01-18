@@ -4,7 +4,7 @@ use std::ops::ControlFlow;
 use internal_iterator::InternalIterator;
 use rand::Rng;
 
-use crate::board::{Board, BoardAvailableMoves, Outcome, Player};
+use crate::board::{Board, BoardAvailableMoves, BoardSymmetry, Outcome, Player};
 use crate::games::ataxx::{Coord, Move, Tiles};
 use crate::symmetry::D4Symmetry;
 
@@ -163,11 +163,6 @@ impl AtaxxBoard {
 
 impl Board for AtaxxBoard {
     type Move = Move;
-    type Symmetry = D4Symmetry;
-
-    fn can_lose_after_move() -> bool {
-        true
-    }
 
     fn next_player(&self) -> Player {
         self.next_player
@@ -272,6 +267,14 @@ impl Board for AtaxxBoard {
         self.outcome
     }
 
+    fn can_lose_after_move() -> bool {
+        true
+    }
+}
+
+impl BoardSymmetry<AtaxxBoard> for AtaxxBoard {
+    type Symmetry = D4Symmetry;
+
     fn map(&self, sym: Self::Symmetry) -> Self {
         AtaxxBoard {
             size: self.size,
@@ -284,7 +287,7 @@ impl Board for AtaxxBoard {
         }
     }
 
-    fn map_move(&self, sym: Self::Symmetry, mv: Self::Move) -> Self::Move {
+    fn map_move(&self, sym: Self::Symmetry, mv: Move) -> Move {
         match mv {
             Move::Pass => Move::Pass,
             Move::Copy { to } => Move::Copy {

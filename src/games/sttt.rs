@@ -6,7 +6,7 @@ use internal_iterator::{Internal, InternalIterator, IteratorExt};
 use itertools::Itertools;
 use rand::Rng;
 
-use crate::board::{Board, BoardAvailableMoves, Outcome, Player};
+use crate::board::{Board, BoardAvailableMoves, BoardSymmetry, Outcome, Player};
 use crate::symmetry::D4Symmetry;
 use crate::util::bits::{get_nth_set_bit, BitIter};
 
@@ -102,11 +102,6 @@ impl STTTBoard {
 
 impl Board for STTTBoard {
     type Move = Coord;
-    type Symmetry = D4Symmetry;
-
-    fn can_lose_after_move() -> bool {
-        false
-    }
 
     fn next_player(&self) -> Player {
         self.next_player
@@ -162,6 +157,14 @@ impl Board for STTTBoard {
         self.outcome
     }
 
+    fn can_lose_after_move() -> bool {
+        false
+    }
+}
+
+impl BoardSymmetry<STTTBoard> for STTTBoard {
+    type Symmetry = D4Symmetry;
+
     fn map(&self, sym: D4Symmetry) -> STTTBoard {
         let mut grids = [0; 9];
         for oo in 0..9 {
@@ -185,8 +188,8 @@ impl Board for STTTBoard {
 }
 
 impl<'a> BoardAvailableMoves<'a, STTTBoard> for STTTBoard {
-    type MoveIterator = STTTMoveIterator<'a>;
     type AllMoveIterator = Internal<CoordIter>;
+    type MoveIterator = STTTMoveIterator<'a>;
 
     fn all_possible_moves() -> Self::AllMoveIterator {
         Coord::all().into_internal()

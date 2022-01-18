@@ -9,8 +9,7 @@ use chess::{BoardStatus, ChessMove, Color, File, MoveGen, Piece};
 use internal_iterator::{Internal, InternalIterator, IteratorExt};
 use rand::Rng;
 
-use crate::board::{Board, BoardAvailableMoves, Outcome, Player};
-use crate::symmetry::UnitSymmetry;
+use crate::board::{Board, BoardAvailableMoves, Outcome, Player, UnitSymmetryBoard};
 use crate::util::bot_game::Replay;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -123,11 +122,6 @@ impl Default for ChessBoard {
 
 impl Board for ChessBoard {
     type Move = ChessMove;
-    type Symmetry = UnitSymmetry;
-
-    fn can_lose_after_move() -> bool {
-        false
-    }
 
     fn next_player(&self) -> Player {
         color_to_player(self.inner.side_to_move())
@@ -195,14 +189,12 @@ impl Board for ChessBoard {
         }
     }
 
-    fn map(&self, _: UnitSymmetry) -> Self {
-        self.clone()
-    }
-
-    fn map_move(&self, _: UnitSymmetry, mv: Self::Move) -> Self::Move {
-        mv
+    fn can_lose_after_move() -> bool {
+        false
     }
 }
+
+impl UnitSymmetryBoard for ChessBoard {}
 
 #[derive(Debug)]
 pub struct AllMoveIterator;

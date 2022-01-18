@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter};
 
 use rand::Rng;
 
-use crate::board::{Board, BoardAvailableMoves, Outcome, Player};
+use crate::board::{Board, BoardAvailableMoves, BoardSymmetry, Outcome, Player};
 
 /// A wrapper around an existing board that has the same behaviour,
 /// except that the outcome is a draw after a fixed number of moves has been played.
@@ -29,11 +29,6 @@ impl<B: Board> MaxMovesBoard<B> {
 
 impl<B: Board> Board for MaxMovesBoard<B> {
     type Move = B::Move;
-    type Symmetry = B::Symmetry;
-
-    fn can_lose_after_move() -> bool {
-        B::can_lose_after_move()
-    }
 
     fn next_player(&self) -> Player {
         self.inner.next_player()
@@ -63,6 +58,14 @@ impl<B: Board> Board for MaxMovesBoard<B> {
         }
     }
 
+    fn can_lose_after_move() -> bool {
+        B::can_lose_after_move()
+    }
+}
+
+impl<B: Board> BoardSymmetry<MaxMovesBoard<B>> for MaxMovesBoard<B> {
+    type Symmetry = B::Symmetry;
+
     fn map(&self, sym: Self::Symmetry) -> Self {
         MaxMovesBoard {
             inner: self.inner.map(sym),
@@ -71,7 +74,7 @@ impl<B: Board> Board for MaxMovesBoard<B> {
         }
     }
 
-    fn map_move(&self, sym: Self::Symmetry, mv: Self::Move) -> Self::Move {
+    fn map_move(&self, sym: Self::Symmetry, mv: B::Move) -> B::Move {
         B::map_move(self.inner(), sym, mv)
     }
 }

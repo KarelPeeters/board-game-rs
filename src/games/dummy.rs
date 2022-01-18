@@ -29,8 +29,7 @@ use internal_iterator::{Internal, IteratorExt};
 use nom::error::Error;
 use nom::Finish;
 
-use crate::board::{Board, BoardAvailableMoves, Outcome, Player};
-use crate::symmetry::UnitSymmetry;
+use crate::board::{Board, BoardAvailableMoves, Outcome, Player, UnitSymmetryBoard};
 
 mod parse {
     use nom::branch::alt;
@@ -118,11 +117,6 @@ impl fmt::Display for DummyGame {
 
 impl Board for DummyGame {
     type Move = usize;
-    type Symmetry = UnitSymmetry;
-
-    fn can_lose_after_move() -> bool {
-        true
-    }
 
     fn next_player(&self) -> Player {
         self.player
@@ -148,14 +142,12 @@ impl Board for DummyGame {
         }
     }
 
-    fn map(&self, _: UnitSymmetry) -> Self {
-        self.clone()
-    }
-
-    fn map_move(&self, _: UnitSymmetry, mv: Self::Move) -> Self::Move {
-        mv
+    fn can_lose_after_move() -> bool {
+        true
     }
 }
+
+impl UnitSymmetryBoard for DummyGame {}
 
 impl<'a> BoardAvailableMoves<'a, DummyGame> for DummyGame {
     type AllMoveIterator = Internal<std::ops::RangeFrom<usize>>;
