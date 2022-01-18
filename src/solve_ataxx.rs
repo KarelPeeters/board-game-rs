@@ -1,8 +1,15 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unreachable_code)]
+
+use std::cmp::min;
 use std::collections::hash_map::Entry;
 use std::time::Instant;
 
 use fnv::FnvHashMap;
 use internal_iterator::{InternalIterator, IteratorExt};
+use rand::prelude::SliceRandom;
+use rand::thread_rng;
 
 use crate::board::{Board, BoardAvailableMoves, Player};
 use crate::games::ataxx::{AtaxxBoard, Tiles};
@@ -12,21 +19,22 @@ use crate::wdl::{Flip, OutcomeWDL, POV};
 //TODO extra recently used cache for better cache coherency?
 
 pub fn main() {
-    let board = AtaxxBoard::diagonal(5);
+    // let board = AtaxxBoard::diagonal(5);
+    let board = AtaxxBoard::diagonal(4);
+
     println!("{}", board);
 
+    let start = Instant::now();
     let mut storage = Storage::default();
 
-    let start = Instant::now();
+    let mut sort = |v: &mut Vec<AtaxxBoard>| v.sort_by_key(|b| b.tiles_pov().0.count());
+    // let mut rng = thread_rng();
+    // let mut sort = |v: &mut Vec<AtaxxBoard>| v.shuffle(&mut rng);
 
-    let s = solve_ataxx(&board, &mut storage, 0, 100, &start);
+    // check_solver(&board, &mut storage, &mut sort, &start);
+    // return;
 
-    // println!("Storage:");
-    // for (k, v) in &storage {
-    //     let s = format!("{:?}", k.to(board.size()));
-    //     let p = " ".repeat(40 - s.len());
-    //     println!("  {}{}: {:?}", s, p, v);
-    // }
+    let s = solve_ataxx(&board, &mut storage, &mut sort, 0, 100, &start);
 
     println!("storage size: {}", storage.len());
     println!("solution:     {:?}", s);
@@ -34,15 +42,52 @@ pub fn main() {
 
     println!();
     board.available_moves().for_each(|mv| {
-        let s2 = solve_ataxx(&board.clone_and_play(mv), &mut storage, 1, 0, &start);
+        let s2 = solve_ataxx(&board.clone_and_play(mv), &mut storage, &mut sort, 1, 100, &start);
         println!("{}: {:?}", mv, s2);
     });
 
+    println!("storage size: {}", storage.len());
     println!("took:         {:?}", start.elapsed());
 }
 
+fn print_storage(size: u8, storage: &Storage) {
+    println!("Storage:");
+    for (k, v) in storage {
+        let s = format!("{:?}", k.to(size));
+        let p = " ".repeat(40 - s.len());
+        println!("  {}{}: {:?}", s, p, v);
+    }
+}
+
+// fn check_solver(
+//     board: &AtaxxBoard,
+//     storage: &mut Storage,
+//     sort: &mut impl FnMut(&mut Vec<AtaxxBoard>) -> (),
+//     start: &Instant,
+// ) {
+//     if board.is_done() {
+//         return;
+//     }
+//
+//     let board = ReducedBoard::from(board).to(board.size());
+//     let expected = solve_ataxx(&board, storage, sort, 0, 0, start);
+//
+//     let actual = OutcomeWDL::best(
+//         board
+//             .available_moves()
+//             .map(|mv| solve_ataxx(&board.clone_and_play(mv), storage, sort, 0, 0, start).flip()),
+//     );
+//
+//     assert_eq!(expected, actual);
+//
+//     board.available_moves().for_each(|mv| {
+//         check_solver(&board.clone_and_play(mv), storage, sort, start);
+//     })
+// }
+
 type Storage = FnvHashMap<ReducedBoard, Info>;
 
+//TODO maybe put both tiles in a single u64: 25 + 25 < 64
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 struct ReducedBoard {
     tiles_next: Tiles,
@@ -84,46 +129,52 @@ impl ReducedBoard {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct Info {
-    outcome: Option<OutcomeWDL>,
+struct Info {
+    eval: Eval,
+}
+
+#[derive(Debug, Copy, Clone)]
+enum Eval {
+    Outcome(OutcomeWDL),
+    Cycle(u32),
 }
 
 fn solve_ataxx(
     board_original: &AtaxxBoard,
     storage: &mut Storage,
+    sort: &mut impl FnMut(&mut Vec<AtaxxBoard>) -> (),
     depth: u32,
     print_depth: u32,
     start: &Instant,
-) -> OutcomeWDL {
+) -> Eval {
     if depth < print_depth {
         print_curr_depth(depth, print_depth, start);
     }
 
+    //TODO move these lines down
+    let board_reduced = ReducedBoard::from(board_original);
+    let board_continue = board_reduced.to(board_original.size);
+
     if let Some(outcome) = board_original.outcome() {
-        return outcome.pov(board_original.next_player());
+        let outcome = outcome.pov(board_original.next_player());
+        println!("depth {} {:?} T {:?}", depth, board_original, outcome);
+        return Eval::Outcome(outcome);
     }
 
-    let board_reduced = ReducedBoard::from(board_original);
-
     match storage.entry(board_reduced) {
-        Entry::Occupied(mut entry) => {
-            let info = entry.get_mut();
-            return if let Some(outcome) = info.outcome {
-                // standard cache hit
-                outcome
-            } else {
-                // cycles are considered draws
-                OutcomeWDL::Draw
-            };
+        Entry::Occupied(entry) => {
+            // just return the existing eval, works for both outcomes and cycles
+            return entry.get().eval;
         }
         Entry::Vacant(entry) => {
             // mark this entry as part of the current game to later detect draws
             //   the outcome will be filled in later
-            entry.insert(Info { outcome: None });
+            entry.insert(Info {
+                eval: Eval::Cycle(depth),
+            });
         }
     }
 
-    let board_continue = board_reduced.to(board_original.size);
     let mut next_boards: Vec<_> = board_continue
         .available_moves()
         .map(|mv| board_continue.clone_and_play(mv))
@@ -131,22 +182,38 @@ fn solve_ataxx(
 
     // order from low to high by opponent tiles
     // TODO why does subtracting our own tiles not improve things?
-    next_boards.sort_by_key(|b| b.tiles_pov().0.count());
+    // TODO bug: move ordering should not affect computed results!
+    sort(&mut next_boards);
 
     // recurse with minimax
+    let mut min_cycle_depth = u32::MAX;
+
     let outcome = OutcomeWDL::best(
         next_boards
             .iter()
-            .map(|b| solve_ataxx(b, storage, depth + 1, print_depth, start).flip())
+            .map(|b| {
+                let eval = solve_ataxx(b, storage, sort, depth + 1, print_depth, start);
+                match eval {
+                    Eval::Outcome(outcome) => outcome.flip(),
+                    Eval::Cycle(depth) => {
+                        min_cycle_depth = min(min_cycle_depth, depth);
+                        OutcomeWDL::Draw
+                    }
+                }
+            })
             .into_internal(),
     );
 
-    // finally fill in the outcome we left empty earlier
-    let info = storage.get_mut(&board_reduced).unwrap();
-    assert!(info.outcome.is_none());
-    info.outcome = Some(outcome);
-
-    outcome
+    if outcome == OutcomeWDL::Draw && (min_cycle_depth != u32::MAX && min_cycle_depth != depth) {
+        // this node may not actually be a draw, so we can't fill it in
+        storage.remove(&board_reduced);
+        Eval::Cycle(min_cycle_depth)
+    } else {
+        // we fully know the true outcome of this node
+        let eval = Eval::Outcome(outcome);
+        storage.get_mut(&board_reduced).unwrap().eval = eval;
+        eval
+    }
 }
 
 fn print_curr_depth(depth: u32, max_depth: u32, start: &Instant) {
