@@ -1,9 +1,13 @@
+use std::str::FromStr;
+
 use chess::ChessMove;
 
 use board_game::board::Board;
-use board_game::games::chess::ChessBoard;
+use board_game::games::chess::{ChessBoard, Rules};
 
-use crate::board::board_test_main;
+use crate::board::{board_perft_main, board_test_main};
+
+//TODO add tests for 50 move and 3-move rule
 
 #[test]
 fn chess_start() {
@@ -26,4 +30,16 @@ fn chess_en_passant() {
     board_test_main(&board);
 }
 
-//TODO add tests for 50 move and 3-move rule
+/// Test cases from <https://www.chessprogramming.org/Perft_Results>.
+#[test]
+fn chess_perft() {
+    #[rustfmt::skip]
+        board_perft_main(
+        |s| ChessBoard::new_without_history(chess::Board::from_str(s).unwrap(), Rules::default()),
+        Some(|b: &ChessBoard| b.inner().to_string()),
+        vec![
+            ("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", vec![1, 20, 400, 8902, 197281, 4865609]),
+            ("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1", vec![1, 48, 2039, 97862, 4085603]),
+        ],
+    );
+}
