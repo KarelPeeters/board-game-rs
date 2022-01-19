@@ -4,7 +4,7 @@ use std::ops::ControlFlow;
 use internal_iterator::InternalIterator;
 use rand::Rng;
 
-use crate::board::{Board, BoardAvailableMoves, BoardSymmetry, Outcome, Player};
+use crate::board::{AllMovesIterator, AvailableMovesIterator, Board, BoardMoves, BoardSymmetry, Outcome, Player};
 use crate::games::ataxx::{Coord, Move, Tiles};
 use crate::symmetry::D4Symmetry;
 
@@ -301,35 +301,24 @@ impl BoardSymmetry<AtaxxBoard> for AtaxxBoard {
     }
 }
 
-#[derive(Debug)]
-pub struct MoveIterator<'a> {
-    board: &'a AtaxxBoard,
-}
+impl<'a> BoardMoves<'a, AtaxxBoard> for AtaxxBoard {
+    type AllMovesIterator = AllMovesIterator<AtaxxBoard>;
+    type AvailableMovesIterator = AvailableMovesIterator<'a, AtaxxBoard>;
 
-#[derive(Debug)]
-pub struct AllMoveIterator;
-
-impl<'a> BoardAvailableMoves<'a, AtaxxBoard> for AtaxxBoard {
-    type AllMoveIterator = AllMoveIterator;
-    type MoveIterator = MoveIterator<'a>;
-
-    fn all_possible_moves() -> Self::AllMoveIterator {
-        AllMoveIterator
+    fn all_possible_moves() -> Self::AllMovesIterator {
+        AllMovesIterator::default()
     }
 
-    fn available_moves(&'a self) -> Self::MoveIterator {
+    fn available_moves(&'a self) -> Self::AvailableMovesIterator {
         assert!(!self.is_done());
-        MoveIterator { board: self }
+        AvailableMovesIterator(self)
     }
 }
 
-impl<'a> InternalIterator for AllMoveIterator {
+impl<'a> InternalIterator for AllMovesIterator<AtaxxBoard> {
     type Item = Move;
 
-    fn try_for_each<R, F>(self, mut f: F) -> ControlFlow<R>
-    where
-        F: FnMut(Self::Item) -> ControlFlow<R>,
-    {
+    fn try_for_each<R, F: FnMut(Self::Item) -> ControlFlow<R>>(self, mut f: F) -> ControlFlow<R> {
         f(Move::Pass)?;
         for to in Coord::all() {
             f(Move::Copy { to })?;
@@ -344,15 +333,11 @@ impl<'a> InternalIterator for AllMoveIterator {
     }
 }
 
-impl<'a> InternalIterator for MoveIterator<'a> {
+impl InternalIterator for AvailableMovesIterator<'_, AtaxxBoard> {
     type Item = Move;
 
-    fn try_for_each<R, F>(self, mut f: F) -> ControlFlow<R>
-    where
-        F: FnMut(Self::Item) -> ControlFlow<R>,
-    {
-        let board = self.board;
-        let size = self.board.size;
+    fn try_for_each<R, F: FnMut(Self::Item) -> ControlFlow<R>>(self, mut f: F) -> ControlFlow<R> {
+        let board = self.0;
         let next_tiles = board.tiles_pov().0;
         let free_tiles = board.free_tiles();
 
@@ -362,15 +347,15 @@ impl<'a> InternalIterator for MoveIterator<'a> {
         }
 
         // copy moves
-        let copy_targets = free_tiles & next_tiles.copy_targets(size);
+        let copy_targets = free_tiles & next_tiles.copy_targets(board.size);
         for to in copy_targets {
             f(Move::Copy { to })?;
         }
 
         // jump moves
-        let jump_targets = free_tiles & next_tiles.jump_targets(size);
+        let jump_targets = free_tiles & next_tiles.jump_targets(board.size);
         for to in jump_targets {
-            for from in next_tiles & Tiles::coord(to).jump_targets(size) {
+            for from in next_tiles & Tiles::coord(to).jump_targets(board.size) {
                 f(Move::Jump { from, to })?;
             }
         }

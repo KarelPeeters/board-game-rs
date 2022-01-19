@@ -35,7 +35,7 @@
 //!
 //! ```
 //! # use board_game::games::ataxx::AtaxxBoard;
-//! # use board_game::board::{BoardAvailableMoves, Board};
+//! # use board_game::board::{BoardMoves, Board};
 //! # use internal_iterator::InternalIterator;
 //! # let mut rng = rand::thread_rng();
 //!

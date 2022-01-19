@@ -9,7 +9,7 @@ use chess::{BoardStatus, ChessMove, Color, File, MoveGen, Piece};
 use internal_iterator::{Internal, InternalIterator, IteratorExt};
 use rand::Rng;
 
-use crate::board::{Board, BoardAvailableMoves, Outcome, Player, UnitSymmetryBoard};
+use crate::board::{AllMovesIterator, Board, BoardMoves, Outcome, Player, UnitSymmetryBoard};
 use crate::util::bot_game::Replay;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -196,16 +196,25 @@ impl Board for ChessBoard {
 
 impl UnitSymmetryBoard for ChessBoard {}
 
-#[derive(Debug)]
-pub struct AllMoveIterator;
+impl<'a> BoardMoves<'a, ChessBoard> for ChessBoard {
+    type AllMovesIterator = AllMovesIterator<ChessBoard>;
+    type AvailableMovesIterator = Internal<MoveGen>;
 
-impl InternalIterator for AllMoveIterator {
+    fn all_possible_moves() -> Self::AllMovesIterator {
+        AllMovesIterator::default()
+    }
+
+    fn available_moves(&'a self) -> Self::AvailableMovesIterator {
+        assert!(!self.is_done());
+        MoveGen::new_legal(self.inner()).into_internal()
+    }
+}
+
+impl InternalIterator for AllMovesIterator<ChessBoard> {
     type Item = ChessMove;
 
-    fn try_for_each<R, F>(self, mut f: F) -> ControlFlow<R>
-    where
-        F: FnMut(Self::Item) -> ControlFlow<R>,
-    {
+    fn try_for_each<R, F: FnMut(Self::Item) -> ControlFlow<R>>(self, mut f: F) -> ControlFlow<R> {
+        //TODO we're yielding a *lot* of impossible moves here
         for from in chess::ALL_SQUARES {
             for to in chess::ALL_SQUARES {
                 f(ChessMove::new(from, to, None))?;
@@ -217,20 +226,6 @@ impl InternalIterator for AllMoveIterator {
         }
 
         ControlFlow::Continue(())
-    }
-}
-
-impl<'a> BoardAvailableMoves<'a, ChessBoard> for ChessBoard {
-    type AllMoveIterator = AllMoveIterator;
-    type MoveIterator = Internal<MoveGen>;
-
-    fn all_possible_moves() -> Self::AllMoveIterator {
-        AllMoveIterator
-    }
-
-    fn available_moves(&'a self) -> Self::MoveIterator {
-        assert!(!self.is_done());
-        MoveGen::new_legal(&self.inner).into_internal()
     }
 }
 

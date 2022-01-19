@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use internal_iterator::InternalIterator;
 
-use board_game::board::{Board, BoardAvailableMoves, Outcome, Player};
+use board_game::board::{Board, BoardMoves, Outcome, Player};
 use board_game::games::dummy::DummyGame;
 use board_game::games::max_length::MaxMovesBoard;
 

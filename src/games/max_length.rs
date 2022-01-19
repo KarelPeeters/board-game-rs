@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter};
 
 use rand::Rng;
 
-use crate::board::{Board, BoardAvailableMoves, BoardSymmetry, Outcome, Player};
+use crate::board::{Board, BoardMoves, BoardSymmetry, Outcome, Player};
 
 /// A wrapper around an existing board that has the same behaviour,
 /// except that the outcome is a draw after a fixed number of moves has been played.
@@ -79,15 +79,15 @@ impl<B: Board> BoardSymmetry<MaxMovesBoard<B>> for MaxMovesBoard<B> {
     }
 }
 
-impl<'a, B: Board> BoardAvailableMoves<'a, MaxMovesBoard<B>> for MaxMovesBoard<B> {
-    type AllMoveIterator = <B as BoardAvailableMoves<'a, B>>::AllMoveIterator;
-    type MoveIterator = <B as BoardAvailableMoves<'a, B>>::MoveIterator;
+impl<'a, B: Board> BoardMoves<'a, MaxMovesBoard<B>> for MaxMovesBoard<B> {
+    type AllMovesIterator = <B as BoardMoves<'a, B>>::AllMovesIterator;
+    type AvailableMovesIterator = <B as BoardMoves<'a, B>>::AvailableMovesIterator;
 
-    fn all_possible_moves() -> Self::AllMoveIterator {
+    fn all_possible_moves() -> Self::AllMovesIterator {
         B::all_possible_moves()
     }
 
-    fn available_moves(&'a self) -> Self::MoveIterator {
+    fn available_moves(&'a self) -> Self::AvailableMovesIterator {
         assert!(!self.is_done());
         self.inner.available_moves()
     }

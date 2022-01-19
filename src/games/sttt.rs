@@ -6,9 +6,9 @@ use internal_iterator::{Internal, InternalIterator, IteratorExt};
 use itertools::Itertools;
 use rand::Rng;
 
-use crate::board::{Board, BoardAvailableMoves, BoardSymmetry, Outcome, Player};
+use crate::board::{AllMovesIterator, AvailableMovesIterator, Board, BoardMoves, BoardSymmetry, Outcome, Player};
 use crate::symmetry::D4Symmetry;
-use crate::util::bits::{get_nth_set_bit, BitIter};
+use crate::util::bits::{BitIter, get_nth_set_bit};
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Coord(u8);
@@ -187,17 +187,44 @@ impl BoardSymmetry<STTTBoard> for STTTBoard {
     }
 }
 
-impl<'a> BoardAvailableMoves<'a, STTTBoard> for STTTBoard {
-    type AllMoveIterator = Internal<CoordIter>;
-    type MoveIterator = STTTMoveIterator<'a>;
+impl<'a> BoardMoves<'a, STTTBoard> for STTTBoard {
+    type AllMovesIterator = Internal<CoordIter>;
+    type AvailableMovesIterator = AvailableMovesIterator<'a, STTTBoard>;
 
-    fn all_possible_moves() -> Self::AllMoveIterator {
+    fn all_possible_moves() -> Self::AllMovesIterator {
         Coord::all().into_internal()
     }
 
-    fn available_moves(&'a self) -> Self::MoveIterator {
-        assert!(!self.is_done(), "Board must not be done");
-        STTTMoveIterator { board: self }
+    fn available_moves(&'a self) -> Self::AvailableMovesIterator {
+        assert!(!self.is_done());
+        AvailableMovesIterator(self)
+    }
+}
+
+impl InternalIterator for AllMovesIterator<STTTBoard> {
+    type Item = Coord;
+
+    fn try_for_each<R, F>(self, f: F) -> ControlFlow<R>
+        where
+            F: FnMut(Self::Item) -> ControlFlow<R>,
+    {
+        Coord::all().try_for_each(f)
+    }
+}
+
+impl<'a> InternalIterator for AvailableMovesIterator<'a, STTTBoard> {
+    type Item = Coord;
+
+    fn try_for_each<R, F: FnMut(Self::Item) -> ControlFlow<R>>(self, mut f: F) -> ControlFlow<R> {
+        let board = self.0;
+        for om in BitIter::new(board.macro_mask) {
+            let free_grid = (!compact_grid(board.grids[om as usize])) & STTTBoard::FULL_MASK;
+            for os in BitIter::new(free_grid) {
+                f(Coord::from_oo(om, os))?;
+            }
+        }
+
+        ControlFlow::Continue(())
     }
 }
 
@@ -262,31 +289,6 @@ impl Debug for Coord {
 impl Display for Coord {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         write!(f, "({}, {})", self.om(), self.os())
-    }
-}
-
-//TODO implement a size hint
-//TODO look into other iterator speedup functions that can be implemented
-#[derive(Debug)]
-pub struct STTTMoveIterator<'a> {
-    board: &'a STTTBoard,
-}
-
-impl<'a> InternalIterator for STTTMoveIterator<'a> {
-    type Item = Coord;
-
-    fn try_for_each<R, F>(self, mut f: F) -> ControlFlow<R>
-    where
-        F: FnMut(Self::Item) -> ControlFlow<R>,
-    {
-        for om in BitIter::new(self.board.macro_mask) {
-            let free_grid = (!compact_grid(self.board.grids[om as usize])) & STTTBoard::FULL_MASK;
-            for os in BitIter::new(free_grid) {
-                f(Coord::from_oo(om, os))?;
-            }
-        }
-
-        ControlFlow::Continue(())
     }
 }
 

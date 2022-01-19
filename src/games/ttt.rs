@@ -4,7 +4,7 @@ use std::ops::Range;
 
 use internal_iterator::{Internal, IteratorExt};
 
-use crate::board::{Board, BoardAvailableMoves, BruteforceMoveIterator, Outcome, Player, UnitSymmetryBoard};
+use crate::board::{Board, BoardMoves, BruteforceMoveIterator, Outcome, Player, UnitSymmetryBoard};
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Coord(usize);
@@ -119,16 +119,15 @@ impl Board for TTTBoard {
 
 impl UnitSymmetryBoard for TTTBoard {}
 
-impl<'a> BoardAvailableMoves<'a, TTTBoard> for TTTBoard {
-    type AllMoveIterator = Internal<Map<Range<usize>, fn(usize) -> Coord>>;
-    type MoveIterator = BruteforceMoveIterator<'a, TTTBoard>;
+impl<'a> BoardMoves<'a, TTTBoard> for TTTBoard {
+    type AllMovesIterator = Internal<Map<Range<usize>, fn(usize) -> Coord>>;
+    type AvailableMovesIterator = BruteforceMoveIterator<'a, TTTBoard>;
 
-    fn all_possible_moves() -> Self::AllMoveIterator {
+    fn all_possible_moves() -> Self::AllMovesIterator {
         Coord::all().into_internal()
     }
 
-    fn available_moves(&'a self) -> Self::MoveIterator {
-        assert!(!self.is_done());
+    fn available_moves(&'a self) -> Self::AvailableMovesIterator {
         BruteforceMoveIterator::new(self)
     }
 }

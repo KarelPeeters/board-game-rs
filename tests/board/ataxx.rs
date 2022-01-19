@@ -1,8 +1,8 @@
 use internal_iterator::InternalIterator;
-use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
+use rand::rngs::SmallRng;
 
-use board_game::board::{Board, BoardAvailableMoves, Outcome, Player};
+use board_game::board::{Board, BoardMoves, Outcome, Player};
 use board_game::games::ataxx::{AtaxxBoard, Move};
 use board_game::util::board_gen::random_board_with_moves;
 

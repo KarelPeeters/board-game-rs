@@ -1,7 +1,7 @@
 use internal_iterator::InternalIterator;
 
 use board_game::ai::solver::{solve_all_moves, solve_value, SolverValue};
-use board_game::board::{Board, BoardAvailableMoves};
+use board_game::board::{Board, BoardMoves};
 use board_game::games::ttt::{Coord, TTTBoard};
 use board_game::util::game_stats::all_possible_boards;
 use board_game::wdl::OutcomeWDL;

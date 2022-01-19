@@ -29,7 +29,7 @@ use internal_iterator::{Internal, IteratorExt};
 use nom::error::Error;
 use nom::Finish;
 
-use crate::board::{Board, BoardAvailableMoves, Outcome, Player, UnitSymmetryBoard};
+use crate::board::{Board, BoardMoves, Outcome, Player, UnitSymmetryBoard};
 
 mod parse {
     use nom::branch::alt;
@@ -149,20 +149,21 @@ impl Board for DummyGame {
 
 impl UnitSymmetryBoard for DummyGame {}
 
-impl<'a> BoardAvailableMoves<'a, DummyGame> for DummyGame {
-    type AllMoveIterator = Internal<std::ops::RangeFrom<usize>>;
-    type MoveIterator = Internal<std::ops::Range<usize>>;
+impl<'a> BoardMoves<'a, DummyGame> for DummyGame {
+    type AllMovesIterator = Internal<std::ops::RangeFrom<usize>>;
+    type AvailableMovesIterator = Internal<std::ops::Range<usize>>;
 
-    fn all_possible_moves() -> Self::AllMoveIterator {
+    fn all_possible_moves() -> Self::AllMovesIterator {
         //TODO questionable, maybe we could take &self here and base us on that?
         (0..).into_internal()
     }
 
-    fn available_moves(&'a self) -> Self::MoveIterator {
+    fn available_moves(&'a self) -> Self::AvailableMovesIterator {
+        assert!(!self.is_done());
         if let Tree::Node(boards) = &self.state {
             (0..boards.len()).into_internal()
         } else {
-            (0..0).into_internal()
+            unreachable!("available_moves checks that the board is not done, so we should have a node here")
         }
     }
 }

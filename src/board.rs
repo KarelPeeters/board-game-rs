@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
+use std::marker::PhantomData;
 use std::ops::ControlFlow;
 use std::panic::{RefUnwindSafe, UnwindSafe};
 
@@ -24,9 +25,10 @@ pub enum Outcome {
 
 /// The main trait of this crate. Represents the state of a game.
 /// Each game implementation is supposed to provide it's own constructors to allow for customizable start positions.
-pub trait Board: 'static + Debug + Display + Clone + Eq + Hash + Send + Sync + UnwindSafe + RefUnwindSafe
+pub trait Board:
+    'static + Debug + Display + Clone + Eq + Hash + Send + Sync + UnwindSafe + RefUnwindSafe + BoardSymmetry<Self>
 where
-    for<'a> Self: BoardAvailableMoves<'a, Self> + BoardSymmetry<Self>,
+    for<'a> Self: BoardMoves<'a, Self>,
 {
     /// The type used to represent moves on this board.
     type Move: Debug + Display + Eq + Ord + Hash + Copy + Send + Sync + UnwindSafe + RefUnwindSafe;
@@ -76,19 +78,19 @@ where
 
 /// A helper trait to get the correct lifetimes for [BoardAvailableMoves::available_moves].
 /// This is a workaround to get generic associated types, See <https://github.com/rust-lang/rust/issues/44265>.
-pub trait BoardAvailableMoves<'a, B: Board> {
-    type AllMoveIterator: InternalIterator<Item = B::Move>;
-    type MoveIterator: InternalIterator<Item = B::Move>;
+pub trait BoardMoves<'a, B: Board> {
+    type AllMovesIterator: InternalIterator<Item = B::Move>;
+    type AvailableMovesIterator: InternalIterator<Item = B::Move>;
 
     /// All theoretically possible moves, for any possible board.
     /// Moves returned by `available_moves` will always be a subset of these moves.
     /// The order of these moves does not need to match the order from `available_moves`.
-    fn all_possible_moves() -> Self::AllMoveIterator;
+    fn all_possible_moves() -> Self::AllMovesIterator;
 
     /// Return an iterator over available moves, is always nonempty. No guarantees are made about the ordering except
     /// that it stays consistent when the board is not modified.
     /// Panics if this board is done.
-    fn available_moves(&'a self) -> Self::MoveIterator;
+    fn available_moves(&'a self) -> Self::AvailableMovesIterator;
 }
 
 /// A helper trait that describes the ways in which a board is symmetric.
@@ -105,6 +107,7 @@ pub trait BoardSymmetry<B: Board> {
     fn map_move(&self, sym: Self::Symmetry, mv: B::Move) -> B::Move;
 }
 
+/// Utility trait that automatically implements [BoardSymmetry].
 pub trait UnitSymmetryBoard: Board {}
 
 impl<B: UnitSymmetryBoard> BoardSymmetry<B> for B {
@@ -152,7 +155,21 @@ impl Player {
     }
 }
 
-/// A helper struct that can be used to implement [Board::available_moves]
+/// A convenient type to use for the iterator returned by [Board::all_possible_moves].
+#[derive(Debug)]
+pub struct AllMovesIterator<B: Board>(PhantomData<B>);
+
+impl<B: Board> Default for AllMovesIterator<B> {
+    fn default() -> Self {
+        AllMovesIterator(PhantomData)
+    }
+}
+
+/// A convenient type to use for the iterator returned by [Board::available_moves].
+#[derive(Debug)]
+pub struct AvailableMovesIterator<'a, B: Board>(pub &'a B);
+
+/// A helper struct function can be used to implement [InternalIterator] for [AvailableMovesIterator].
 /// based on [Board::all_possible_moves] and [Board::is_available_move].
 /// This may be a lot slower then directly generating the available moves.
 #[derive(Debug)]
@@ -162,6 +179,11 @@ pub struct BruteforceMoveIterator<'a, B: Board> {
 
 impl<'a, B: Board> BruteforceMoveIterator<'a, B> {
     pub fn new(board: &'a B) -> Self {
+        assert!(
+            !board.is_done(),
+            "Cannot get available moves for done board {:?}",
+            board
+        );
         BruteforceMoveIterator { board }
     }
 }
