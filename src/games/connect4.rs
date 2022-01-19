@@ -53,19 +53,17 @@ impl Board for Connect4 {
         self.tiles_occupied |= self.tiles_occupied + mask(mv, 0);
 
         //update outcome
-        const TOP_ROW: u64 = 0x20202020202020;
-        if self.tiles_occupied & TOP_ROW == TOP_ROW {
-            self.outcome = Some(Outcome::Draw);
-        } else {
-            let tiles_curr = self.tiles_next ^ self.tiles_occupied;
-            for half in [1, 9, 8, 7] {
-                let m0 = tiles_curr & (tiles_curr << half);
-                let m1 = m0 & (m0 << (half * 2));
-                if m1 != 0 {
-                    self.outcome = Some(Outcome::WonBy(self.next_player));
-                    break;
-                }
+        let tiles_curr = self.tiles_next ^ self.tiles_occupied;
+        for half in [1, 9, 8, 7] {
+            let m0 = tiles_curr & (tiles_curr << half);
+            let m1 = m0 & (m0 << (half * 2));
+            if m1 != 0 {
+                self.outcome = Some(Outcome::WonBy(self.next_player));
+                break;
             }
+        }
+        if self.outcome.is_none() && self.tiles_occupied.count_ones() == (Self::WIDTH * Self::HEIGHT) as u32 {
+            self.outcome = Some(Outcome::Draw)
         }
 
         self.next_player = self.next_player.other();
