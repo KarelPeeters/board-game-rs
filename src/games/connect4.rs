@@ -1,6 +1,6 @@
 //! Bitboard implementation based on http://blog.gamesolver.org/solving-connect-four/06-bitboard/.
 
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::ops::Range;
 
 use internal_iterator::{Internal, IteratorExt};
@@ -8,7 +8,7 @@ use internal_iterator::{Internal, IteratorExt};
 use crate::board::{Board, BoardMoves, BoardSymmetry, BruteforceMoveIterator, Outcome, Player};
 use crate::symmetry::D1Symmetry;
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct Connect4 {
     tiles_next: u64,
     tiles_occupied: u64,
@@ -53,13 +53,18 @@ impl Board for Connect4 {
         self.tiles_occupied |= self.tiles_occupied + mask(mv, 0);
 
         //update outcome
-        let tiles_curr = self.tiles_next ^ self.tiles_occupied;
-        for half in [1, 9, 8, 7] {
-            let m0 = tiles_curr & (tiles_curr << half);
-            let m1 = m0 & (m0 << (half * 2));
-            if m1 != 0 {
-                self.outcome = Some(Outcome::WonBy(self.next_player));
-                break;
+        const TOP_ROW: u64 = 0x20202020202020;
+        if self.tiles_occupied & TOP_ROW == TOP_ROW {
+            self.outcome = Some(Outcome::Draw);
+        } else {
+            let tiles_curr = self.tiles_next ^ self.tiles_occupied;
+            for half in [1, 9, 8, 7] {
+                let m0 = tiles_curr & (tiles_curr << half);
+                let m1 = m0 & (m0 << (half * 2));
+                if m1 != 0 {
+                    self.outcome = Some(Outcome::WonBy(self.next_player));
+                    break;
+                }
             }
         }
 
@@ -111,6 +116,18 @@ impl BoardSymmetry<Connect4> for Connect4 {
         } else {
             mv
         }
+    }
+}
+
+impl Debug for Connect4 {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let (sep, line) = if f.alternate() { ("\n    ", "\n") } else { (" ", "") };
+
+        write!(
+            f,
+            "Connect4 {{{}tiles_next: {:x},{}tiles_occupied: {:x},{}next_player: {:?},{}outcome: {:?}{}}}",
+            sep, self.tiles_next, sep, self.tiles_occupied, sep, self.next_player, sep, self.outcome, line,
+        )
     }
 }
 

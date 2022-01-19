@@ -10,12 +10,13 @@ use crate::wdl::OutcomeWDL;
 pub fn board_with_moves<B: Board>(start: B, moves: &[B::Move]) -> B {
     let mut curr = start;
     for &mv in moves {
-        assert!(
-            curr.is_available_move(mv),
-            "Move {} n aaaaaaaaaaaaaboard {:?}",
-            mv,
-            curr
-        );
+        if curr.is_done() || !curr.is_available_move(mv) {
+            eprintln!("{}", curr);
+            eprintln!("Trying to play {}", mv);
+        }
+
+        assert!(!curr.is_done(), "Board already done");
+        assert!(curr.is_available_move(mv), "Move not available");
         curr.play(mv);
     }
     curr

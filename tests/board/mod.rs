@@ -87,6 +87,11 @@ fn test_available_match<B: Board>(board: &B) {
     let all: Vec<B::Move> = B::all_possible_moves().collect();
     let available: Vec<B::Move> = board.available_moves().collect();
 
+    assert!(
+        !available.is_empty(),
+        "must have at least one available move for non-done board"
+    );
+
     // check that every generated move is indeed available, and that it is contained within all possible moves
     for &mv in &available {
         assert!(board.is_available_move(mv), "generated move {:?} is not available", mv);
