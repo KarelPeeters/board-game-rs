@@ -26,7 +26,7 @@ pub fn run<B: Board, L: Bot<B>, R: Bot<B>>(
     bot_r: impl Fn() -> R + Sync,
     games_per_side: u32,
     both_sides: bool,
-    callback: impl Fn(WDL<u32>, &Replay<B>) -> () + Sync,
+    callback: impl Fn(WDL<u32>, &Replay<B>) + Sync,
 ) -> BotGameResult<B> {
     let callback = &callback;
 

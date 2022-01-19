@@ -18,7 +18,7 @@ impl AtaxxBoard {
             reason,
         };
 
-        let blocks = fen.split(" ").collect_vec();
+        let blocks = fen.split(' ').collect_vec();
         let [board_str, next_str, half_str, full_str] = match &*blocks {
             &[a, b, c, d] => [a, b, c, d],
             _ => return Err(err("Not all 4 components present")),
@@ -28,7 +28,7 @@ impl AtaxxBoard {
         let mut board = if board_str == "/" {
             AtaxxBoard::empty(0)
         } else {
-            let rows = board_str.split("/").collect_vec();
+            let rows = board_str.split('/').collect_vec();
 
             let size = rows.len();
             if size > AtaxxBoard::MAX_SIZE as usize {
@@ -72,7 +72,7 @@ impl AtaxxBoard {
         };
 
         board.moves_since_last_copy = half_str.parse::<u8>().map_err(|_| err("Invalid half counter"))?;
-        let _ = full_str.parse::<u32>().or_else(|_| Err(err("Invalid full counter")))?;
+        let _ = full_str.parse::<u32>().map_err(|_| err("Invalid full counter"))?;
 
         board.update_outcome();
         board.assert_valid();
@@ -168,7 +168,7 @@ impl Display for AtaxxBoard {
         }
         write!(f, "  ")?;
         for x in 0..self.size {
-            write!(f, "{}", ('a' as u8 + x) as char)?;
+            write!(f, "{}", (b'a' + x) as char)?;
         }
         writeln!(f)?;
 

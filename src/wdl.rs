@@ -145,9 +145,9 @@ impl<V> WDL<V> {
 }
 
 impl<V: num_traits::One + num_traits::Zero + PartialEq> WDL<V> {
-    pub fn try_to_outcome_wdl(self) -> Result<OutcomeWDL, ()> {
+    pub fn try_to_outcome_wdl(self) -> Option<OutcomeWDL> {
         let outcomes = [OutcomeWDL::Win, OutcomeWDL::Draw, OutcomeWDL::Loss];
-        outcomes.iter().copied().find(|&o| o.to_wdl() == self).ok_or(())
+        outcomes.iter().copied().find(|&o| o.to_wdl() == self)
     }
 }
 

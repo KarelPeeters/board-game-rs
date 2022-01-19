@@ -56,7 +56,7 @@ impl Board for Connect4 {
         let tiles_curr = self.tiles_next ^ self.tiles_occupied;
         for half in [1, 9, 8, 7] {
             let m0 = tiles_curr & (tiles_curr << half);
-            let m1 = m0 & (m0 << half * 2);
+            let m1 = m0 & (m0 << (half * 2));
             if m1 != 0 {
                 self.outcome = Some(Outcome::WonBy(self.next_player));
                 break;

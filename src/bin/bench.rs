@@ -26,7 +26,7 @@ fn main() {
 const ITERATION_COUNT: usize = 10;
 const REMOVED_OUTLIERS_PER_SIDE: usize = 1;
 
-fn bench(name: &str, mut f: impl FnMut() -> ()) {
+fn bench(name: &str, mut f: impl FnMut()) {
     assert!(ITERATION_COUNT > REMOVED_OUTLIERS_PER_SIDE * 2);
     println!("Running benchmark {}", name);
 
