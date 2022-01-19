@@ -12,7 +12,6 @@ use crate::symmetry::D1Symmetry;
 pub struct Connect4 {
     tiles_next: u64,
     tiles_occupied: u64,
-    next_player: Player,
     outcome: Option<Outcome>,
 }
 
@@ -26,7 +25,6 @@ impl Default for Connect4 {
         Connect4 {
             tiles_next: 0,
             tiles_occupied: 0,
-            next_player: Player::A,
             outcome: None,
         }
     }
@@ -36,7 +34,11 @@ impl Board for Connect4 {
     type Move = u8;
 
     fn next_player(&self) -> Player {
-        self.next_player
+        if self.tiles_occupied.count_ones() % 2 == 0 {
+            Player::A
+        } else {
+            Player::B
+        }
     }
 
     fn is_available_move(&self, mv: Self::Move) -> bool {
@@ -47,6 +49,7 @@ impl Board for Connect4 {
 
     fn play(&mut self, mv: Self::Move) {
         assert!(self.is_available_move(mv));
+        let curr_player = self.next_player();
 
         // play move
         self.tiles_next ^= self.tiles_occupied;
@@ -58,15 +61,13 @@ impl Board for Connect4 {
             let m0 = tiles_curr & (tiles_curr << half);
             let m1 = m0 & (m0 << (half * 2));
             if m1 != 0 {
-                self.outcome = Some(Outcome::WonBy(self.next_player));
+                self.outcome = Some(Outcome::WonBy(curr_player));
                 break;
             }
         }
         if self.outcome.is_none() && self.tiles_occupied.count_ones() == (Self::WIDTH * Self::HEIGHT) as u32 {
             self.outcome = Some(Outcome::Draw)
         }
-
-        self.next_player = self.next_player.other();
     }
 
     fn outcome(&self) -> Option<Outcome> {
@@ -99,7 +100,6 @@ impl BoardSymmetry<Connect4> for Connect4 {
             Connect4 {
                 tiles_next: self.tiles_next.swap_bytes(),
                 tiles_occupied: self.tiles_occupied.swap_bytes(),
-                next_player: self.next_player,
                 outcome: self.outcome,
             }
         } else {
@@ -124,14 +124,22 @@ impl Debug for Connect4 {
         write!(
             f,
             "Connect4 {{{}tiles_next: {:x},{}tiles_occupied: {:x},{}next_player: {:?},{}outcome: {:?}{}}}",
-            sep, self.tiles_next, sep, self.tiles_occupied, sep, self.next_player, sep, self.outcome, line,
+            sep,
+            self.tiles_next,
+            sep,
+            self.tiles_occupied,
+            sep,
+            self.next_player(),
+            sep,
+            self.outcome,
+            line,
         )
     }
 }
 
 impl Display for Connect4 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let (tiles_a, tiles_b) = match self.next_player {
+        let (tiles_a, tiles_b) = match self.next_player() {
             Player::A => (self.tiles_next, self.tiles_next ^ self.tiles_occupied),
             Player::B => (self.tiles_next ^ self.tiles_occupied, self.tiles_next),
         };
@@ -148,7 +156,7 @@ impl Display for Connect4 {
                 write!(f, "{}", c)?;
             }
             if row == Self::HEIGHT / 2 {
-                write!(f, "    {}", self.next_player.to_char())?;
+                write!(f, "    {}", self.next_player().to_char())?;
             }
             writeln!(f)?;
         }
