@@ -16,12 +16,14 @@ pub fn perft<B: Board>(board: &B, depth: u32) -> u64 {
 }
 
 fn perft_recurse<B: Board + Hash>(map: &mut HashMap<(B, u32), u64>, board: B, depth: u32) -> u64 {
-    //TODO we can move the counter one level up and count moves there, instead of actually playing them
     if depth == 0 {
         return 1;
     }
     if board.is_done() {
         return 0;
+    }
+    if depth == 1 {
+        return board.available_moves().count() as u64;
     }
 
     // we need keys (B, depth) because otherwise we risk miscounting if the same board is encountered at different depths

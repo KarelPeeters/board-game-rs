@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::time::Instant;
 
 use board_game::board::Board;
 use board_game::util::game_stats;
@@ -13,6 +14,8 @@ pub fn perft_main<S: Debug + ?Sized, T: Debug, B: Board>(
 ) where
     for<'a> &'a S: PartialEq<T>,
 {
+    let total_start = Instant::now();
+
     for (desc, expected_perfts) in cases {
         let board = f(desc);
         println!("Parsed {:?} as", desc);
@@ -23,9 +26,18 @@ pub fn perft_main<S: Debug + ?Sized, T: Debug, B: Board>(
         }
 
         for (depth, &expected_perft) in expected_perfts.iter().enumerate() {
+            let curr_start = Instant::now();
             let perft = game_stats::perft(&board, depth as u32);
-            println!("   depth {} -> {} =? {}", depth, expected_perft, perft);
+            println!(
+                "   depth {} -> {} =? {}, took {:?}",
+                depth,
+                expected_perft,
+                perft,
+                curr_start.elapsed()
+            );
             assert_eq!(expected_perft, perft)
         }
     }
+
+    println!("Total: took {:?}", total_start.elapsed());
 }
