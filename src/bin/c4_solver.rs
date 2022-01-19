@@ -106,20 +106,20 @@ fn solve(board: &Connect4, mut alpha: i32, mut beta: i32, depth: i32, nodes: &mu
         return beta;
     }
 
-    let result = board.available_moves().try_for_each(|mv| {
+    for mv in [3, 2, 4, 1, 5, 0, 6] {
+        if !board.is_available_move(mv) {
+            continue;
+        }
+
         let score = -solve(&board.clone_and_play(mv), -beta, -alpha, depth + 1, nodes);
         if score >= beta {
-            return ControlFlow::Break(score);
+            return score;
         }
 
         alpha = max(alpha, score);
-        ControlFlow::Continue(())
-    });
-
-    match result {
-        ControlFlow::Break(score) => score,
-        ControlFlow::Continue(()) => alpha,
     }
+
+    return alpha;
 }
 
 fn debug_board(board: &Connect4, depth: i32) {
