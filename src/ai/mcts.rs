@@ -124,6 +124,14 @@ impl<M> Node<M> {
     /// For solved nodes this is just the unit value, with no exploration bonus. This is equivalent to
     /// a child node that's visited an infinite amount of times (together with the parent node).
     fn uct(&self, parent_visits: i64, exploration_weight: f32) -> f32 {
+        //TODO continue investigating this, what uct value to use for solved (in practice lost and drawn) nodes?
+        // if exploration_weight < 0.0 {
+        //     let value_unit = (self.wdl().value() + 1.0) / 2.0;
+        //     let explore = ((parent_visits as f32).ln() / self.visits as f32).sqrt();
+        //
+        //     return value_unit - exploration_weight * explore;
+        // }
+
         match self.kind {
             SNodeKind::Estimate(wdl) => {
                 let visits = wdl.sum() as f32;
@@ -165,6 +173,7 @@ impl<B: Board> Tree<B> {
         }
 
         // pick the most visited child
+        //TODO filter out lost children
         children.iter().max_by_key(|&c| self[c].visits).unwrap()
     }
 
