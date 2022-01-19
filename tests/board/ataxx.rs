@@ -52,11 +52,11 @@ fn ataxx_check_tile_count() {
 
             assert_eq!(
                 (board.tiles_a().count() as usize + x_bonus) * 2,
-                board_str.matches("x").count()
+                board_str.matches('x').count()
             );
             assert_eq!(
                 (board.tiles_b().count() as usize + o_bonus) * 2,
-                board_str.matches("o").count()
+                board_str.matches('o').count()
             );
         }
     }
