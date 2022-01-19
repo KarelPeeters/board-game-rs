@@ -100,6 +100,13 @@ fn solve(board: &Connect4, mut alpha: i32, mut beta: i32, depth: i32, nodes: &mu
         };
     }
 
+    if board
+        .available_moves()
+        .any(|mv| board.clone_and_play(mv).outcome() == Some(Outcome::WonBy(board.next_player())))
+    {
+        return (SIZE + 1 - depth) / 2;
+    }
+
     let best_possible = (SIZE + 1 - depth) / 2;
     beta = min(beta, best_possible);
     if alpha >= beta {
