@@ -6,6 +6,21 @@ use crate::ai::solver::solve_value;
 use crate::board::{Board, Outcome};
 use crate::wdl::OutcomeWDL;
 
+/// Play the given moves, starting from `start`.
+pub fn board_with_moves<B: Board>(start: B, moves: &[B::Move]) -> B {
+    let mut curr = start;
+    for &mv in moves {
+        assert!(
+            curr.is_available_move(mv),
+            "Move {} n aaaaaaaaaaaaaboard {:?}",
+            mv,
+            curr
+        );
+        curr.play(mv);
+    }
+    curr
+}
+
 /// Generate a `Board` by playing `n` random moves on `start`.
 pub fn random_board_with_moves<B: Board>(start: &B, n: u32, rng: &mut impl Rng) -> B {
     //this implementation could be made faster with backtracking instead of starting from scratch,

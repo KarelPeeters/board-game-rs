@@ -1,5 +1,6 @@
 pub mod ataxx;
 pub mod chess;
+pub mod connect4;
 pub mod sttt;
 pub mod ttt;
 

@@ -6,16 +6,10 @@ use rand::Rng;
 
 /// The symmetry group associated with a Board. An instance of this group maps a board and moves such that everything
 /// about the board and its state is invariant under this mapping.
-pub trait Symmetry: 'static + Debug + Copy + Clone + Eq + PartialEq + Send + Sync {
+/// The [Default] value is the identity element.
+pub trait Symmetry: 'static + Default + Debug + Copy + Clone + Eq + PartialEq + Send + Sync {
     fn all() -> &'static [Self];
-    fn identity() -> Self;
     fn inverse(self) -> Self;
-
-    /// Whether this symmetry is the unit symmetry,
-    /// which means that it only contains the single element returned by [Symmetry::identity].
-    fn is_unit() -> bool {
-        Self::all().len() == 1
-    }
 }
 
 #[derive(Debug)]
@@ -35,22 +29,59 @@ impl Symmetry for UnitSymmetry {
     fn all() -> &'static [Self] {
         &[Self]
     }
-    fn identity() -> Self {
-        Self
-    }
     fn inverse(self) -> Self {
         Self
+    }
+}
+
+impl Default for UnitSymmetry {
+    fn default() -> Self {
+        UnitSymmetry
+    }
+}
+
+/// The D1 symmetry group, representing a single axis mirror, resulting in 2 elements.
+///
+/// The `Default::default()` value means no transformation.
+///
+/// The representation is such that first x and y are optionally transposed,
+/// then each axis is optionally flipped separately.
+#[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
+pub struct D1Symmetry {
+    pub mirror: bool,
+}
+
+impl D1Symmetry {
+    pub const fn new(mirror: bool) -> Self {
+        D1Symmetry { mirror }
+    }
+
+    pub fn map_axis<V: Copy + std::ops::Sub<Output = V>>(self, x: V, max: V) -> V {
+        if self.mirror {
+            max - x
+        } else {
+            x
+        }
+    }
+}
+
+impl Symmetry for D1Symmetry {
+    fn all() -> &'static [Self] {
+        const ALL: [D1Symmetry; 2] = [D1Symmetry::new(false), D1Symmetry::new(true)];
+        &ALL
+    }
+
+    fn inverse(self) -> Self {
+        self
     }
 }
 
 /// The D4 symmetry group that can represent any combination of
 /// flips, rotating and transposing, which result in 8 distinct elements.
 ///
-/// The `Default::default()` value means no transformation.
-///
 /// The representation is such that first x and y are optionally transposed,
 /// then each axis is optionally flipped separately.
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
 pub struct D4Symmetry {
     pub transpose: bool,
     pub flip_x: bool,
@@ -93,10 +124,6 @@ impl Symmetry for D4Symmetry {
             D4Symmetry::new(true, true, true),
         ];
         &ALL
-    }
-
-    fn identity() -> Self {
-        D4Symmetry::new(false, false, false)
     }
 
     fn inverse(self) -> Self {

@@ -12,6 +12,7 @@ use board_game::symmetry::Symmetry;
 
 mod ataxx;
 mod chess;
+mod connect4;
 mod max_moves;
 mod sttt;
 mod ttt;
@@ -127,7 +128,7 @@ fn test_symmetry<B: Board>(board: &B) {
     println!("symmetries:");
 
     let all = B::Symmetry::all();
-    assert!(all.contains(&B::Symmetry::identity()));
+    assert!(all.contains(&B::Symmetry::default()));
 
     for &sym in B::Symmetry::all() {
         let sym_inv = sym.inverse();
@@ -144,7 +145,7 @@ fn test_symmetry<B: Board>(board: &B) {
         println!("Mapped:\n{}", mapped);
         println!("Back:\n{}", back);
 
-        if sym == B::Symmetry::identity() {
+        if sym == B::Symmetry::default() {
             assert_eq!(board, &mapped);
         }
         assert_eq!(board, &back);
