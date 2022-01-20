@@ -1,6 +1,5 @@
-//! Bitboard implementation based on http://blog.gamesolver.org/solving-connect-four/06-bitboard/.
-
 use std::fmt::{Debug, Display, Formatter};
+use std::hash::{Hash, Hasher};
 use std::ops::Range;
 
 use internal_iterator::{Internal, IteratorExt};
@@ -8,7 +7,10 @@ use internal_iterator::{Internal, IteratorExt};
 use crate::board::{Board, BoardMoves, BoardSymmetry, BruteforceMoveIterator, Outcome, Player};
 use crate::symmetry::D1Symmetry;
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+/// The Connect4 game on a 7x6 board.
+///
+/// The bitboard implementation is based on http://blog.gamesolver.org/solving-connect-four/06-bitboard/.
+#[derive(Clone, Eq, PartialEq)]
 pub struct Connect4 {
     tiles_next: u64,
     tiles_occupied: u64,
@@ -18,6 +20,16 @@ pub struct Connect4 {
 impl Connect4 {
     pub const WIDTH: u8 = 7;
     pub const HEIGHT: u8 = 6;
+
+    /// Return a 64-bit hash of this board, with the following properties:
+    /// * different boards have different hashes
+    /// * the top 8 bits are always zero
+    /// * the hash is never zero
+    pub fn perfect_hash(&self) -> u64 {
+        let value = self.tiles_next + self.tiles_occupied + 0x1010101010101;
+        debug_assert!(value != 0 && value >> 56 == 0);
+        return value;
+    }
 }
 
 impl Default for Connect4 {
@@ -171,4 +183,10 @@ fn mask(col: u8, row: u8) -> u64 {
 
 fn get(tiles: u64, col: u8, row: u8) -> bool {
     tiles & mask(col, row) != 0
+}
+
+impl Hash for Connect4 {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u64(self.perfect_hash());
+    }
 }
