@@ -1,9 +1,8 @@
 use std::cmp::{max, min};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::ops::ControlFlow;
 use std::path::Path;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use internal_iterator::InternalIterator;
 use itertools::Itertools;
@@ -23,14 +22,17 @@ fn main() {
         ("Test_L1_R3", "Begin-Hard"),
     ];
 
+    let mut cache = Cache::new(8 * 1024 * 1024);
+
     for &(path, name) in &test_sets {
         for strong in [false, true] {
             let strong_str = if strong { "strong" } else { "weak" };
 
-            let start = Instant::now();
             let mut total = 0;
             let mut total_correct = 0;
             let mut total_nodes = 0;
+            let mut total_hits = 0;
+            let mut total_time = Duration::default();
 
             let file = File::open(Path::new("ignored/connect4_tests").join(path)).unwrap();
             for line in BufReader::new(file).lines() {
@@ -51,18 +53,27 @@ fn main() {
 
                 let depth = moves.len() as i32;
                 let mut nodes = 0;
+                let mut hits = 0;
+
+                cache.clear();
+                let start = Instant::now();
 
                 let (expected_eval, eval) = if strong {
                     (
                         expected_strong_eval,
-                        solve(&board, -i32::MAX, i32::MAX, depth, &mut nodes),
+                        solve(&board, -i32::MAX, i32::MAX, &mut cache, depth, &mut nodes, &mut hits),
                     )
                 } else {
-                    (expected_strong_eval.signum(), solve(&board, -1, 1, depth, &mut nodes))
+                    (
+                        expected_strong_eval.signum(),
+                        solve(&board, -1, 1, &mut cache, depth, &mut nodes, &mut hits),
+                    )
                 };
 
                 total += 1;
                 total_nodes += nodes;
+                total_hits += hits;
+                total_time += start.elapsed();
 
                 if eval == expected_eval {
                     total_correct += 1;
@@ -76,13 +87,14 @@ fn main() {
                 }
             }
 
-            let mean_time = start.elapsed() / total;
+            let mean_time = total_time / total;
             let mean_nodes = total_nodes as f32 / total as f32;
+            let mean_hits = total_hits as f32 / total as f32;
             let correct = total_correct as f32 / total as f32;
 
             println!(
-                "{:<17} {:<8} time: {:>16.4?}   nodes: {:>10.2}   correct: {:<4}",
-                name, strong_str, mean_time, mean_nodes, correct
+                "{:<17} {:<8} time: {:>16.4?}   nodes: {:>14.2}   hits: {:>10.2}   correct: {:<4}",
+                name, strong_str, mean_time, mean_nodes, mean_hits, correct
             );
         }
     }
@@ -90,7 +102,54 @@ fn main() {
 
 const SIZE: i32 = (Connect4::WIDTH * Connect4::HEIGHT) as i32;
 
-fn solve(board: &Connect4, mut alpha: i32, mut beta: i32, depth: i32, nodes: &mut u32) -> i32 {
+struct Cache(Vec<u64>);
+
+impl Cache {
+    fn new(size: usize) -> Cache {
+        let mut result = Cache(vec![0; size]);
+        result.clear();
+        result
+    }
+
+    fn clear(&mut self) {
+        self.0.fill(0)
+    }
+
+    fn insert(&mut self, board: &Connect4, eval: i32) {
+        let hash = board.perfect_hash();
+        let index = (hash % self.0.len() as u64) as usize;
+
+        self.0[index] = hash | (eval as i8 as u64) << (64 - 8);
+    }
+
+    fn get(&mut self, board: &Connect4) -> Option<i32> {
+        let hash = board.perfect_hash();
+        let index = (hash % self.0.len() as u64) as usize;
+
+        let value = self.0[index];
+        let actual_hash = (value << 8) >> 8;
+        let eval = (value >> (64 - 8)) as i8 as i32;
+
+        if hash == actual_hash {
+            Some(eval)
+        } else {
+            None
+        }
+    }
+}
+
+pub const MIN_POSSIBLE_SCORE: i32 = -(Connect4::WIDTH as i32 * Connect4::HEIGHT as i32) / 2 + 3;
+pub const MAX_POSSIBLE_SCORE: i32 = (Connect4::WIDTH as i32 * Connect4::HEIGHT as i32 + 1) / 2 - 3;
+
+fn solve(
+    board: &Connect4,
+    mut alpha: i32,
+    mut beta: i32,
+    cache: &mut Cache,
+    depth: i32,
+    nodes: &mut u64,
+    hits: &mut u64,
+) -> i32 {
     *nodes += 1;
 
     if let Some(outcome) = board.outcome() {
@@ -107,7 +166,13 @@ fn solve(board: &Connect4, mut alpha: i32, mut beta: i32, depth: i32, nodes: &mu
         return (SIZE + 1 - depth) / 2;
     }
 
-    let best_possible = (SIZE + 1 - depth) / 2;
+    let mut best_possible = (SIZE + 1 - depth) / 2;
+
+    if let Some(eval) = cache.get(board) {
+        best_possible = eval + MIN_POSSIBLE_SCORE - 1;
+        *hits += 1;
+    }
+
     beta = min(beta, best_possible);
     if alpha >= beta {
         return beta;
@@ -118,7 +183,7 @@ fn solve(board: &Connect4, mut alpha: i32, mut beta: i32, depth: i32, nodes: &mu
             continue;
         }
 
-        let score = -solve(&board.clone_and_play(mv), -beta, -alpha, depth + 1, nodes);
+        let score = -solve(&board.clone_and_play(mv), -beta, -alpha, cache, depth + 1, nodes, hits);
         if score >= beta {
             return score;
         }
@@ -126,13 +191,24 @@ fn solve(board: &Connect4, mut alpha: i32, mut beta: i32, depth: i32, nodes: &mu
         alpha = max(alpha, score);
     }
 
+    cache.insert(board, alpha - MIN_POSSIBLE_SCORE + 1);
     return alpha;
 }
 
 fn debug_board(board: &Connect4, depth: i32) {
+    let mut cache = Cache::new(1);
+
     if !board.is_done() {
         board.available_moves().for_each(|mv| {
-            let child_value = -solve(&board.clone_and_play(mv), -i32::MAX, i32::MAX, depth, &mut 0);
+            let child_value = -solve(
+                &board.clone_and_play(mv),
+                -i32::MAX,
+                i32::MAX,
+                &mut cache,
+                depth,
+                &mut 0,
+                &mut 0,
+            );
             println!("{} => {}", mv, child_value);
         })
     }
