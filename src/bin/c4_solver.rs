@@ -10,6 +10,7 @@ use itertools::Itertools;
 use board_game::board::{Board, BoardMoves, Outcome};
 use board_game::games::connect4::Connect4;
 use board_game::util::board_gen::board_with_moves;
+use board_game::wdl::POV;
 
 fn main() {
     let test_sets = vec![
@@ -38,7 +39,7 @@ fn main() {
             for line in BufReader::new(file).lines() {
                 let line = line.unwrap();
                 let line = line.trim();
-                if line.is_empty() {
+                if line.is_empty() || line.starts_with('#') {
                     continue;
                 }
 
@@ -51,24 +52,18 @@ fn main() {
                 let board = board_with_moves(Connect4::default(), &moves);
                 let expected_strong_eval = expected_eval.parse::<i32>().unwrap();
 
-                let depth = moves.len() as i32;
                 let mut nodes = 0;
                 let mut hits = 0;
 
                 cache.clear();
                 let start = Instant::now();
 
-                let (expected_eval, eval) = if strong {
-                    (
-                        expected_strong_eval,
-                        solve(&board, -i32::MAX, i32::MAX, &mut cache, depth, &mut nodes, &mut hits),
-                    )
+                let expected_eval = if strong {
+                    expected_strong_eval
                 } else {
-                    (
-                        expected_strong_eval.signum(),
-                        solve(&board, -1, 1, &mut cache, depth, &mut nodes, &mut hits),
-                    )
+                    expected_strong_eval.signum()
                 };
+                let eval = solve(&board, !strong, &mut cache, &mut nodes, &mut hits);
 
                 total += 1;
                 total_nodes += nodes;
@@ -82,7 +77,7 @@ fn main() {
                         "Wrong {} eval on {}, got {} expected {} on board\n{}",
                         strong_str, moves_str, eval, expected_eval, board
                     );
-                    debug_board(&board, depth);
+                    debug_board(&board);
                     return;
                 }
             }
@@ -138,19 +133,46 @@ impl Cache {
     }
 }
 
-pub const MIN_POSSIBLE_SCORE: i32 = -(Connect4::WIDTH as i32 * Connect4::HEIGHT as i32) / 2 + 3;
-pub const MAX_POSSIBLE_SCORE: i32 = (Connect4::WIDTH as i32 * Connect4::HEIGHT as i32 + 1) / 2 - 3;
+pub const MIN_POSSIBLE_SCORE: i32 = -(Connect4::TILES as i32) / 2 + 3;
+pub const MAX_POSSIBLE_SCORE: i32 = (Connect4::TILES as i32 + 1) / 2 - 3;
 
-fn solve(
-    board: &Connect4,
-    mut alpha: i32,
-    mut beta: i32,
-    cache: &mut Cache,
-    depth: i32,
-    nodes: &mut u64,
-    hits: &mut u64,
-) -> i32 {
+fn solve(board: &Connect4, weak: bool, cache: &mut Cache, nodes: &mut u64, hits: &mut u64) -> i32 {
+    if board.is_done() {
+        return negamax(board, -i32::MAX, i32::MAX, cache, nodes, hits);
+    }
+
+    let depth = board.game_length() as i32;
+    let mut min = -(Connect4::TILES as i32 - depth) / 2;
+    let mut max = (Connect4::TILES as i32 + 1 - depth) / 2;
+
+    if weak {
+        min = -1;
+        max = 1;
+    }
+
+    while min < max {
+        let mut med = min + (max - min) / 2;
+
+        if med <= 0 && min / 2 < med {
+            med = min / 2;
+        } else if med >= 0 && max / 2 > med {
+            med = max / 2;
+        }
+
+        let r = negamax(board, med, med + 1, cache, nodes, hits);
+        if r <= med {
+            max = r;
+        } else {
+            min = r;
+        }
+    }
+
+    min
+}
+
+fn negamax(board: &Connect4, mut alpha: i32, mut beta: i32, cache: &mut Cache, nodes: &mut u64, hits: &mut u64) -> i32 {
     *nodes += 1;
+    let depth = board.game_length() as i32;
 
     if let Some(outcome) = board.outcome() {
         return match outcome {
@@ -183,7 +205,7 @@ fn solve(
             continue;
         }
 
-        let score = -solve(&board.clone_and_play(mv), -beta, -alpha, cache, depth + 1, nodes, hits);
+        let score = -negamax(&board.clone_and_play(mv), -beta, -alpha, cache, nodes, hits);
         if score >= beta {
             return score;
         }
@@ -195,17 +217,18 @@ fn solve(
     return alpha;
 }
 
-fn debug_board(board: &Connect4, depth: i32) {
+fn debug_board(board: &Connect4) {
+    eprintln!("Debugging board");
+
     let mut cache = Cache::new(1);
 
     if !board.is_done() {
         board.available_moves().for_each(|mv| {
-            let child_value = -solve(
+            let child_value = -negamax(
                 &board.clone_and_play(mv),
                 -i32::MAX,
                 i32::MAX,
                 &mut cache,
-                depth,
                 &mut 0,
                 &mut 0,
             );
