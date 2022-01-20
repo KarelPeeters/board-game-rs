@@ -20,6 +20,7 @@ pub struct Connect4 {
 impl Connect4 {
     pub const WIDTH: u8 = 7;
     pub const HEIGHT: u8 = 6;
+    pub const TILES: u8 = Self::WIDTH * Self::HEIGHT;
 
     /// Return a 64-bit hash of this board, with the following properties:
     /// * different boards have different hashes
@@ -29,6 +30,11 @@ impl Connect4 {
         let value = self.tiles_next + self.tiles_occupied + 0x1010101010101;
         debug_assert!(value != 0 && value >> 56 == 0);
         return value;
+    }
+
+    /// The number of moves already played.
+    pub fn game_length(&self) -> u32 {
+        self.tiles_occupied.count_ones()
     }
 }
 
