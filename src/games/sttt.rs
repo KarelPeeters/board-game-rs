@@ -142,8 +142,7 @@ impl Board for STTTBoard {
     }
 
     fn play(&mut self, mv: Self::Move) {
-        assert!(!self.is_done(), "Board must not be done");
-        assert!(self.is_available_move(mv), "move not available");
+        assert!(self.is_available_move(mv), "{:?} is not available on {:?}", mv, self);
 
         //do actual move
         self.set_tile_and_update(self.next_player, mv);

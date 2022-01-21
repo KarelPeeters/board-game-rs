@@ -140,7 +140,7 @@ impl Board for ChessBoard {
     }
 
     fn play(&mut self, mv: Self::Move) {
-        assert!(!self.is_done());
+        assert!(self.is_available_move(mv), "{:?} is not available on {:?}", mv, self);
 
         // keep track of stats for reversible moves
         let old_side_to_move = self.inner.side_to_move();

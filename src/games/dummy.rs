@@ -131,6 +131,7 @@ impl Board for DummyGame {
     }
 
     fn play(&mut self, mv: Self::Move) {
+        assert!(self.is_available_move(mv), "{:?} is not available on {:?}", mv, self);
         self.state.choose(mv);
         self.player = self.player.other();
     }

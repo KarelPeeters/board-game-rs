@@ -66,7 +66,7 @@ impl Board for Connect4 {
     }
 
     fn play(&mut self, mv: Self::Move) {
-        assert!(self.is_available_move(mv));
+        assert!(self.is_available_move(mv), "{:?} is not available on {:?}", mv, self);
         let curr_player = self.next_player();
 
         // play move

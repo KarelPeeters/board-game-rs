@@ -86,8 +86,7 @@ impl Board for TTTBoard {
     }
 
     fn play(&mut self, mv: Self::Move) {
-        assert!(!self.is_done());
-        assert!(self.is_available_move(mv));
+        assert!(self.is_available_move(mv), "{:?} is not available on {:?}", mv, self);
 
         self.tiles[mv.0] = Some(self.next_player);
 

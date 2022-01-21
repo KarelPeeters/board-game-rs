@@ -232,7 +232,7 @@ impl Board for AtaxxBoard {
     }
 
     fn play(&mut self, mv: Self::Move) {
-        assert!(self.is_available_move(mv), "{:?} is not available", mv);
+        assert!(self.is_available_move(mv), "{:?} is not available on {:?}", mv, self);
 
         let size = self.size;
         let (next_tiles, other_tiles) = self.tiles_pov_mut();
