@@ -73,56 +73,59 @@ impl Tiles {
         Tiles(!self.0) & Tiles::full(size)
     }
 
-    pub fn left(self, size: u8) -> Self {
-        Tiles(self.0 >> 1) & Tiles::full(size)
+    fn left(self) -> Self {
+        Tiles((self.0 >> 1) & 0x7f7f7f7f7f7f7f7f)
     }
 
-    pub fn right(self, size: u8) -> Self {
-        Tiles(self.0 << 1) & Tiles::full(size)
+    fn right(self) -> Self {
+        Tiles((self.0 << 1) & 0xfefefefefefefefe)
     }
 
-    pub fn down(self, size: u8) -> Self {
-        Tiles(self.0 >> 8) & Tiles::full(size)
+    fn down(self) -> Self {
+        Tiles((self.0 >> 8) & 0x00ffffffffffffff)
     }
 
-    pub fn up(self, size: u8) -> Self {
-        Tiles(self.0 << 8) & Tiles::full(size)
+    fn up(self) -> Self {
+        Tiles((self.0 << 8) & 0xffffffffffffff00)
     }
 
     pub fn copy_targets(self, size: u8) -> Self {
         // counterclockwise starting from left
-        self.left(size)
-            | self.left(size).down(size)
-            | self.down(size)
-            | self.right(size).down(size)
-            | self.right(size)
-            | self.right(size).up(size)
-            | self.up(size)
-            | self.left(size).up(size)
+        let result = self.left()
+            | self.left().down()
+            | self.down()
+            | self.right().down()
+            | self.right()
+            | self.right().up()
+            | self.up()
+            | self.left().up();
+        result & Tiles::full(size)
     }
 
     pub fn jump_targets(self, size: u8) -> Self {
         // counterclockwise starting from left.left
-        self.left(size).left(size)
-            | self.left(size).left(size).down(size)
-            | self.left(size).left(size).down(size).down(size)
-            | self.left(size).down(size).down(size)
-            | self.down(size).down(size)
-            | self.right(size).down(size).down(size)
-            | self.right(size).right(size).down(size).down(size)
-            | self.right(size).right(size).down(size)
-            | self.right(size).right(size)
-            | self.right(size).right(size).up(size)
-            | self.right(size).right(size).up(size).up(size)
-            | self.right(size).up(size).up(size)
-            | self.up(size).up(size)
-            | self.left(size).up(size).up(size)
-            | self.left(size).left(size).up(size).up(size)
-            | self.left(size).left(size).up(size)
+        let result = self.left().left()
+            | self.left().left().down()
+            | self.left().left().down().down()
+            | self.left().down().down()
+            | self.down().down()
+            | self.right().down().down()
+            | self.right().right().down().down()
+            | self.right().right().down()
+            | self.right().right()
+            | self.right().right().up()
+            | self.right().right().up().up()
+            | self.right().up().up()
+            | self.up().up()
+            | self.left().up().up()
+            | self.left().left().up().up()
+            | self.left().left().up();
+
+        result & Tiles::full(size)
     }
 
     pub fn map(self, size: u8, sym: D4Symmetry) -> Tiles {
-        assert!(size < AtaxxBoard::MAX_SIZE);
+        assert!(size <= AtaxxBoard::MAX_SIZE);
 
         let mut result = Tiles::empty();
         for c in self {
@@ -170,5 +173,35 @@ impl std::ops::BitOrAssign for Tiles {
 impl std::ops::BitAndAssign for Tiles {
     fn bitand_assign(&mut self, rhs: Self) {
         self.0 &= rhs.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::games::ataxx::Coord;
+
+    use super::Tiles;
+
+    #[test]
+    fn copy_jump() {
+        let cases = [
+            (8, Coord::from_xy(7, 7), 0x40c0000000000000, 0x2020e00000000000),
+            (8, Coord::from_xy(0, 7), 0x0203000000000000, 0x0404070000000000),
+            (8, Coord::from_xy(7, 0), 0x000000000000c040, 0x0000000000e02020),
+            (8, Coord::from_xy(0, 0), 0x0000000000000302, 0x0000000000070404),
+        ];
+
+        for (size, coord, copy, jump) in cases {
+            println!("Size {}, coord {:?}", size, coord);
+
+            let actual_copy = Tiles::coord(coord).copy_targets(size);
+            println!("{}", actual_copy);
+
+            let actual_jump = Tiles::coord(coord).jump_targets(size);
+            println!("{}", actual_jump);
+
+            assert_eq!(actual_copy, Tiles(copy), "Wrong copy targets");
+            assert_eq!(actual_jump, Tiles(jump), "Wrong jump targets");
+        }
     }
 }

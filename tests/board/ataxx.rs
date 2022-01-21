@@ -34,6 +34,8 @@ fn ataxx_sizes() {
         println!("{}", actual);
         println!("{}", expected);
         assert_eq!(actual, expected);
+
+        board_test_main(&actual);
     }
 }
 
@@ -101,6 +103,18 @@ fn ataxx_forced_pass() {
     assert!(!board.is_done(), "Board is not done, player B can still play");
     assert!(board.available_moves().all(|mv| mv == Move::Pass));
     board_test_main(&board)
+}
+
+#[test]
+fn ataxx_2() {
+    board_test_main(&AtaxxBoard::diagonal(2));
+    board_test_main(&AtaxxBoard::from_fen("x1/1o x 0 0").unwrap());
+}
+
+#[test]
+fn ataxx_8() {
+    board_test_main(&AtaxxBoard::diagonal(8));
+    board_test_main(&AtaxxBoard::from_fen("7x/2x4x/8/8/8/o4o2/o7/o6o o 0 0").unwrap());
 }
 
 ///Test cases from <https://github.com/kz04px/libataxx/blob/master/tests/perft.cpp>, edited to remove move counters.

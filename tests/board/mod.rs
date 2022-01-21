@@ -122,6 +122,12 @@ fn test_available_match<B: Board>(board: &B) {
         HashSet::<_, RandomState>::from_iter(&available).len(),
         "Found duplicate move"
     );
+
+    // try playing each available move
+    for &mv in &available {
+        println!("Playing {}", mv);
+        println!("{}", board.clone_and_play(mv));
+    }
 }
 
 /// Test whether the random move distribution is uniform using
