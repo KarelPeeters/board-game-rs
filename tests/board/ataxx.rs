@@ -112,6 +112,16 @@ fn ataxx_2() {
 }
 
 #[test]
+fn ataxx_5_pass() {
+    let board = AtaxxBoard::from_fen("xoooo/xoo2/ooooo/ooooo/xxooo x 0 0").unwrap();
+
+    assert_eq!(board.available_moves().count(), 1);
+    assert!(board.is_available_move(Move::Pass));
+
+    board_test_main(&board);
+}
+
+#[test]
 fn ataxx_8() {
     board_test_main(&AtaxxBoard::diagonal(8));
     board_test_main(&AtaxxBoard::from_fen("7x/2x4x/8/8/8/o4o2/o7/o6o o 0 0").unwrap());
