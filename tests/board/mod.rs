@@ -87,6 +87,12 @@ fn test_available_match<B: Board>(board: &B) {
     let all: Vec<B::Move> = B::all_possible_moves().collect();
     let available: Vec<B::Move> = board.available_moves().collect();
 
+    let all_count = B::all_possible_moves().count();
+    let available_count = board.available_moves().count();
+
+    assert_eq!(all.len(), all_count, "all_possible_moves count mismatch");
+    assert_eq!(available.len(), available_count, "available_moves count mismatch");
+
     assert!(
         !available.is_empty(),
         "must have at least one available move for non-done board"
