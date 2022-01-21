@@ -31,6 +31,7 @@ impl AtaxxBoard {
     pub const MAX_SIZE: u8 = 8;
 
     pub fn diagonal(size: u8) -> Self {
+        assert!(size <= Self::MAX_SIZE, "size {} is too large", size);
         assert!(size >= 2, "diagonal board is only possible with size > 2, got {}", size);
         let corner = size - 1;
         AtaxxBoard {
@@ -45,6 +46,7 @@ impl AtaxxBoard {
     }
 
     pub fn empty(size: u8) -> Self {
+        assert!(size <= Self::MAX_SIZE, "size {} is too large", size);
         AtaxxBoard {
             size,
             tiles_a: Tiles::empty(),
@@ -320,10 +322,10 @@ impl<'a> InternalIterator for AllMovesIterator<AtaxxBoard> {
 
     fn try_for_each<R, F: FnMut(Self::Item) -> ControlFlow<R>>(self, mut f: F) -> ControlFlow<R> {
         f(Move::Pass)?;
-        for to in Coord::all() {
+        for to in Coord::all(AtaxxBoard::MAX_SIZE) {
             f(Move::Copy { to })?;
         }
-        for to in Coord::all() {
+        for to in Coord::all(AtaxxBoard::MAX_SIZE) {
             for from in Tiles::coord(to).jump_targets(8) {
                 f(Move::Jump { from, to })?;
             }

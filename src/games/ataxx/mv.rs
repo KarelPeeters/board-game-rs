@@ -6,7 +6,7 @@ use crate::games::ataxx::AtaxxBoard;
 use crate::symmetry::D4Symmetry;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct Coord(u8);
+pub struct Coord(pub(super) u8);
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Move {
@@ -34,9 +34,9 @@ impl Display for Move {
 }
 
 impl Coord {
-    pub fn all() -> impl Iterator<Item = Coord> {
+    pub fn all(size: u8) -> impl Iterator<Item = Coord> {
         // this is kind of stupid but it works
-        Tiles::full(8).into_iter()
+        Tiles::full(size).into_iter()
     }
 
     pub fn from_xy(x: u8, y: u8) -> Coord {
@@ -45,25 +45,12 @@ impl Coord {
         Coord(x + 8 * y)
     }
 
-    pub fn from_dense_i(i: u8) -> Coord {
-        assert!(i < 8 * 8);
-        Coord(i)
-    }
-
-    pub fn from_sparse_i(i: u8) -> Coord {
-        Coord::from_xy(i % 8, i / 8)
-    }
-
     pub fn x(self) -> u8 {
         self.0 % 8
     }
 
     pub fn y(self) -> u8 {
         self.0 / 8
-    }
-
-    pub fn sparse_i(self) -> u8 {
-        self.0
     }
 
     pub fn distance(self, other: Coord) -> u8 {

@@ -10,6 +10,9 @@ use rand::Rng;
 pub trait Symmetry: 'static + Default + Debug + Copy + Clone + Eq + PartialEq + Send + Sync {
     fn all() -> &'static [Self];
     fn inverse(self) -> Self;
+    fn is_unit() -> bool {
+        Self::all().len() == 1
+    }
 }
 
 #[derive(Debug)]

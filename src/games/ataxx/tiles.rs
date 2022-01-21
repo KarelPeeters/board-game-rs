@@ -13,7 +13,7 @@ impl IntoIterator for Tiles {
     type IntoIter = std::iter::Map<BitIter<u64>, fn(u8) -> Coord>;
 
     fn into_iter(self) -> Self::IntoIter {
-        BitIter::new(self.0).map(|i| Coord::from_sparse_i(i as u8))
+        BitIter::new(self.0).map(|i| Coord(i as u8))
     }
 }
 
@@ -40,11 +40,11 @@ impl Tiles {
     }
 
     pub fn coord(coord: Coord) -> Tiles {
-        Tiles(1 << coord.sparse_i())
+        Tiles(1 << coord.0)
     }
 
     pub fn has(self, coord: Coord) -> bool {
-        (self.0 >> coord.sparse_i()) & 1 != 0
+        (self.0 >> coord.0) & 1 != 0
     }
 
     pub fn is_empty(self) -> bool {
@@ -56,17 +56,17 @@ impl Tiles {
     }
 
     pub fn get_nth(self, index: u32) -> Coord {
-        Coord::from_sparse_i(get_nth_set_bit(self.0, index))
+        Coord(get_nth_set_bit(self.0, index))
     }
 
     #[must_use]
     pub fn set(self, coord: Coord) -> Self {
-        Tiles(self.0 | (1 << coord.sparse_i()))
+        Tiles(self.0 | (1 << coord.0))
     }
 
     #[must_use]
     pub fn clear(self, coord: Coord) -> Self {
-        Tiles(self.0 & !(1 << coord.sparse_i()))
+        Tiles(self.0 & !(1 << coord.0))
     }
 
     pub fn not(self, size: u8) -> Self {
