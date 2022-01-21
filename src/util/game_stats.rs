@@ -51,12 +51,12 @@ pub struct GameStats {
 }
 
 /// Return `GameStats` estimated from `n` games starting from `start` played by `bot`.
-pub fn average_game_stats<B: Board>(start: &B, mut bot: impl Bot<B>, n: u64) -> GameStats {
+pub fn average_game_stats<B: Board>(mut start: impl FnMut() -> B, mut bot: impl Bot<B>, n: u64) -> GameStats {
     let mut total_moves = 0;
     let mut total_positions = 0;
 
     for _ in 0..n {
-        let mut board = start.clone();
+        let mut board = start();
         while !board.is_done() {
             total_moves += board.available_moves().count();
             total_positions += 1;
