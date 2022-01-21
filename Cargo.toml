@@ -1,6 +1,6 @@
 [package]
 name = "board-game"
-version = "0.3.6"
+version = "0.4.1"
 authors = ["Karel Peeters <karel.peeters.leuven@gmail.com>"]
 description = "A board game abstraction and generic utilities around it."
 license = "MIT OR Apache-2.0"
@@ -26,7 +26,7 @@ cast_trait = "0.1.2"
 rayon = "1.5.1"
 
 # TODO the chess crate is heavy (and takes a long time to build, see below "temp fix"), maybe replace it with
-#
+#  cozy-chess or shakmaty
 chess = "3.2.0"
 
 # temporary fix until https://github.com/jordanbray/chess/pull/67 is merged
