@@ -80,6 +80,25 @@ pub fn random_board_with_double_forced_draw<B: Board>(start: &B, depth: u32, rng
     })
 }
 
+/// Generate a `Board` by playing random moves until `cond(&board)` returns true.
+pub fn random_board_with_condition<B: Board>(start: &B, rng: &mut impl Rng, mut cond: impl FnMut(&B) -> bool) -> B {
+    if cond(start) {
+        return start.clone();
+    }
+
+    loop {
+        let mut board = start.clone();
+
+        while !board.is_done() {
+            board.play(board.random_available_move(rng));
+
+            if cond(&board) {
+                return board;
+            }
+        }
+    }
+}
+
 /// Generate a random board such that `cond(board, depth) & !cond(board, depth-1)`.
 fn random_board_with_depth_condition<B: Board>(
     start: &B,
