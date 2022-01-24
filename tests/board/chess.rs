@@ -30,6 +30,28 @@ fn chess_en_passant() {
     board_test_main(&board);
 }
 
+#[test]
+fn test_parse_castle_white() {
+    let board =
+        ChessBoard::new_without_history_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1", Rules::default());
+
+    let short = board.parse_move("O-O").unwrap();
+    assert_eq!(short, board.parse_move("e1h1").unwrap());
+    let long = board.parse_move("O-O-O").unwrap();
+    assert_eq!(long, board.parse_move("e1a1").unwrap());
+}
+
+#[test]
+fn test_parse_castle_black() {
+    let board =
+        ChessBoard::new_without_history_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQkq - 0 1", Rules::default());
+
+    let short = board.parse_move("O-O").unwrap();
+    assert_eq!(short, board.parse_move("e8h8").unwrap());
+    let long = board.parse_move("O-O-O").unwrap();
+    assert_eq!(long, board.parse_move("e8a8").unwrap());
+}
+
 /// Test cases from <https://www.chessprogramming.org/Perft_Results>.
 #[test]
 fn chess_perft() {

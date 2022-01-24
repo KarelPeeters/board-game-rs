@@ -5,7 +5,7 @@ use std::hash::Hash;
 use std::ops::ControlFlow;
 use std::str::FromStr;
 
-use chess::{BoardStatus, ChessMove, Color, File, MoveGen, Piece};
+use chess::{BoardStatus, ChessMove, Color, File, MoveGen, Piece, Square};
 use internal_iterator::{Internal, InternalIterator, IteratorExt};
 use rand::Rng;
 
@@ -18,7 +18,7 @@ pub struct Rules {
     max_moves_without_pawn_or_capture: Option<u16>,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct ChessBoard {
     inner: chess::Board,
     rules: Rules,
@@ -33,8 +33,10 @@ pub struct ChessBoard {
 
 #[derive(Debug, Clone)]
 pub struct ParseMoveError {
+    pub board: ChessBoard,
     pub mv: String,
-    pub error: chess::Error,
+    pub error: Option<chess::Error>,
+    pub parsed_as_but_not_available: Option<ChessMove>,
 }
 
 impl ChessBoard {
@@ -62,30 +64,36 @@ impl ChessBoard {
         &self.inner
     }
 
-    pub fn parse_move(&self, mv: &str) -> Result<ChessMove, ParseMoveError> {
-        // first try parsing it as a pgn move
-        if let Ok(mv) = ChessMove::from_str(mv) {
-            return Ok(mv);
-        }
+    pub fn parse_move(&self, mv_str: &str) -> Result<ChessMove, ParseMoveError> {
+        assert!(!self.is_done(), "Cannot parse move {:?} for done board {:?}", mv_str, self);
 
-        // the chess crate move parsing is kind of strange, so we need to help it a bit
-        let removed_chars: &[char] = &['=', '+', '#'];
-        let mv = if mv.contains(removed_chars) {
-            Cow::from(mv.replace(removed_chars, ""))
+        let mv = parse_move_inner_impl(self, mv_str)?;
+
+        // fix alternative castling move representation
+        let inner = self.inner;
+        let from = mv.get_source();
+        let to = mv.get_dest();
+        let mv = if inner.piece_on(from) == Some(Piece::King) && inner.piece_on(to) == Some(Piece::Rook) {
+            assert!(mv.get_promotion().is_none());
+            let from_file = from.get_file().to_index() as i8;
+            let direction = (to.get_file().to_index() as i8 - from_file).signum();
+            let to_file = File::from_index((from_file + 2 * direction) as usize);
+            let actual_to = Square::make_square(to.get_rank(), to_file);
+            ChessMove::new(from, actual_to, None)
         } else {
-            Cow::from(mv)
+            mv
         };
 
-        match ChessMove::from_san(self.inner(), &mv) {
-            Ok(mv) => Ok(mv),
-            Err(original_err) => {
-                // try appending e.p. to get it to parse an en passant move
-                let mv_ep = mv.to_owned() + " e.p.";
-                ChessMove::from_san(self.inner(), &mv_ep).map_err(|_| ParseMoveError {
-                    mv: mv.into_owned(),
-                    error: original_err,
-                })
-            }
+        // ensure the move is actually available
+        if self.is_available_move(mv) {
+            Ok(mv)
+        } else {
+            Err(ParseMoveError {
+                board: self.clone(),
+                mv: mv_str.to_owned(),
+                error: None,
+                parsed_as_but_not_available: Some(mv),
+            })
         }
     }
 
@@ -111,6 +119,35 @@ impl ChessBoard {
         }
 
         result
+    }
+}
+
+fn parse_move_inner_impl(board: &ChessBoard, mv_str: &str) -> Result<ChessMove, ParseMoveError> {
+    // first try parsing it as a pgn move
+    if let Ok(mv) = ChessMove::from_str(mv_str) {
+        return Ok(mv);
+    }
+
+    // the chess crate move parsing is kind of strange, so we need to help it a bit
+    let removed_chars: &[char] = &['=', '+', '#'];
+    let mv = if mv_str.contains(removed_chars) {
+        Cow::from(mv_str.replace(removed_chars, ""))
+    } else {
+        Cow::from(mv_str)
+    };
+
+    match ChessMove::from_san(board.inner(), &mv) {
+        Ok(mv) => Ok(mv),
+        Err(original_err) => {
+            // try appending e.p. to get it to parse an en passant move
+            let mv_ep = mv.to_owned() + " e.p.";
+            ChessMove::from_san(board.inner(), &mv_ep).map_err(|_| ParseMoveError {
+                board: board.clone(),
+                mv: mv.into_owned(),
+                error: Some(original_err),
+                parsed_as_but_not_available: None,
+            })
+        }
     }
 }
 
@@ -267,6 +304,12 @@ impl Default for Rules {
             max_repetitions: Some(3),
             max_moves_without_pawn_or_capture: Some(100),
         }
+    }
+}
+
+impl Debug for ChessBoard {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
     }
 }
 
