@@ -65,7 +65,12 @@ impl ChessBoard {
     }
 
     pub fn parse_move(&self, mv_str: &str) -> Result<ChessMove, ParseMoveError> {
-        assert!(!self.is_done(), "Cannot parse move {:?} for done board {:?}", mv_str, self);
+        assert!(
+            !self.is_done(),
+            "Cannot parse move {:?} for done board {:?}",
+            mv_str,
+            self
+        );
 
         let mv = parse_move_inner_impl(self, mv_str)?;
 
@@ -73,8 +78,13 @@ impl ChessBoard {
         let inner = self.inner;
         let from = mv.get_source();
         let to = mv.get_dest();
-        let mv = if inner.piece_on(from) == Some(Piece::King) && inner.piece_on(to) == Some(Piece::Rook) {
-            assert!(mv.get_promotion().is_none());
+        let next = inner.side_to_move();
+        let is_alternative_castling_format = inner.piece_on(from) == Some(Piece::King)
+            && inner.piece_on(to) == Some(Piece::Rook)
+            && inner.color_on(from) == Some(next)
+            && inner.color_on(to) == Some(next);
+        let mv = if is_alternative_castling_format {
+            assert!(from.get_rank() == to.get_rank() && mv.get_promotion().is_none());
             let from_file = from.get_file().to_index() as i8;
             let direction = (to.get_file().to_index() as i8 - from_file).signum();
             let to_file = File::from_index((from_file + 2 * direction) as usize);
