@@ -3,12 +3,12 @@ use crate::board::Board;
 
 /// Find a list of `len` moves that when played on `start` results in `target`.
 pub fn pathfind_exact_length<B: Board>(start: &B, target: &B, len: u32) -> Option<Vec<B::Move>> {
-    if len == 0 {
+    if len == 0 || start.is_done() {
         return if start == target {
             Some(vec![])
         } else {
             None
-        }
+        };
     }
 
     start.available_moves().filter_map(|mv: B::Move| {
