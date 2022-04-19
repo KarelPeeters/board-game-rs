@@ -1,6 +1,8 @@
 #![warn(missing_debug_implementations)]
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::unusual_byte_groupings)]
+#![allow(clippy::derive_hash_xor_eq)]
+#![allow(clippy::assertions_on_constants)]
 
 //! A [Board](crate::board::Board) abstraction for deterministic two player games.
 //! This allows for code to be generic over the actual game, so it only needs to written once.

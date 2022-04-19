@@ -29,7 +29,7 @@ impl Connect4 {
     pub fn perfect_hash(&self) -> u64 {
         let value = self.tiles_next + self.tiles_occupied + 0x1010101010101;
         debug_assert!(value != 0 && value >> 56 == 0);
-        return value;
+        value
     }
 
     /// The number of moves already played.
@@ -38,6 +38,7 @@ impl Connect4 {
     }
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for Connect4 {
     fn default() -> Self {
         Connect4 {
