@@ -128,6 +128,12 @@ impl ChessBoard {
         result
     }
 
+    /// Count how often the given position occurs in this boards history.
+    pub fn repetitions_for(&self, board: &chess::Board) -> usize {
+        // TODO we only need to check half of the history, depending on the color xor
+        self.history.iter().filter(|&h| h == board).count()
+    }
+
     pub fn rules(&self) -> Rules {
         self.rules
     }
@@ -237,8 +243,7 @@ impl Board for ChessBoard {
         }
 
         // update repetition counter based on history
-        //TODO we only need to check every other board position here
-        self.repetitions = self.history.iter().filter(|&h| &self.inner == h).count() as u16;
+        self.repetitions = self.repetitions_for(&self.inner) as u16;
 
         //update outcome
         self.outcome = if self.rules.is_draw(self) {
