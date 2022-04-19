@@ -36,3 +36,6 @@ opt-level = 3
 opt-level = 3
 [profile.test.build-override]
 opt-level = 3
+
+[profile.release]
+debug = true

@@ -20,15 +20,15 @@ pub struct Rules {
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct ChessBoard {
-    inner: chess::Board,
     rules: Rules,
 
-    // 0 if this is the first time this position was reached
-    //TODO remove pub and create getters
-    pub repetitions: u16,
-    pub non_pawn_or_capture_moves: u16,
+    inner: chess::Board,
+    history: Vec<chess::Board>,
 
-    history: Vec<u64>,
+    // cached values
+    non_pawn_or_capture_moves: u16,
+    repetitions: u16,
+    outcome: Option<Outcome>,
 }
 
 #[derive(Debug, Clone)]
@@ -52,16 +52,13 @@ impl ChessBoard {
     /// To get a board _with_ history start from the initial board and play the moves on it instead.
     pub fn new_without_history(inner: chess::Board, rules: Rules) -> Self {
         ChessBoard {
-            inner,
             rules,
-            repetitions: 0,
-            non_pawn_or_capture_moves: 0,
+            inner,
             history: vec![],
+            non_pawn_or_capture_moves: 0,
+            repetitions: 0,
+            outcome: None,
         }
-    }
-
-    pub fn inner(&self) -> &chess::Board {
-        &self.inner
     }
 
     pub fn parse_move(&self, mv_str: &str) -> Result<ChessMove, ParseMoveError> {
@@ -75,14 +72,14 @@ impl ChessBoard {
         let mv = parse_move_inner_impl(self, mv_str)?;
 
         // fix alternative castling move representation
-        let inner = self.inner;
+        let current = &self.inner;
         let from = mv.get_source();
         let to = mv.get_dest();
-        let next = inner.side_to_move();
-        let is_alternative_castling_format = inner.piece_on(from) == Some(Piece::King)
-            && inner.piece_on(to) == Some(Piece::Rook)
-            && inner.color_on(from) == Some(next)
-            && inner.color_on(to) == Some(next);
+        let next = current.side_to_move();
+        let is_alternative_castling_format = current.piece_on(from) == Some(Piece::King)
+            && current.piece_on(to) == Some(Piece::Rook)
+            && current.color_on(from) == Some(next)
+            && current.color_on(to) == Some(next);
         let mv = if is_alternative_castling_format {
             assert!(from.get_rank() == to.get_rank() && mv.get_promotion().is_none());
             let from_file = from.get_file().to_index() as i8;
@@ -129,6 +126,26 @@ impl ChessBoard {
         }
 
         result
+    }
+
+    pub fn rules(&self) -> Rules {
+        self.rules
+    }
+
+    pub fn inner(&self) -> &chess::Board {
+        &self.inner
+    }
+
+    pub fn history(&self) -> &Vec<chess::Board> {
+        &self.history
+    }
+
+    pub fn non_pawn_or_capture_moves(&self) -> u16 {
+        self.non_pawn_or_capture_moves
+    }
+
+    pub fn repetitions(&self) -> u16 {
+        self.repetitions
     }
 }
 
@@ -190,16 +207,16 @@ impl Board for ChessBoard {
         assert!(self.is_available_move(mv), "{:?} is not available on {:?}", mv, self);
 
         // keep track of stats for reversible moves
-        let old_side_to_move = self.inner.side_to_move();
-        let old_castle_rights = self.inner.castle_rights(old_side_to_move);
+        let prev = self.inner;
+        let old_side_to_move = prev.side_to_move();
+        let old_castle_rights = prev.castle_rights(old_side_to_move);
 
-        let moved_piece = self.inner.piece_on(mv.get_source()).unwrap();
-        let was_capture = self.inner.color_on(mv.get_dest()).is_some();
+        let moved_piece = prev.piece_on(mv.get_source()).unwrap();
+        let was_capture = prev.color_on(mv.get_dest()).is_some();
         let was_pawn_move = moved_piece == Piece::Pawn;
 
         // make the move
-        let old_inner = self.inner;
-        self.inner = old_inner.make_move_new(mv);
+        self.inner = prev.make_move_new(mv);
 
         // collect more stats
         let removed_castle = old_castle_rights != self.inner.castle_rights(old_side_to_move);
@@ -216,16 +233,15 @@ impl Board for ChessBoard {
         if reset_history {
             self.history.clear()
         } else {
-            self.history.push(self.inner.get_hash())
+            self.history.push(prev)
         }
 
         // update repetition counter based on history
         //TODO we only need to check every other board position here
-        self.repetitions = self.history.iter().filter(|&&h| self.inner.get_hash() == h).count() as u16;
-    }
+        self.repetitions = self.history.iter().filter(|&h| &self.inner == h).count() as u16;
 
-    fn outcome(&self) -> Option<Outcome> {
-        if self.rules.is_draw(self) {
+        //update outcome
+        self.outcome = if self.rules.is_draw(self) {
             Some(Outcome::Draw)
         } else {
             match self.inner.status() {
@@ -234,6 +250,10 @@ impl Board for ChessBoard {
                 BoardStatus::Checkmate => Some(Outcome::WonBy(self.next_player().other())),
             }
         }
+    }
+
+    fn outcome(&self) -> Option<Outcome> {
+        self.outcome
     }
 
     fn can_lose_after_move() -> bool {
@@ -327,7 +347,7 @@ impl Display for ChessBoard {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "ChessBoard {{ inner: \"{}\", cr: {}, ci: {}, h: {}, rules: {:?} }}",
+            "ChessBoard {{ inner: \"{}\", rep: {}, non: {}, hist: {}, rules: {:?} }}",
             self.inner,
             self.repetitions,
             self.non_pawn_or_capture_moves,
