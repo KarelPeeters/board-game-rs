@@ -25,6 +25,10 @@ impl<B: Board> MaxMovesBoard<B> {
     pub fn inner(&self) -> &B {
         &self.inner
     }
+
+    pub fn into_inner(self) -> B {
+        self.inner
+    }
 }
 
 impl<B: Board> Board for MaxMovesBoard<B> {
