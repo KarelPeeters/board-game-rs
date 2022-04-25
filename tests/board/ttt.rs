@@ -1,4 +1,4 @@
-use board_game::board::Board;
+use board_game::board::{Board, Outcome, Player};
 use board_game::games::ttt::{Coord, TTTBoard};
 
 use crate::board::board_test_main;
@@ -25,4 +25,15 @@ fn done() {
 
     board_test_main(&board);
     assert!(board.is_done(), "Board should be done");
+}
+
+#[test]
+fn always_play_first() {
+    let moves = [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0)];
+
+    let mut board = TTTBoard::default();
+    moves.iter().for_each(|&(x, y)| board.play(Coord::from_xy(x, y)));
+
+    board_test_main(&board);
+    assert_eq!(board.outcome(), Some(Outcome::WonBy(Player::A)));
 }
