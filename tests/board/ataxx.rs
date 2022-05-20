@@ -80,6 +80,7 @@ fn ataxx_few() {
 #[test]
 fn ataxx_close() {
     let board = AtaxxBoard::from_fen("ooooooo/xxxxooo/oxxxoo1/oxxxooo/ooxoooo/xxxxxoo/xxxxxxx x 0 1").unwrap();
+    assert!(!board.is_done());
     board_test_main(&board)
 }
 
@@ -94,6 +95,7 @@ fn ataxx_done_clear() {
 fn ataxx_done_full() {
     let board = AtaxxBoard::from_fen("xxxoxxx/ooooxxx/ooooxxx/xxxooox/xxxooox/xxxxxxx/ooooxxx o 0 1").unwrap();
     assert_eq!(Some(Outcome::WonBy(Player::A)), board.outcome());
+    assert!(!board.must_pass());
     board_test_main(&board)
 }
 
@@ -102,6 +104,7 @@ fn ataxx_forced_pass() {
     let board = AtaxxBoard::from_fen("xxxxxxx/-------/-------/o6/7/7/7 x 0 0").unwrap();
     assert!(!board.is_done(), "Board is not done, player B can still play");
     assert!(board.available_moves().all(|mv| mv == Move::Pass));
+    assert!(board.must_pass());
     board_test_main(&board)
 }
 

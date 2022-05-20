@@ -98,8 +98,14 @@ impl AtaxxBoard {
         (self.tiles_a | self.tiles_b | self.gaps).not(self.size)
     }
 
+    /// Returns whether the current played must pass.
+    /// Returns false if the game is already done.
+    pub fn must_pass(&self) -> bool {
+        !self.is_done() && self.must_pass_with_tiles(self.tiles_pov().0)
+    }
+
     /// Return whether the player with the given tiles has to pass, ie. cannot make a copy or jump move.
-    fn must_pass(&self, tiles: Tiles) -> bool {
+    fn must_pass_with_tiles(&self, tiles: Tiles) -> bool {
         let possible_targets = tiles.copy_targets(self.size) | tiles.jump_targets(self.size);
         (possible_targets & self.free_tiles()).is_empty()
     }
@@ -123,8 +129,8 @@ impl AtaxxBoard {
         let a_empty = self.tiles_a.is_empty();
         let b_empty = self.tiles_b.is_empty();
 
-        let a_pass = self.must_pass(self.tiles_a);
-        let b_pass = self.must_pass(self.tiles_b);
+        let a_pass = self.must_pass_with_tiles(self.tiles_a);
+        let b_pass = self.must_pass_with_tiles(self.tiles_b);
 
         let outcome = if self.moves_since_last_copy >= MAX_MOVES_SINCE_LAST_COPY || (a_empty && b_empty) {
             Some(Outcome::Draw)
@@ -176,7 +182,7 @@ impl Board for AtaxxBoard {
         let next_tiles = self.tiles_pov().0;
 
         match mv {
-            Move::Pass => self.must_pass(next_tiles),
+            Move::Pass => self.must_pass_with_tiles(next_tiles),
             Move::Copy { to } => {
                 self.contains_coord(to) && (self.free_tiles() & next_tiles.copy_targets(self.size)).has(to)
             }
@@ -196,7 +202,7 @@ impl Board for AtaxxBoard {
         let next_tiles = self.tiles_pov().0;
         let free_tiles = self.free_tiles();
 
-        if self.must_pass(next_tiles) {
+        if self.must_pass_with_tiles(next_tiles) {
             return Move::Pass;
         }
 
@@ -344,7 +350,7 @@ impl InternalIterator for AvailableMovesIterator<'_, AtaxxBoard> {
         let free_tiles = board.free_tiles();
 
         // pass move, don't emit other moves afterwards
-        if board.must_pass(next_tiles) {
+        if board.must_pass_with_tiles(next_tiles) {
             return f(Move::Pass);
         }
 
