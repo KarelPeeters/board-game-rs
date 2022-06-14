@@ -132,7 +132,7 @@ impl<V: num_traits::Float> WDL<V> {
             loss: V::nan(),
         }
     }
-    
+
     pub fn normalized(self) -> WDL<V> {
         self / self.sum()
     }
