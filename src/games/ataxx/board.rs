@@ -248,6 +248,7 @@ impl Board for AtaxxBoard {
                 // we don't need to check whether the game is finished now because the other player is guaranteed to have
                 //   a real move, since otherwise the game would have finished already
                 self.next_player = self.next_player.other();
+                self.moves_since_last_copy += 1;
                 return;
             }
             Move::Copy { to } => to,

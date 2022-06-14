@@ -130,11 +130,42 @@ fn ataxx_8() {
     board_test_main(&AtaxxBoard::from_fen("7x/2x4x/8/8/8/o4o2/o7/o6o o 0 0").unwrap());
 }
 
+#[test]
+fn ataxx_pass_move_counter() {
+    let mut board = AtaxxBoard::from_fen("xxxxxxx/-------/-------/o6/7/7/7 x 0 0").unwrap();
+    board_test_main(&board);
+
+    let prev_count = board.moves_since_last_copy();
+    board.play(Move::Pass);
+    assert_eq!(board.moves_since_last_copy(), prev_count + 1);
+}
+
+#[test]
+fn ataxx_copy_move_counter() {
+    let mut board = AtaxxBoard::from_fen("x2xxxx/-------/-------/o6/7/7/7 x 0 0").unwrap();
+
+    board.play(Move::from_uai("b7"));
+    assert_eq!(board.moves_since_last_copy(), 0);
+
+    board_test_main(&board);
+}
+
+#[test]
+fn ataxx_jump_move_counter() {
+    let mut board = AtaxxBoard::from_fen("x2xxxx/-------/-------/o6/7/7/7 x 0 0").unwrap();
+
+    let prev_count = board.moves_since_last_copy();
+    board.play(Move::from_uai("a7c7"));
+    assert_eq!(board.moves_since_last_copy(), prev_count + 1);
+
+    board_test_main(&board);
+}
+
 ///Test cases from <https://github.com/kz04px/libataxx/blob/master/tests/perft.cpp>, edited to remove move counters.
 #[test]
 fn ataxx_perft() {
     #[rustfmt::skip]
-        board_perft_main(
+    board_perft_main(
         |s| AtaxxBoard::from_fen(s).unwrap(),
         Some(AtaxxBoard::to_fen),
         vec![
