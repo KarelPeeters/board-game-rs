@@ -5,20 +5,28 @@ use internal_iterator::InternalIterator;
 use rand::Rng;
 
 use crate::board::{AllMovesIterator, AvailableMovesIterator, Board, BoardMoves, BoardSymmetry, Outcome, Player};
-use crate::games::ataxx::{Coord, Move, Tiles};
 use crate::symmetry::D4Symmetry;
+use crate::util::bitboard::BitBoard8;
+use crate::util::coord::Coord8;
 
 pub const MAX_MOVES_SINCE_LAST_COPY: u8 = 100;
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct AtaxxBoard {
     pub(super) size: u8,
-    pub(super) tiles_a: Tiles,
-    pub(super) tiles_b: Tiles,
-    pub(super) gaps: Tiles,
+    pub(super) tiles_a: BitBoard8,
+    pub(super) tiles_b: BitBoard8,
+    pub(super) gaps: BitBoard8,
     pub(super) moves_since_last_copy: u8,
     pub(super) next_player: Player,
     pub(super) outcome: Option<Outcome>,
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum Move {
+    Pass,
+    Copy { to: Coord8 },
+    Jump { from: Coord8, to: Coord8 },
 }
 
 impl Default for AtaxxBoard {
@@ -33,12 +41,16 @@ impl AtaxxBoard {
     pub fn diagonal(size: u8) -> Self {
         assert!(size <= Self::MAX_SIZE, "size {} is too large", size);
         assert!(size >= 2, "diagonal board is only possible with size > 2, got {}", size);
+
         let corner = size - 1;
+        let tiles_a = BitBoard8::coord(Coord8::from_xy(0, corner)) | BitBoard8::coord(Coord8::from_xy(corner, 0));
+        let tiles_b = BitBoard8::coord(Coord8::from_xy(0, 0)) | BitBoard8::coord(Coord8::from_xy(corner, corner));
+
         AtaxxBoard {
             size,
-            tiles_a: Tiles::coord(Coord::from_xy(0, corner)) | Tiles::coord(Coord::from_xy(corner, 0)),
-            tiles_b: Tiles::coord(Coord::from_xy(0, 0)) | Tiles::coord(Coord::from_xy(corner, corner)),
-            gaps: Tiles::empty(),
+            tiles_a,
+            tiles_b,
+            gaps: BitBoard8::EMPTY,
             moves_since_last_copy: 0,
             next_player: Player::A,
             outcome: if size == 2 { Some(Outcome::Draw) } else { None },
@@ -49,21 +61,25 @@ impl AtaxxBoard {
         assert!(size <= Self::MAX_SIZE, "size {} is too large", size);
         AtaxxBoard {
             size,
-            tiles_a: Tiles::empty(),
-            tiles_b: Tiles::empty(),
-            gaps: Tiles::empty(),
+            tiles_a: BitBoard8::EMPTY,
+            tiles_b: BitBoard8::EMPTY,
+            gaps: BitBoard8::EMPTY,
             moves_since_last_copy: 0,
             next_player: Player::A,
             outcome: Some(Outcome::Draw),
         }
     }
 
-    pub fn contains_coord(&self, coord: Coord) -> bool {
+    pub fn valid_coord(&self, coord: Coord8) -> bool {
         coord.x() < self.size && coord.y() < self.size
     }
 
-    pub fn tile(&self, coord: Coord) -> Option<Player> {
-        assert!(self.contains_coord(coord));
+    pub fn full_mask(&self) -> BitBoard8 {
+        BitBoard8::FULL_FOR_SIZE[self.size as usize]
+    }
+
+    pub fn tile(&self, coord: Coord8) -> Option<Player> {
+        assert!(self.valid_coord(coord));
 
         if self.tiles_a.has(coord) {
             return Some(Player::A);
@@ -82,20 +98,20 @@ impl AtaxxBoard {
         self.size
     }
 
-    pub fn tiles_a(&self) -> Tiles {
+    pub fn tiles_a(&self) -> BitBoard8 {
         self.tiles_a
     }
 
-    pub fn tiles_b(&self) -> Tiles {
+    pub fn tiles_b(&self) -> BitBoard8 {
         self.tiles_b
     }
 
-    pub fn gaps(&self) -> Tiles {
+    pub fn gaps(&self) -> BitBoard8 {
         self.gaps
     }
 
-    pub fn free_tiles(&self) -> Tiles {
-        (self.tiles_a | self.tiles_b | self.gaps).not(self.size)
+    pub fn free_tiles(&self) -> BitBoard8 {
+        !(self.tiles_a | self.tiles_b | self.gaps) & self.full_mask()
     }
 
     /// Returns whether the current played must pass.
@@ -105,19 +121,19 @@ impl AtaxxBoard {
     }
 
     /// Return whether the player with the given tiles has to pass, ie. cannot make a copy or jump move.
-    fn must_pass_with_tiles(&self, tiles: Tiles) -> bool {
-        let possible_targets = tiles.copy_targets(self.size) | tiles.jump_targets(self.size);
+    fn must_pass_with_tiles(&self, tiles: BitBoard8) -> bool {
+        let possible_targets = (tiles.adjacent() | tiles.ring()) & self.full_mask();
         (possible_targets & self.free_tiles()).is_empty()
     }
 
-    pub fn tiles_pov(&self) -> (Tiles, Tiles) {
+    pub fn tiles_pov(&self) -> (BitBoard8, BitBoard8) {
         match self.next_player() {
             Player::A => (self.tiles_a, self.tiles_b),
             Player::B => (self.tiles_b, self.tiles_a),
         }
     }
 
-    fn tiles_pov_mut(&mut self) -> (&mut Tiles, &mut Tiles) {
+    fn tiles_pov_mut(&mut self) -> (&mut BitBoard8, &mut BitBoard8) {
         match self.next_player {
             Player::A => (&mut self.tiles_a, &mut self.tiles_b),
             Player::B => (&mut self.tiles_b, &mut self.tiles_a),
@@ -156,16 +172,32 @@ impl AtaxxBoard {
     }
 
     pub fn assert_valid(&self) {
-        let mask = Tiles::full(self.size).not(8);
-        assert!((self.tiles_a & mask).is_empty());
-        assert!((self.tiles_b & mask).is_empty());
-        assert!((self.gaps & mask).is_empty());
+        let invalid_mask = !self.full_mask();
+        assert!((self.tiles_a & invalid_mask).is_empty());
+        assert!((self.tiles_b & invalid_mask).is_empty());
+        assert!((self.gaps & invalid_mask).is_empty());
         assert!((self.tiles_a & self.tiles_b).is_empty());
         assert!((self.tiles_a & self.gaps).is_empty());
         assert!((self.tiles_b & self.gaps).is_empty());
         let mut clone = self.clone();
         clone.update_outcome();
         assert_eq!(self.outcome, clone.outcome);
+    }
+
+    pub fn map_coord(&self, coord: Coord8, sym: D4Symmetry) -> Coord8 {
+        assert!(self.valid_coord(coord));
+        sym.map_coord(coord, self.size)
+    }
+
+    pub fn map_tiles(&self, tiles: BitBoard8, sym: D4Symmetry) -> BitBoard8 {
+        let mut result = BitBoard8::EMPTY;
+        for coord in tiles {
+            let result_coord = self.map_coord(coord, sym);
+            result |= BitBoard8::coord(result_coord);
+
+            println!("After mapping {} to {}, got tiles \n{}", coord, result_coord, result);
+        }
+        result
     }
 }
 
@@ -183,15 +215,13 @@ impl Board for AtaxxBoard {
 
         match mv {
             Move::Pass => self.must_pass_with_tiles(next_tiles),
-            Move::Copy { to } => {
-                self.contains_coord(to) && (self.free_tiles() & next_tiles.copy_targets(self.size)).has(to)
-            }
+            Move::Copy { to } => self.valid_coord(to) && (self.free_tiles() & next_tiles.adjacent()).has(to),
             Move::Jump { from, to } => {
-                self.contains_coord(from)
-                    && self.contains_coord(to)
+                self.valid_coord(from)
+                    && self.valid_coord(to)
                     && self.free_tiles().has(to)
                     && next_tiles.has(from)
-                    && from.distance(to) == 2
+                    && from.diagonal_distance(to) == 2
             }
         }
     }
@@ -206,13 +236,13 @@ impl Board for AtaxxBoard {
             return Move::Pass;
         }
 
-        let copy_targets = self.free_tiles() & next_tiles.copy_targets(self.size);
-        let jump_targets = free_tiles & next_tiles.jump_targets(self.size);
+        let copy_targets = free_tiles & next_tiles.adjacent();
+        let jump_targets = free_tiles & next_tiles.ring();
 
         let copy_count = copy_targets.count() as u32;
         let jump_count: u32 = jump_targets
             .into_iter()
-            .map(|to| (next_tiles & Tiles::coord(to).jump_targets(self.size)).count() as u32)
+            .map(|to| (next_tiles & BitBoard8::coord(to).ring()).count() as u32)
             .sum();
 
         let index = rng.gen_range(0..(copy_count + jump_count));
@@ -224,7 +254,7 @@ impl Board for AtaxxBoard {
         } else {
             let mut left = index - copy_count;
             for to in jump_targets {
-                let from = next_tiles & Tiles::coord(to).jump_targets(self.size);
+                let from = next_tiles & BitBoard8::coord(to).ring();
                 let count = from.count() as u32;
                 if left < count {
                     let from = from.get_nth(left);
@@ -240,7 +270,6 @@ impl Board for AtaxxBoard {
     fn play(&mut self, mv: Self::Move) {
         assert!(self.is_available_move(mv), "{:?} is not available on {:?}", mv, self);
 
-        let size = self.size;
         let (next_tiles, other_tiles) = self.tiles_pov_mut();
 
         let to = match mv {
@@ -253,15 +282,15 @@ impl Board for AtaxxBoard {
             }
             Move::Copy { to } => to,
             Move::Jump { from, to } => {
-                *next_tiles &= Tiles::coord(from).not(size);
+                *next_tiles &= !BitBoard8::coord(from);
                 to
             }
         };
 
-        let to = Tiles::coord(to);
-        let converted = *other_tiles & to.copy_targets(size);
+        let to = BitBoard8::coord(to);
+        let converted = *other_tiles & to.adjacent();
         *next_tiles |= to | converted;
-        *other_tiles &= converted.not(size);
+        *other_tiles &= !converted;
 
         self.moves_since_last_copy += 1;
         if let Move::Copy { .. } = mv {
@@ -287,9 +316,9 @@ impl BoardSymmetry<AtaxxBoard> for AtaxxBoard {
     fn map(&self, sym: Self::Symmetry) -> Self {
         AtaxxBoard {
             size: self.size,
-            tiles_a: self.tiles_a.map(self.size, sym),
-            tiles_b: self.tiles_b.map(self.size, sym),
-            gaps: self.gaps.map(self.size, sym),
+            tiles_a: self.map_tiles(self.tiles_a, sym),
+            tiles_b: self.map_tiles(self.tiles_b, sym),
+            gaps: self.map_tiles(self.gaps, sym),
             moves_since_last_copy: self.moves_since_last_copy,
             next_player: self.next_player,
             outcome: self.outcome,
@@ -300,11 +329,11 @@ impl BoardSymmetry<AtaxxBoard> for AtaxxBoard {
         match mv {
             Move::Pass => Move::Pass,
             Move::Copy { to } => Move::Copy {
-                to: to.map(self.size, sym),
+                to: self.map_coord(to, sym),
             },
             Move::Jump { from, to } => Move::Jump {
-                from: from.map(self.size, sym),
-                to: to.map(self.size, sym),
+                from: self.map_coord(from, sym),
+                to: self.map_coord(to, sym),
             },
         }
     }
@@ -328,12 +357,14 @@ impl<'a> InternalIterator for AllMovesIterator<AtaxxBoard> {
     type Item = Move;
 
     fn try_for_each<R, F: FnMut(Self::Item) -> ControlFlow<R>>(self, mut f: F) -> ControlFlow<R> {
+        let full_board = BitBoard8::FULL_FOR_SIZE[AtaxxBoard::MAX_SIZE as usize];
+
         f(Move::Pass)?;
-        for to in Coord::all(AtaxxBoard::MAX_SIZE) {
+        for to in full_board {
             f(Move::Copy { to })?;
         }
-        for to in Coord::all(AtaxxBoard::MAX_SIZE) {
-            for from in Tiles::coord(to).jump_targets(8) {
+        for to in full_board {
+            for from in BitBoard8::coord(to).ring() & full_board {
                 f(Move::Jump { from, to })?;
             }
         }
@@ -356,15 +387,15 @@ impl InternalIterator for AvailableMovesIterator<'_, AtaxxBoard> {
         }
 
         // copy moves
-        let copy_targets = free_tiles & next_tiles.copy_targets(board.size);
+        let copy_targets = free_tiles & next_tiles.adjacent();
         for to in copy_targets {
             f(Move::Copy { to })?;
         }
 
         // jump moves
-        let jump_targets = free_tiles & next_tiles.jump_targets(board.size);
+        let jump_targets = free_tiles & next_tiles.ring();
         for to in jump_targets {
-            for from in next_tiles & Tiles::coord(to).jump_targets(board.size) {
+            for from in next_tiles & BitBoard8::coord(to).ring() {
                 f(Move::Jump { from, to })?;
             }
         }

@@ -3,7 +3,56 @@ use std::fmt::{Debug, Display, Formatter, Write};
 use itertools::Itertools;
 
 use crate::board::Player;
-use crate::games::ataxx::{AtaxxBoard, Coord, Tiles};
+use crate::games::ataxx::{AtaxxBoard, Move};
+use crate::util::bitboard::BitBoard8;
+use crate::util::coord::Coord8;
+
+pub fn coord_to_uai(coord: Coord8) -> String {
+    let x = coord.x();
+    let y = coord.y();
+    format!("{}{}", (b'a' + x) as char, y + 1)
+}
+
+pub fn coord_from_uai(s: &str) -> Coord8 {
+    assert_eq!(s.len(), 2);
+    let x = s.as_bytes()[0] - b'a';
+    let y = (s.as_bytes()[1] - b'0') - 1;
+    Coord8::from_xy(x, y)
+}
+
+impl Debug for Move {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_uai())
+    }
+}
+
+impl Display for Move {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_uai())
+    }
+}
+
+impl Move {
+    pub fn to_uai(self) -> String {
+        match self {
+            Move::Pass => "0000".to_string(),
+            Move::Copy { to } => coord_to_uai(to),
+            Move::Jump { from, to } => format!("{}{}", coord_to_uai(from), coord_to_uai(to)),
+        }
+    }
+
+    pub fn from_uai(s: &str) -> Move {
+        match s {
+            "0000" => Move::Pass,
+            _ if s.len() == 2 => Move::Copy { to: coord_from_uai(s) },
+            _ if s.len() == 4 => Move::Jump {
+                from: coord_from_uai(&s[..2]),
+                to: coord_from_uai(&s[2..]),
+            },
+            _ => panic!("Invalid move uai string '{}'", s),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct InvalidAtaxxFen {
@@ -44,7 +93,7 @@ impl AtaxxBoard {
                         return Err(err("Too many columns for size"));
                     }
 
-                    let tile = Tiles::coord(Coord::from_xy(x as u8, y as u8));
+                    let tile = BitBoard8::coord(Coord8::from_xy(x as u8, y as u8));
 
                     match c {
                         'x' => board.tiles_a |= tile,
@@ -91,7 +140,7 @@ impl AtaxxBoard {
             let mut empty_count = 0;
 
             for x in 0..self.size {
-                let coord = Coord::from_xy(x, y);
+                let coord = Coord8::from_xy(x, y);
 
                 if self.free_tiles().has(coord) {
                     empty_count += 1;
@@ -124,7 +173,7 @@ impl AtaxxBoard {
             player_symbol(self.next_player),
             self.moves_since_last_copy
         )
-        .unwrap();
+            .unwrap();
 
         s
     }
@@ -144,7 +193,7 @@ impl Display for AtaxxBoard {
             write!(f, "{} ", y + 1)?;
 
             for x in 0..self.size {
-                let coord = Coord::from_xy(x, y);
+                let coord = Coord8::from_xy(x, y);
                 let tuple = (self.gaps.has(coord), self.tile(coord));
                 let c = match tuple {
                     (true, None) => '-',

@@ -1,9 +1,11 @@
 use internal_iterator::InternalIterator;
-use rand::rngs::SmallRng;
+use itertools::Itertools;
 use rand::{Rng, SeedableRng};
+use rand::rngs::SmallRng;
 
-use board_game::board::{Board, BoardMoves, Outcome, Player};
+use board_game::board::{Board, BoardMoves, BoardSymmetry, Outcome, Player};
 use board_game::games::ataxx::{AtaxxBoard, Move};
+use board_game::symmetry::D4Symmetry;
 use board_game::util::board_gen::random_board_with_moves;
 
 use crate::board::{board_perft_main, board_test_main};
@@ -112,6 +114,36 @@ fn ataxx_forced_pass() {
 fn ataxx_2() {
     board_test_main(&AtaxxBoard::diagonal(2));
     board_test_main(&AtaxxBoard::from_fen("x1/1o x 0 0").unwrap());
+}
+
+#[test]
+fn ataxx_2_sym() {
+    let board = AtaxxBoard::from_fen("x1/1o x 0 0").unwrap();
+    let expected = AtaxxBoard::from_fen("1x/o1 x 0 0").unwrap();
+
+    println!("{}", board);
+    println!("{}", expected);
+
+    let sym = D4Symmetry::new(false, true, false);
+    let actual = board.map(sym);
+    println!();
+    println!("{}", actual);
+
+    println!("board a:    \n{}", board.tiles_a());
+    println!("board b:    \n{}", board.tiles_b());
+    println!("expected a: \n{}", expected.tiles_a());
+    println!("expected b: \n{}", expected.tiles_b());
+    println!("actual b:   \n{}", actual.tiles_b());
+    println!("actual a:   \n{}", actual.tiles_a());
+
+    print!("board a tiles: {:?}", board.tiles_a().into_iter().collect_vec());
+
+    for c in board.tiles_a() {
+        println!("a coord {}, mapped {}", c, sym.map_coord(c, board.size()));
+    }
+
+    println!("mapped a tiles: \n{}", board.map_tiles(board.tiles_a(), sym));
+    assert_eq!(actual, expected);
 }
 
 #[test]

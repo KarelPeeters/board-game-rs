@@ -1,8 +1,12 @@
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
+use std::ops::Sub;
 
+use num_traits::One;
 use rand::distributions::Distribution;
-use rand::seq::SliceRandom;
 use rand::Rng;
+use rand::seq::SliceRandom;
+
+use crate::util::coord::Coord;
 
 /// The symmetry group associated with a Board. An instance of this group maps a board and moves such that everything
 /// about the board and its state is invariant under this mapping.
@@ -59,7 +63,8 @@ impl D1Symmetry {
         D1Symmetry { mirror }
     }
 
-    pub fn map_axis<V: Copy + std::ops::Sub<Output = V>>(self, x: V, max: V) -> V {
+    pub fn map_axis<V: Copy + Sub<Output=V> + One>(self, x: V, size: V) -> V {
+        let max = size - V::one();
         if self.mirror {
             max - x
         } else {
@@ -100,7 +105,11 @@ impl D4Symmetry {
         }
     }
 
-    pub fn map_xy<V: Copy + std::ops::Sub<Output = V>>(self, mut x: V, mut y: V, max: V) -> (V, V) {
+    pub fn map_xy<V: Copy + Sub<Output=V> + One + Display>(self, mut x: V, mut y: V, size: V) -> (V, V) {
+        println!("Mapping {} {} {}", x, y, size);
+
+        let max = size - V::one();
+
         if self.transpose {
             std::mem::swap(&mut x, &mut y)
         };
@@ -110,7 +119,16 @@ impl D4Symmetry {
         if self.flip_y {
             y = max - y
         };
+
+        println!("    to {} {}", x, y);
+
         (x, y)
+    }
+
+    pub fn map_coord<const X: u8, const Y: u8>(self, coord: Coord<X, Y>, size: u8) -> Coord<X, Y> {
+        assert!(size <= X && size <= Y);
+        let (x, y) = self.map_xy(coord.x(), coord.y(), size);
+        Coord::from_xy(x, y)
     }
 }
 

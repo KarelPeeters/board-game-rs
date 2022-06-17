@@ -5,5 +5,7 @@ pub mod game_stats;
 pub mod pathfind;
 
 pub mod bits;
+pub mod coord;
+pub mod bitboard;
 
 pub mod rating;

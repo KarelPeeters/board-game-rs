@@ -3,7 +3,8 @@ use std::cmp::{max, Ordering};
 use crate::ai::minimax::Heuristic;
 use crate::ai::solver::SolverHeuristic;
 use crate::board::Board;
-use crate::games::ataxx::{AtaxxBoard, Tiles};
+use crate::games::ataxx::AtaxxBoard;
+use crate::util::bitboard::BitBoard8;
 
 #[derive(Debug)]
 pub struct AtaxxTileHeuristic {
@@ -37,9 +38,9 @@ impl Default for AtaxxTileHeuristic {
 }
 
 impl AtaxxTileHeuristic {
-    fn player_score(&self, board: &AtaxxBoard, tiles: Tiles) -> i32 {
+    fn player_score(&self, board: &AtaxxBoard, tiles: BitBoard8) -> i32 {
         let tile_count = tiles.count() as i32;
-        let surface_area = (tiles.copy_targets(board.size()) & board.free_tiles()).count() as i32;
+        let surface_area = (tiles.adjacent() & board.free_tiles()).count() as i32;
 
         self.tile_factor * tile_count + self.surface_factor * surface_area
     }

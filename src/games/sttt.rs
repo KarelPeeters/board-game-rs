@@ -8,7 +8,7 @@ use rand::Rng;
 
 use crate::board::{AllMovesIterator, AvailableMovesIterator, Board, BoardMoves, BoardSymmetry, Outcome, Player};
 use crate::symmetry::D4Symmetry;
-use crate::util::bits::{get_nth_set_bit, BitIter};
+use crate::util::bits::{BitIter, get_nth_set_bit};
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Coord(u8);
@@ -204,8 +204,8 @@ impl InternalIterator for AllMovesIterator<STTTBoard> {
     type Item = Coord;
 
     fn try_for_each<R, F>(self, f: F) -> ControlFlow<R>
-    where
-        F: FnMut(Self::Item) -> ControlFlow<R>,
+        where
+            F: FnMut(Self::Item) -> ControlFlow<R>,
     {
         Coord::all().try_for_each(f)
     }
@@ -292,7 +292,7 @@ impl Display for Coord {
 }
 
 fn map_oo(sym: D4Symmetry, oo: u8) -> u8 {
-    let (x, y) = sym.map_xy(oo % 3, oo / 3, 2);
+    let (x, y) = sym.map_xy(oo % 3, oo / 3, 3);
     x + y * 3
 }
 
