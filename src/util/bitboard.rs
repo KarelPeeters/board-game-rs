@@ -110,6 +110,15 @@ impl BitBoard8 {
             | self.left().left().up().up()
             | self.left().left().up()
     }
+
+    pub fn flip_x(self) -> BitBoard8 {
+        // reverse_bits is a transpose, swap_bytes a vertical flip
+        BitBoard8(self.0.reverse_bits().swap_bytes())
+    }
+
+    pub fn flip_y(self) -> BitBoard8 {
+        BitBoard8(self.0.swap_bytes())
+    }
 }
 
 impl IntoIterator for BitBoard8 {
@@ -213,5 +222,19 @@ mod tests {
             assert_eq!(actual_copy, BitBoard8(copy), "Wrong copy targets");
             assert_eq!(actual_jump, BitBoard8(jump), "Wrong jump targets");
         }
+    }
+
+    #[test]
+    fn flip() {
+        let board = BitBoard8::new(0x16101010000606);
+        let expected_flip_x = BitBoard8::new(0x68080808006060);
+        let expected_flip_y = BitBoard8::new(0x606001010101600);
+
+        println!("{}", board);
+        println!("{}", board.flip_x());
+        println!("{}", board.flip_y());
+
+        assert_eq!(board.flip_x(), expected_flip_x);
+        assert_eq!(board.flip_y(), expected_flip_y);
     }
 }
