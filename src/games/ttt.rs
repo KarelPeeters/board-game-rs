@@ -1,13 +1,9 @@
 use std::fmt::{Debug, Display, Formatter};
-use std::iter::Map;
-use std::ops::Range;
 
 use internal_iterator::{Internal, IteratorExt};
 
 use crate::board::{Board, BoardMoves, BruteforceMoveIterator, Outcome, Player, UnitSymmetryBoard};
-
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct Coord(usize);
+use crate::util::coord::{Coord3, CoordAllIter};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct TTTBoard {
@@ -37,44 +33,14 @@ impl Default for TTTBoard {
     }
 }
 
-impl Coord {
-    pub fn from_xy(x: usize, y: usize) -> Self {
-        assert!(x < 3);
-        assert!(y < 3);
-        Coord(y * 3 + x)
-    }
-
-    pub fn from_i(i: usize) -> Self {
-        assert!(i < 9);
-        Coord(i)
-    }
-
-    pub fn all() -> Map<Range<usize>, fn(usize) -> Coord> {
-        let f: fn(usize) -> Coord = Coord;
-        (0..9).map(f)
-    }
-
-    pub fn i(self) -> usize {
-        self.0
-    }
-
-    pub fn x(self) -> usize {
-        self.0 % 3
-    }
-
-    pub fn y(self) -> usize {
-        self.0 / 3
-    }
-}
-
 impl TTTBoard {
-    pub fn tile(&self, coord: Coord) -> Option<Player> {
-        self.tiles[coord.0]
+    pub fn tile(&self, coord: Coord3) -> Option<Player> {
+        self.tiles[coord.index() as usize]
     }
 }
 
 impl Board for TTTBoard {
-    type Move = Coord;
+    type Move = Coord3;
 
     fn next_player(&self) -> Player {
         self.next_player
@@ -82,17 +48,19 @@ impl Board for TTTBoard {
 
     fn is_available_move(&self, mv: Self::Move) -> bool {
         assert!(!self.is_done());
-        self.tiles[mv.0] == None
+        self.tiles[mv.index() as usize] == None
     }
 
     fn play(&mut self, mv: Self::Move) {
         assert!(self.is_available_move(mv), "{:?} is not available on {:?}", mv, self);
 
-        self.tiles[mv.0] = Some(self.next_player);
+        self.tiles[mv.index() as usize] = Some(self.next_player);
 
         let won = LINES.iter().any(|line| {
-            line.iter()
-                .all(|&(lx, ly)| self.tiles[Coord::from_xy(lx, ly).0] == Some(self.next_player))
+            line.iter().all(|&(lx, ly)| {
+                let li = Coord3::from_xy(lx as u8, ly as u8).index() as usize;
+                self.tiles[li] == Some(self.next_player)
+            })
         });
         let draw = self.tiles.iter().all(|tile| tile.is_some());
 
@@ -119,11 +87,11 @@ impl Board for TTTBoard {
 impl UnitSymmetryBoard for TTTBoard {}
 
 impl<'a> BoardMoves<'a, TTTBoard> for TTTBoard {
-    type AllMovesIterator = Internal<Map<Range<usize>, fn(usize) -> Coord>>;
+    type AllMovesIterator = Internal<CoordAllIter<Coord3>>;
     type AvailableMovesIterator = BruteforceMoveIterator<'a, TTTBoard>;
 
     fn all_possible_moves() -> Self::AllMovesIterator {
-        Coord::all().into_internal()
+        Coord3::all().into_internal()
     }
 
     fn available_moves(&'a self) -> Self::AvailableMovesIterator {
@@ -139,26 +107,14 @@ fn tile_to_char(tile: Option<Player>) -> char {
     }
 }
 
-impl Debug for Coord {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        write!(f, "Coord({}, {})", self.x(), self.y())
-    }
-}
-
-impl Display for Coord {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "({}, {})", self.x(), self.y())
-    }
-}
-
 impl Display for TTTBoard {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "+---+")?;
         for y in 0..3 {
             write!(f, "|")?;
             for x in 0..3 {
-                let coord = Coord::from_xy(x, y);
-                write!(f, "{}", tile_to_char(self.tiles[coord.0]))?;
+                let coord = Coord3::from_xy(x, y);
+                write!(f, "{}", tile_to_char(self.tiles[coord.index() as usize]))?;
             }
             write!(f, "|")?;
 

@@ -9,6 +9,8 @@ pub struct Coord<const X: u8, const Y: u8> {
 pub type Coord3 = Coord<3, 3>;
 pub type Coord8 = Coord<8, 8>;
 
+pub type CoordAllIter<C> = std::iter::Map<std::ops::Range<u8>, fn(u8) -> C>;
+
 impl<const X: u8, const Y: u8> Coord<X, Y> {
     pub fn from_index(index: u8) -> Self {
         assert!(index < X * Y);
@@ -21,7 +23,7 @@ impl<const X: u8, const Y: u8> Coord<X, Y> {
         Coord { index: x + X * y }
     }
 
-    pub fn all() -> impl Iterator<Item=Self> {
+    pub fn all() -> CoordAllIter<Self> {
         (0..X * Y).map(|index| Coord::from_index(index))
     }
 
