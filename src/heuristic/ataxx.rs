@@ -8,8 +8,8 @@ use crate::util::bitboard::BitBoard8;
 
 #[derive(Debug)]
 pub struct AtaxxTileHeuristic {
-    tile_factor: i32,
-    surface_factor: i32,
+    pub tile_factor: i32,
+    pub surface_factor: i32,
 }
 
 impl AtaxxTileHeuristic {
