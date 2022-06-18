@@ -123,7 +123,7 @@ impl AtaxxBoard {
     /// Return whether the player with the given tiles has to pass, ie. cannot make a copy or jump move.
     fn must_pass_with_tiles(&self, tiles: BitBoard8) -> bool {
         let possible_targets = (tiles.adjacent() | tiles.ring()) & self.full_mask();
-        (possible_targets & self.free_tiles()).is_empty()
+        (possible_targets & self.free_tiles()).none()
     }
 
     pub fn tiles_pov(&self) -> (BitBoard8, BitBoard8) {
@@ -142,8 +142,8 @@ impl AtaxxBoard {
 
     /// Set the correct outcome based on the current tiles and gaps.
     pub(super) fn update_outcome(&mut self) {
-        let a_empty = self.tiles_a.is_empty();
-        let b_empty = self.tiles_b.is_empty();
+        let a_empty = self.tiles_a.none();
+        let b_empty = self.tiles_b.none();
 
         let a_pass = self.must_pass_with_tiles(self.tiles_a);
         let b_pass = self.must_pass_with_tiles(self.tiles_b);
@@ -173,12 +173,12 @@ impl AtaxxBoard {
 
     pub fn assert_valid(&self) {
         let invalid_mask = !self.full_mask();
-        assert!((self.tiles_a & invalid_mask).is_empty());
-        assert!((self.tiles_b & invalid_mask).is_empty());
-        assert!((self.gaps & invalid_mask).is_empty());
-        assert!((self.tiles_a & self.tiles_b).is_empty());
-        assert!((self.tiles_a & self.gaps).is_empty());
-        assert!((self.tiles_b & self.gaps).is_empty());
+        assert!((self.tiles_a & invalid_mask).none());
+        assert!((self.tiles_b & invalid_mask).none());
+        assert!((self.gaps & invalid_mask).none());
+        assert!((self.tiles_a & self.tiles_b).none());
+        assert!((self.tiles_a & self.gaps).none());
+        assert!((self.tiles_b & self.gaps).none());
         let mut clone = self.clone();
         clone.update_outcome();
         assert_eq!(self.outcome, clone.outcome);

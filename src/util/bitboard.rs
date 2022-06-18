@@ -38,8 +38,13 @@ impl BitBoard8 {
     }
 
     #[must_use]
-    pub fn is_empty(self) -> bool {
+    pub fn none(self) -> bool {
         self.0 == 0
+    }
+
+    #[must_use]
+    pub fn any(self) -> bool {
+        self.0 != 0
     }
 
     #[must_use]
