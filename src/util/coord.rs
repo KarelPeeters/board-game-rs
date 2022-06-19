@@ -1,4 +1,3 @@
-use std::cmp::max;
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -12,12 +11,12 @@ pub type Coord8 = Coord<8, 8>;
 pub type CoordAllIter<C> = std::iter::Map<std::ops::Range<u8>, fn(u8) -> C>;
 
 impl<const X: u8, const Y: u8> Coord<X, Y> {
-    pub fn from_index(index: u8) -> Self {
+    pub const fn from_index(index: u8) -> Self {
         assert!(index < X * Y);
         Coord { index }
     }
 
-    pub fn from_xy(x: u8, y: u8) -> Self {
+    pub const fn from_xy(x: u8, y: u8) -> Self {
         assert!(x < X);
         assert!(y < Y);
         Coord { index: x + X * y }
@@ -27,31 +26,37 @@ impl<const X: u8, const Y: u8> Coord<X, Y> {
         (0..X * Y).map(|index| Coord::from_index(index))
     }
 
-    pub fn index(self) -> u8 {
+    pub const fn index(self) -> u8 {
         self.index
     }
 
-    pub fn x(self) -> u8 {
+    pub const fn x(self) -> u8 {
         self.index % X
     }
 
-    pub fn y(self) -> u8 {
+    pub const fn y(self) -> u8 {
         self.index / X
     }
 
-    pub fn manhattan_distance(self, other: Coord<X, Y>) -> u8 {
+    pub const fn manhattan_distance(self, other: Coord<X, Y>) -> u8 {
         let dx = self.x().abs_diff(other.x());
         let dy = self.y().abs_diff(other.y());
         dx + dy
     }
 
-    pub fn diagonal_distance(self, other: Coord<X, Y>) -> u8 {
+    pub const fn diagonal_distance(self, other: Coord<X, Y>) -> u8 {
         let dx = self.x().abs_diff(other.x());
         let dy = self.y().abs_diff(other.y());
-        max(dx, dy)
+
+        // max is not const yet
+        if dx >= dy {
+            dx
+        } else {
+            dy
+        }
     }
 
-    pub fn cast<const X2: u8, const Y2: u8>(self) -> Coord<X2, Y2> {
+    pub const fn cast<const X2: u8, const Y2: u8>(self) -> Coord<X2, Y2> {
         Coord::<X2, Y2>::from_xy(self.x(), self.y())
     }
 }

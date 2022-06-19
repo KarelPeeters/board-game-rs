@@ -28,27 +28,27 @@ impl BitBoard8 {
     }
 
     #[must_use]
-    pub fn coord(coord: Coord8) -> BitBoard8 {
+    pub const fn coord(coord: Coord8) -> BitBoard8 {
         BitBoard8(1 << coord.index())
     }
 
     #[must_use]
-    pub fn has(self, coord: Coord8) -> bool {
+    pub const fn has(self, coord: Coord8) -> bool {
         (self.0 >> coord.index()) & 1 != 0
     }
 
     #[must_use]
-    pub fn none(self) -> bool {
+    pub const fn none(self) -> bool {
         self.0 == 0
     }
 
     #[must_use]
-    pub fn any(self) -> bool {
+    pub const fn any(self) -> bool {
         self.0 != 0
     }
 
     #[must_use]
-    pub fn count(self) -> u8 {
+    pub const fn count(self) -> u8 {
         self.0.count_ones() as u8
     }
 
@@ -58,70 +58,72 @@ impl BitBoard8 {
     }
 
     #[must_use]
-    pub fn set(self, coord: Coord8) -> Self {
+    pub const fn set(self, coord: Coord8) -> Self {
         BitBoard8(self.0 | (1 << coord.index()))
     }
 
     #[must_use]
-    pub fn clear(self, coord: Coord8) -> Self {
+    pub const fn clear(self, coord: Coord8) -> Self {
         BitBoard8(self.0 & !(1 << coord.index()))
     }
 
-    pub fn left(self) -> Self {
+    pub const fn left(self) -> Self {
         BitBoard8((self.0 >> 1) & 0x7f7f7f7f7f7f7f7f)
     }
 
-    pub fn right(self) -> Self {
+    pub const fn right(self) -> Self {
         BitBoard8((self.0 << 1) & 0xfefefefefefefefe)
     }
 
-    pub fn down(self) -> Self {
+    pub const fn down(self) -> Self {
         BitBoard8((self.0 >> 8) & 0x00ffffffffffffff)
     }
 
-    pub fn up(self) -> Self {
+    pub const fn up(self) -> Self {
         BitBoard8((self.0 << 8) & 0xffffffffffffff00)
     }
 
-    pub fn orthogonal(self) -> Self {
-        self.left() | self.right() | self.up() | self.down()
+    pub const fn orthogonal(self) -> Self {
+        BitBoard8(self.left().0 | self.right().0 | self.up().0 | self.down().0)
     }
 
-    pub fn diagonal(self) -> Self {
-        self.left().up() | self.right().up() | self.left().down() | self.right().down()
+    pub const fn diagonal(self) -> Self {
+        BitBoard8(self.left().up().0 | self.right().up().0 | self.left().down().0 | self.right().down().0)
     }
 
-    pub fn adjacent(self) -> Self {
-        self.orthogonal() | self.diagonal()
+    pub const fn adjacent(self) -> Self {
+        BitBoard8(self.orthogonal().0 | self.diagonal().0)
     }
 
-    pub fn ring(self) -> Self {
+    pub const fn ring(self) -> Self {
         // this cannot be simplified to `self.adjacent().adjacent() & ~self`,
         //   that only works for a single or a few non-overlapping bits
-        self.left().left()
-            | self.left().left().down()
-            | self.left().left().down().down()
-            | self.left().down().down()
-            | self.down().down()
-            | self.right().down().down()
-            | self.right().right().down().down()
-            | self.right().right().down()
-            | self.right().right()
-            | self.right().right().up()
-            | self.right().right().up().up()
-            | self.right().up().up()
-            | self.up().up()
-            | self.left().up().up()
-            | self.left().left().up().up()
-            | self.left().left().up()
+        BitBoard8(
+            self.left().left().0
+                | self.left().left().down().0
+                | self.left().left().down().down().0
+                | self.left().down().down().0
+                | self.down().down().0
+                | self.right().down().down().0
+                | self.right().right().down().down().0
+                | self.right().right().down().0
+                | self.right().right().0
+                | self.right().right().up().0
+                | self.right().right().up().up().0
+                | self.right().up().up().0
+                | self.up().up().0
+                | self.left().up().up().0
+                | self.left().left().up().up().0
+                | self.left().left().up().0,
+        )
     }
 
-    pub fn flip_x(self) -> BitBoard8 {
+    pub const fn flip_x(self) -> BitBoard8 {
         // reverse_bits is a transpose, swap_bytes a vertical flip
         BitBoard8(self.0.reverse_bits().swap_bytes())
     }
 
-    pub fn flip_y(self) -> BitBoard8 {
+    pub const fn flip_y(self) -> BitBoard8 {
         BitBoard8(self.0.swap_bytes())
     }
 }
