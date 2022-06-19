@@ -1,6 +1,9 @@
 use std::str::FromStr;
 
-use board_game::board::{Board, Outcome, Player};
+use arimaa_engine_step::Action;
+use internal_iterator::InternalIterator;
+
+use board_game::board::{Board, BoardMoves, Outcome, Player};
 use board_game::games::arimaa::ArimaaBoard;
 
 use crate::board::board_test_main;
@@ -16,6 +19,15 @@ fn empty() {
 fn typical_placement() {
     let board = ArimaaBoard::from_str(BASIC_SETUP).unwrap();
     assert!(!board.is_done());
+    board_test_main(&board);
+}
+
+#[test]
+fn can_pass() {
+    let mut board = ArimaaBoard::from_str(BASIC_SETUP).unwrap();
+    board.play(board.available_moves().next().unwrap());
+
+    assert!(board.is_available_move(Action::Pass));
     board_test_main(&board);
 }
 
