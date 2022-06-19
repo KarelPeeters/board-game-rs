@@ -31,6 +31,10 @@ impl ArimaaBoard {
         }
     }
 
+    pub fn state(&self) -> &GameState {
+        &self.state
+    }
+
     fn init_available_moves(&self) -> &[Action] {
         self.available_moves_cache.get_or_init(|| self.state.valid_actions())
     }
