@@ -8,7 +8,7 @@ use rand::Rng;
 
 use crate::board::{AllMovesIterator, AvailableMovesIterator, Board, BoardMoves, BoardSymmetry, Outcome, Player};
 use crate::symmetry::D4Symmetry;
-use crate::util::bits::{BitIter, get_nth_set_bit};
+use crate::util::bits::{get_nth_set_bit, BitIter};
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Coord(u8);

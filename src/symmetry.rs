@@ -3,8 +3,8 @@ use std::ops::Sub;
 
 use num_traits::One;
 use rand::distributions::Distribution;
-use rand::Rng;
 use rand::seq::SliceRandom;
+use rand::Rng;
 
 use crate::util::coord::Coord;
 

@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-use crate::util::bits::{BitIter, get_nth_set_bit};
+use crate::util::bits::{get_nth_set_bit, BitIter};
 use crate::util::coord::Coord8;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
