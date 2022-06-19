@@ -8,6 +8,7 @@ use internal_iterator::InternalIterator;
 use once_cell::sync::OnceCell;
 
 use crate::board::{AllMovesIterator, AvailableMovesIterator, Board, BoardMoves, Outcome, Player, UnitSymmetryBoard};
+use crate::util::bitboard::BitBoard8;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ArimaaBoard {
@@ -38,9 +39,18 @@ impl ArimaaBoard {
     }
 
     pub fn steps_taken(&self) -> usize {
+        // we can't use p.step() here since that only works during the play phase
         self.state
             .as_play_phase()
             .map_or(0, |p| p.previous_piece_boards().len())
+    }
+
+    pub fn history_len(&self) -> usize {
+        self.state.as_play_phase().map_or(0, |p| p.hash_history().len())
+    }
+
+    pub fn bits_for_piece(&self, piece: Piece, player: Player) -> BitBoard8 {
+        BitBoard8(self.state.piece_board().bits_for_piece(piece, player_to_bool(player)))
     }
 
     fn init_available_moves(&self) -> &[Action] {
@@ -52,10 +62,7 @@ impl Board for ArimaaBoard {
     type Move = Action;
 
     fn next_player(&self) -> Player {
-        match self.state.is_p1_turn_to_move() {
-            true => Player::A,
-            false => Player::B,
-        }
+        player_from_bool(self.state.is_p1_turn_to_move())
     }
 
     fn is_available_move(&self, mv: Action) -> bool {
@@ -80,6 +87,20 @@ impl Board for ArimaaBoard {
 
     fn can_lose_after_move() -> bool {
         true
+    }
+}
+
+pub fn player_from_bool(player_bool: bool) -> Player {
+    match player_bool {
+        true => Player::A,
+        false => Player::B,
+    }
+}
+
+pub fn player_to_bool(player: Player) -> bool {
+    match player {
+        Player::A => true,
+        Player::B => false,
     }
 }
 
