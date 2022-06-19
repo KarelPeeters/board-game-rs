@@ -4,7 +4,7 @@ use crate::util::bits::{get_nth_set_bit, BitIter};
 use crate::util::coord::Coord8;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct BitBoard8(u64);
+pub struct BitBoard8(pub u64);
 
 impl BitBoard8 {
     pub const EMPTY: BitBoard8 = BitBoard8(0);
@@ -21,11 +21,6 @@ impl BitBoard8 {
         BitBoard8(0x007f7f7f7f7f7f7f),
         BitBoard8(0xffffffffffffffff),
     ];
-
-    #[must_use]
-    pub const fn new(bits: u64) -> BitBoard8 {
-        BitBoard8(bits)
-    }
 
     #[must_use]
     pub const fn coord(coord: Coord8) -> BitBoard8 {
@@ -233,9 +228,9 @@ mod tests {
 
     #[test]
     fn flip() {
-        let board = BitBoard8::new(0x16101010000606);
-        let expected_flip_x = BitBoard8::new(0x68080808006060);
-        let expected_flip_y = BitBoard8::new(0x606001010101600);
+        let board = BitBoard8(0x16101010000606);
+        let expected_flip_x = BitBoard8(0x68080808006060);
+        let expected_flip_y = BitBoard8(0x606001010101600);
 
         println!("{}", board);
         println!("{}", board.flip_x());
