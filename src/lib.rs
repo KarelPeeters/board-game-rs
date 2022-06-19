@@ -69,8 +69,14 @@
 //! println!("{:?}", bot.select_move(&board))
 //! ```
 
+// export used game crates
+pub use arimaa_engine_step;
+pub use chess;
+
 pub mod board;
 pub mod symmetry;
+
+pub mod pov;
 pub mod wdl;
 
 pub mod ai;
@@ -81,6 +87,3 @@ pub mod util;
 
 pub mod uai;
 
-// export used game crates
-pub use arimaa_engine_step;
-pub use chess;

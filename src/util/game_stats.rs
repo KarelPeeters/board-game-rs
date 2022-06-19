@@ -7,7 +7,8 @@ use rand::Rng;
 
 use crate::ai::Bot;
 use crate::board::{Board, Player};
-use crate::wdl::{POV, WDL};
+use crate::pov::NonPov;
+use crate::wdl::WDL;
 
 /// The number of legal positions reachable after `depth` moves, including duplicates.
 /// See <https://www.chessprogramming.org/Perft>.

@@ -9,7 +9,8 @@ use rand::Rng;
 
 use crate::ai::Bot;
 use crate::board::{AltBoard, Outcome};
-use crate::wdl::{Flip, OutcomeWDL, POV, WDL};
+use crate::pov::{NonPov, Pov};
+use crate::wdl::{OutcomeWDL, WDL};
 
 #[derive(Debug, Copy, Clone)]
 pub struct IdxRange {
