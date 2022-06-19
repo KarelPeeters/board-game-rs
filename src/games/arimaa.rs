@@ -26,6 +26,7 @@ impl Default for ArimaaBoard {
 
 impl ArimaaBoard {
     pub const MAX_STEPS_PER_TURN: usize = 4;
+    pub const TRAP_MASK: BitBoard8 = BitBoard8(0x240000240000);
 
     pub fn from_state(state: GameState) -> Self {
         ArimaaBoard {
