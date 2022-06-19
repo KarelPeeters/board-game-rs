@@ -173,7 +173,7 @@ impl AtaxxBoard {
             player_symbol(self.next_player),
             self.moves_since_last_copy
         )
-            .unwrap();
+        .unwrap();
 
         s
     }

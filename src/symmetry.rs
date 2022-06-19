@@ -63,7 +63,7 @@ impl D1Symmetry {
         D1Symmetry { mirror }
     }
 
-    pub fn map_axis<V: Copy + Sub<Output=V> + One>(self, x: V, size: V) -> V {
+    pub fn map_axis<V: Copy + Sub<Output = V> + One>(self, x: V, size: V) -> V {
         let max = size - V::one();
         if self.mirror {
             max - x
@@ -105,7 +105,7 @@ impl D4Symmetry {
         }
     }
 
-    pub fn map_xy<V: Copy + Sub<Output=V> + One + Display>(self, mut x: V, mut y: V, size: V) -> (V, V) {
+    pub fn map_xy<V: Copy + Sub<Output = V> + One + Display>(self, mut x: V, mut y: V, size: V) -> (V, V) {
         println!("Mapping {} {} {}", x, y, size);
 
         let max = size - V::one();
