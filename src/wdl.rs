@@ -4,7 +4,7 @@ use cast_trait::Cast;
 use internal_iterator::{InternalIterator, IntoInternalIterator};
 
 use crate::board::{Outcome, Player};
-use crate::pov::{NonPov, Pov};
+use crate::pov::{NonPov, Pov, ScalarAbs};
 
 /// The outcome of a game from the POV of a certain player. Usually obtained using [Outcome::pov].
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -40,6 +40,15 @@ impl Outcome {
         } = V::one();
         result
     }
+
+    /// Convert a win (for a) to `1`, draw to `0` and loss (for a) to `-1`.
+    pub fn sign<V: num_traits::Zero + num_traits::One + std::ops::Neg<Output = V>>(self) -> ScalarAbs<V> {
+        match self {
+            Outcome::WonBy(Player::A) => ScalarAbs::new(V::one()),
+            Outcome::Draw => ScalarAbs::new(V::zero()),
+            Outcome::WonBy(Player::B) => ScalarAbs::new(-V::one()),
+        }
+    }
 }
 
 impl OutcomeWDL {
@@ -55,20 +64,11 @@ impl OutcomeWDL {
     }
 
     /// Convert a win to `1`, draw to `0` and loss to `-1`.
-    pub fn sign<V: num_traits::Zero + num_traits::One + std::ops::Neg<Output=V>>(self) -> V {
+    pub fn sign<V: num_traits::Zero + num_traits::One + std::ops::Neg<Output = V>>(self) -> V {
         match self {
             OutcomeWDL::Win => V::one(),
             OutcomeWDL::Draw => V::zero(),
             OutcomeWDL::Loss => -V::one(),
-        }
-    }
-
-    /// Convert a win to `inf`, draw to `0` and loss to `-inf`.
-    pub fn inf_sign<V: num_traits::Float>(self) -> V {
-        match self {
-            OutcomeWDL::Win => V::infinity(),
-            OutcomeWDL::Draw => V::zero(),
-            OutcomeWDL::Loss => V::neg_infinity(),
         }
     }
 
@@ -83,13 +83,13 @@ impl OutcomeWDL {
 
     /// Pick the best possible outcome, assuming `Win > Draw > Loss`.
     /// Make sure to flip the child values as appropriate, this function assumes everything is form the parent POV.
-    pub fn best<I: IntoInternalIterator<Item=OutcomeWDL>>(children: I) -> OutcomeWDL {
+    pub fn best<I: IntoInternalIterator<Item = OutcomeWDL>>(children: I) -> OutcomeWDL {
         Self::best_maybe(children.into_internal_iter().map(Some)).unwrap()
     }
 
     /// Pick the best possible outcome, assuming `Some(Win) > None > Some(Draw) > Some(Loss)`.
     /// Make sure to flip the child values as appropriate, this function assumes everything is form the parent POV.
-    pub fn best_maybe<I: IntoInternalIterator<Item=Option<OutcomeWDL>>>(children: I) -> Option<OutcomeWDL> {
+    pub fn best_maybe<I: IntoInternalIterator<Item = Option<OutcomeWDL>>>(children: I) -> Option<OutcomeWDL> {
         let mut any_unknown = false;
         let mut all_known_are_loss = true;
 
@@ -186,6 +186,16 @@ impl<V: num_traits::Float> WDL<V> {
     }
 }
 
+impl<V: num_traits::Float> WDLAbs<V> {
+    pub fn nan() -> WDLAbs<V> {
+        WDLAbs {
+            win_a: V::nan(),
+            draw: V::nan(),
+            win_b: V::nan(),
+        }
+    }
+}
+
 impl<V: num_traits::One + Default + PartialEq> WDLAbs<V> {
     pub fn try_to_outcome(self) -> Option<Outcome> {
         let outcomes = [Outcome::WonBy(Player::A), Outcome::Draw, Outcome::WonBy(Player::B)];
@@ -202,8 +212,8 @@ impl<V: num_traits::One + Default + PartialEq> WDL<V> {
 
 impl<V: Copy> WDL<V> {
     pub fn cast<W>(self) -> WDL<W>
-        where
-            V: Cast<W>,
+    where
+        V: Cast<W>,
     {
         WDL {
             win: self.win.cast(),
@@ -213,13 +223,13 @@ impl<V: Copy> WDL<V> {
     }
 }
 
-impl<V: Copy + std::ops::Sub<V, Output=V>> WDL<V> {
+impl<V: Copy + std::ops::Sub<V, Output = V>> WDL<V> {
     pub fn value(self) -> V {
         self.win - self.loss
     }
 }
 
-impl<V: Copy + std::ops::Add<V, Output=V>> WDL<V> {
+impl<V: Copy + std::ops::Add<V, Output = V>> WDL<V> {
     pub fn sum(self) -> V {
         self.win + self.draw + self.loss
     }
@@ -252,7 +262,7 @@ impl Pov for OutcomeWDL {
     }
 }
 
-impl<V: Copy + std::ops::Add<V, Output=V>> std::ops::Add<WDL<V>> for WDL<V> {
+impl<V: Copy + std::ops::Add<V, Output = V>> std::ops::Add<WDL<V>> for WDL<V> {
     type Output = WDL<V>;
 
     fn add(self, rhs: WDL<V>) -> Self::Output {
@@ -264,7 +274,7 @@ impl<V: Copy + std::ops::Add<V, Output=V>> std::ops::Add<WDL<V>> for WDL<V> {
     }
 }
 
-impl<V: Copy + std::ops::Sub<V, Output=V>> std::ops::Sub<WDL<V>> for WDL<V> {
+impl<V: Copy + std::ops::Sub<V, Output = V>> std::ops::Sub<WDL<V>> for WDL<V> {
     type Output = WDL<V>;
 
     fn sub(self, rhs: WDL<V>) -> Self::Output {
@@ -276,13 +286,13 @@ impl<V: Copy + std::ops::Sub<V, Output=V>> std::ops::Sub<WDL<V>> for WDL<V> {
     }
 }
 
-impl<V: Copy + std::ops::Add<V, Output=V>> std::ops::AddAssign<WDL<V>> for WDL<V> {
+impl<V: Copy + std::ops::Add<V, Output = V>> std::ops::AddAssign<WDL<V>> for WDL<V> {
     fn add_assign(&mut self, rhs: WDL<V>) {
         *self = *self + rhs;
     }
 }
 
-impl<V: Copy + std::ops::Mul<V, Output=V>> std::ops::Mul<V> for WDL<V> {
+impl<V: Copy + std::ops::Mul<V, Output = V>> std::ops::Mul<V> for WDL<V> {
     type Output = WDL<V>;
 
     fn mul(self, rhs: V) -> Self::Output {
@@ -294,7 +304,7 @@ impl<V: Copy + std::ops::Mul<V, Output=V>> std::ops::Mul<V> for WDL<V> {
     }
 }
 
-impl<V: Copy + std::ops::Div<V, Output=V>> std::ops::Div<V> for WDL<V> {
+impl<V: Copy + std::ops::Div<V, Output = V>> std::ops::Div<V> for WDL<V> {
     type Output = WDL<V>;
 
     fn div(self, rhs: V) -> Self::Output {
@@ -306,8 +316,8 @@ impl<V: Copy + std::ops::Div<V, Output=V>> std::ops::Div<V> for WDL<V> {
     }
 }
 
-impl<V: Default + Copy + std::ops::Add<Output=V>> std::iter::Sum for WDL<V> {
-    fn sum<I: Iterator<Item=Self>>(iter: I) -> Self {
+impl<V: Default + Copy + std::ops::Add<Output = V>> std::iter::Sum for WDL<V> {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Self::default(), |a, v| a + v)
     }
 }
