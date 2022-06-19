@@ -7,7 +7,7 @@ use internal_iterator::InternalIterator;
 use rand::Rng;
 
 use crate::ai::Bot;
-use crate::board::Board;
+use crate::board::{AltBoard, Board};
 
 pub trait Heuristic<B: Board>: Debug {
     /// The type used to represent the heuristic value of a board.
@@ -47,10 +47,12 @@ pub struct MinimaxResult<V, R> {
     pub best_move: Option<R>,
 }
 
+// TODO extend minimax to non-alternating games
+
 /// Evaluate the board using minimax with the given heuristic up to the given depth.
 /// Return both the value and the best move. If multiple moves have the same value pick a random one using `rng`.
 /// The returned value is from the POV of `board.next_player`.
-pub fn minimax<B: Board, H: Heuristic<B>>(
+pub fn minimax<B: AltBoard, H: Heuristic<B>>(
     board: &B,
     heuristic: &H,
     depth: u32,
@@ -280,14 +282,14 @@ fn negamax_recurse<B: Board, H: Heuristic<B>, S: MoveSelector<B::Move>>(
     }
 }
 
-pub struct MiniMaxBot<B: Board, H: Heuristic<B>, R: Rng> {
+pub struct MiniMaxBot<B: AltBoard, H: Heuristic<B>, R: Rng> {
     depth: u32,
     heuristic: H,
     rng: R,
     ph: PhantomData<B>,
 }
 
-impl<B: Board, H: Heuristic<B>, R: Rng> Debug for MiniMaxBot<B, H, R> {
+impl<B: AltBoard, H: Heuristic<B>, R: Rng> Debug for MiniMaxBot<B, H, R> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -297,7 +299,7 @@ impl<B: Board, H: Heuristic<B>, R: Rng> Debug for MiniMaxBot<B, H, R> {
     }
 }
 
-impl<B: Board, H: Heuristic<B>, R: Rng> MiniMaxBot<B, H, R> {
+impl<B: AltBoard, H: Heuristic<B>, R: Rng> MiniMaxBot<B, H, R> {
     pub fn new(depth: u32, heuristic: H, rng: R) -> Self {
         assert!(depth > 0, "requires depth>0 to find the best move");
         MiniMaxBot {
@@ -309,7 +311,7 @@ impl<B: Board, H: Heuristic<B>, R: Rng> MiniMaxBot<B, H, R> {
     }
 }
 
-impl<B: Board, H: Heuristic<B> + Debug, R: Rng> Bot<B> for MiniMaxBot<B, H, R> {
+impl<B: AltBoard, H: Heuristic<B> + Debug, R: Rng> Bot<B> for MiniMaxBot<B, H, R> {
     fn select_move(&mut self, board: &B) -> B::Move {
         assert!(!board.is_done());
         // SAFETY: unwrap is safe because:

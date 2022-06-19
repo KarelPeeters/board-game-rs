@@ -8,7 +8,7 @@ use rand::seq::IteratorRandom;
 use rand::Rng;
 
 use crate::ai::Bot;
-use crate::board::{Board, Outcome};
+use crate::board::{AltBoard, Outcome};
 use crate::wdl::{Flip, OutcomeWDL, POV, WDL};
 
 #[derive(Debug, Copy, Clone)]
@@ -147,14 +147,16 @@ impl<M> Node<M> {
     }
 }
 
+// TODO extend mcts to non-alternating games
+
 /// A small wrapper type for Vec<SNode> that uses u64 for indexing instead.
 #[derive(Debug)]
-pub struct Tree<B: Board> {
+pub struct Tree<B: AltBoard> {
     pub root_board: B,
     pub nodes: Vec<Node<B::Move>>,
 }
 
-impl<B: Board> Tree<B> {
+impl<B: AltBoard> Tree<B> {
     pub fn new(root_board: B) -> Self {
         Tree {
             root_board,
@@ -229,7 +231,7 @@ impl<B: Board> Tree<B> {
     }
 }
 
-impl<B: Board> Index<usize> for Tree<B> {
+impl<B: AltBoard> Index<usize> for Tree<B> {
     type Output = Node<B::Move>;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -237,13 +239,13 @@ impl<B: Board> Index<usize> for Tree<B> {
     }
 }
 
-impl<B: Board> IndexMut<usize> for Tree<B> {
+impl<B: AltBoard> IndexMut<usize> for Tree<B> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.nodes[index as usize]
     }
 }
 
-fn random_playout<B: Board>(mut board: B, rng: &mut impl Rng) -> Outcome {
+fn random_playout<B: AltBoard>(mut board: B, rng: &mut impl Rng) -> Outcome {
     assert!(!board.is_done(), "should never start random playout on a done board");
 
     loop {
@@ -262,7 +264,7 @@ fn random_playout<B: Board>(mut board: B, rng: &mut impl Rng) -> Outcome {
 /// * `proven` is whether this result is fully proven
 ///
 /// This function has already increments `curr_node` before it returns.
-fn mcts_solver_step<B: Board>(
+fn mcts_solver_step<B: AltBoard>(
     tree: &mut Tree<B>,
     curr_node: usize,
     curr_board: &B,
@@ -351,7 +353,7 @@ fn mcts_solver_step<B: Board>(
     (result, false)
 }
 
-pub fn mcts_build_tree<B: Board>(
+pub fn mcts_build_tree<B: AltBoard>(
     root_board: &B,
     iterations: u64,
     exploration_weight: f32,
@@ -402,12 +404,12 @@ impl<R: Rng> MCTSBot<R> {
         }
     }
 
-    pub fn build_tree<B: Board>(&mut self, board: &B) -> Tree<B> {
+    pub fn build_tree<B: AltBoard>(&mut self, board: &B) -> Tree<B> {
         mcts_build_tree(board, self.iterations, self.exploration_weight, &mut self.rng)
     }
 }
 
-impl<R: Rng, B: Board> Bot<B> for MCTSBot<R> {
+impl<R: Rng, B: AltBoard> Bot<B> for MCTSBot<R> {
     fn select_move(&mut self, board: &B) -> B::Move {
         assert!(!board.is_done());
         self.build_tree(board).best_move()

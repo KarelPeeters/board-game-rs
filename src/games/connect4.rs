@@ -4,7 +4,7 @@ use std::ops::Range;
 
 use internal_iterator::{Internal, IteratorExt};
 
-use crate::board::{Board, BoardMoves, BoardSymmetry, BruteforceMoveIterator, Outcome, Player};
+use crate::board::{Alternating, Board, BoardMoves, BoardSymmetry, BruteforceMoveIterator, Outcome, Player};
 use crate::symmetry::D1Symmetry;
 
 /// The Connect4 game on a 7x6 board.
@@ -97,6 +97,8 @@ impl Board for Connect4 {
         false
     }
 }
+
+impl Alternating for Connect4 {}
 
 impl<'a> BoardMoves<'a, Connect4> for Connect4 {
     type AllMovesIterator = Internal<Range<u8>>;

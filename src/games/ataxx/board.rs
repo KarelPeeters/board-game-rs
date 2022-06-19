@@ -4,7 +4,9 @@ use std::ops::ControlFlow;
 use internal_iterator::InternalIterator;
 use rand::Rng;
 
-use crate::board::{AllMovesIterator, AvailableMovesIterator, Board, BoardMoves, BoardSymmetry, Outcome, Player};
+use crate::board::{
+    AllMovesIterator, Alternating, AvailableMovesIterator, Board, BoardMoves, BoardSymmetry, Outcome, Player,
+};
 use crate::symmetry::D4Symmetry;
 use crate::util::bitboard::BitBoard8;
 use crate::util::coord::Coord8;
@@ -309,6 +311,8 @@ impl Board for AtaxxBoard {
         true
     }
 }
+
+impl Alternating for AtaxxBoard {}
 
 impl BoardSymmetry<AtaxxBoard> for AtaxxBoard {
     type Symmetry = D4Symmetry;

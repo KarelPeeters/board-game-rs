@@ -7,7 +7,7 @@ use rand::Rng;
 
 use crate::ai::minimax::{minimax, minimax_all_moves, minimax_value, Heuristic, MinimaxResult};
 use crate::ai::Bot;
-use crate::board::{Board, Outcome};
+use crate::board::{AltBoard, Board, Outcome};
 use crate::wdl::{OutcomeWDL, POV};
 
 /// Minimax [Heuristic] that only looks at board outcomes.
@@ -109,7 +109,7 @@ impl Neg for SolverValue {
     }
 }
 
-pub fn solve<B: Board>(board: &B, depth: u32, rng: &mut impl Rng) -> MinimaxResult<SolverValue, B::Move> {
+pub fn solve<B: AltBoard>(board: &B, depth: u32, rng: &mut impl Rng) -> MinimaxResult<SolverValue, B::Move> {
     minimax(board, &SolverHeuristic, depth, rng)
 }
 
@@ -168,7 +168,7 @@ impl<R: Rng> SolverBot<R> {
     }
 }
 
-impl<B: Board, R: Rng> Bot<B> for SolverBot<R> {
+impl<B: AltBoard, R: Rng> Bot<B> for SolverBot<R> {
     fn select_move(&mut self, board: &B) -> B::Move {
         minimax(board, &SolverHeuristic, self.depth, &mut self.rng)
             .best_move
