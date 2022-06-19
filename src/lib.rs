@@ -80,3 +80,7 @@ pub mod heuristic;
 pub mod util;
 
 pub mod uai;
+
+// export used game crates
+pub use arimaa_engine_step;
+pub use chess;
