@@ -6,7 +6,8 @@ use internal_iterator::InternalIterator;
 use rand::Rng;
 
 use crate::ai::Bot;
-use crate::board::Board;
+use crate::board::{Board, Player};
+use crate::wdl::{POV, WDL};
 
 /// The number of legal positions reachable after `depth` moves, including duplicates.
 /// See <https://www.chessprogramming.org/Perft>.
@@ -48,26 +49,36 @@ fn perft_recurse<B: Board + Hash>(map: &mut HashMap<(B, u32), u64>, board: B, de
 pub struct GameStats {
     pub game_length: f32,
     pub available_moves: f32,
+    pub total_wdl_a: WDL<u64>,
 }
 
 /// Return `GameStats` estimated from `n` games starting from `start` played by `bot`.
 pub fn average_game_stats<B: Board>(mut start: impl FnMut() -> B, mut bot: impl Bot<B>, n: u64) -> GameStats {
     let mut total_moves = 0;
     let mut total_positions = 0;
+    let mut total_wdl_a = WDL::default();
 
     for _ in 0..n {
         let mut board = start();
-        while !board.is_done() {
+
+        let outcome = loop {
             total_moves += board.available_moves().count();
             total_positions += 1;
 
             board.play(bot.select_move(&board));
-        }
+
+            if let Some(outcome) = board.outcome() {
+                break outcome;
+            }
+        };
+
+        total_wdl_a += outcome.pov(Player::A).to_wdl();
     }
 
     GameStats {
         game_length: total_positions as f32 / n as f32,
         available_moves: total_moves as f32 / total_positions as f32,
+        total_wdl_a,
     }
 }
 
