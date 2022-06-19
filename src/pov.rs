@@ -83,3 +83,79 @@ impl<V: std::ops::Neg<Output = V>> Pov for ScalarPov<V> {
         }
     }
 }
+
+impl<V: std::ops::Add<V, Output = V>> std::ops::Add<ScalarAbs<V>> for ScalarAbs<V> {
+    type Output = ScalarAbs<V>;
+
+    fn add(self, rhs: ScalarAbs<V>) -> Self::Output {
+        ScalarAbs::new(self.value_a + rhs.value_a)
+    }
+}
+
+impl<V: Copy + std::ops::Sub<V, Output = V>> std::ops::Sub<ScalarAbs<V>> for ScalarAbs<V> {
+    type Output = ScalarAbs<V>;
+
+    fn sub(self, rhs: ScalarAbs<V>) -> Self::Output {
+        ScalarAbs::new(self.value_a - rhs.value_a)
+    }
+}
+
+impl<V: Copy + std::ops::Add<V, Output = V>> std::ops::AddAssign<ScalarAbs<V>> for ScalarAbs<V> {
+    fn add_assign(&mut self, rhs: ScalarAbs<V>) {
+        *self = *self + rhs;
+    }
+}
+
+impl<V: Copy + std::ops::Mul<V, Output = V>> std::ops::Mul<V> for ScalarAbs<V> {
+    type Output = ScalarAbs<V>;
+
+    fn mul(self, rhs: V) -> Self::Output {
+        ScalarAbs::new(self.value_a * rhs)
+    }
+}
+
+impl<V: Copy + std::ops::Div<V, Output = V>> std::ops::Div<V> for ScalarAbs<V> {
+    type Output = ScalarAbs<V>;
+
+    fn div(self, rhs: V) -> Self::Output {
+        ScalarAbs::new(self.value_a / rhs)
+    }
+}
+
+impl<V: std::ops::Add<V, Output = V>> std::ops::Add<ScalarPov<V>> for ScalarPov<V> {
+    type Output = ScalarPov<V>;
+
+    fn add(self, rhs: ScalarPov<V>) -> Self::Output {
+        ScalarPov::new(self.value + rhs.value)
+    }
+}
+
+impl<V: Copy + std::ops::Sub<V, Output = V>> std::ops::Sub<ScalarPov<V>> for ScalarPov<V> {
+    type Output = ScalarPov<V>;
+
+    fn sub(self, rhs: ScalarPov<V>) -> Self::Output {
+        ScalarPov::new(self.value - rhs.value)
+    }
+}
+
+impl<V: Copy + std::ops::Add<V, Output = V>> std::ops::AddAssign<ScalarPov<V>> for ScalarPov<V> {
+    fn add_assign(&mut self, rhs: ScalarPov<V>) {
+        *self = *self + rhs;
+    }
+}
+
+impl<V: Copy + std::ops::Mul<V, Output = V>> std::ops::Mul<V> for ScalarPov<V> {
+    type Output = ScalarPov<V>;
+
+    fn mul(self, rhs: V) -> Self::Output {
+        ScalarPov::new(self.value * rhs)
+    }
+}
+
+impl<V: Copy + std::ops::Div<V, Output = V>> std::ops::Div<V> for ScalarPov<V> {
+    type Output = ScalarPov<V>;
+
+    fn div(self, rhs: V) -> Self::Output {
+        ScalarPov::new(self.value / rhs)
+    }
+}

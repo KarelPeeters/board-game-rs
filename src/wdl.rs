@@ -229,9 +229,21 @@ impl<V: Copy + std::ops::Sub<V, Output = V>> WDL<V> {
     }
 }
 
+impl<V: Copy + std::ops::Sub<V, Output = V>> WDLAbs<V> {
+    pub fn value(self) -> ScalarAbs<V> {
+        ScalarAbs::new(self.win_a - self.win_b)
+    }
+}
+
 impl<V: Copy + std::ops::Add<V, Output = V>> WDL<V> {
     pub fn sum(self) -> V {
         self.win + self.draw + self.loss
+    }
+}
+
+impl<V: Copy + std::ops::Add<V, Output = V>> WDLAbs<V> {
+    pub fn sum(self) -> V {
+        self.win_a + self.draw + self.win_b
     }
 }
 
@@ -262,7 +274,7 @@ impl Pov for OutcomeWDL {
     }
 }
 
-impl<V: Copy + std::ops::Add<V, Output = V>> std::ops::Add<WDL<V>> for WDL<V> {
+impl<V: std::ops::Add<V, Output = V>> std::ops::Add<WDL<V>> for WDL<V> {
     type Output = WDL<V>;
 
     fn add(self, rhs: WDL<V>) -> Self::Output {
@@ -317,6 +329,66 @@ impl<V: Copy + std::ops::Div<V, Output = V>> std::ops::Div<V> for WDL<V> {
 }
 
 impl<V: Default + Copy + std::ops::Add<Output = V>> std::iter::Sum for WDL<V> {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Self::default(), |a, v| a + v)
+    }
+}
+
+impl<V: std::ops::Add<V, Output = V>> std::ops::Add<WDLAbs<V>> for WDLAbs<V> {
+    type Output = WDLAbs<V>;
+
+    fn add(self, rhs: WDLAbs<V>) -> Self::Output {
+        WDLAbs {
+            win_a: self.win_a + rhs.win_a,
+            draw: self.draw + rhs.draw,
+            win_b: self.win_b + rhs.win_b,
+        }
+    }
+}
+
+impl<V: Copy + std::ops::Sub<V, Output = V>> std::ops::Sub<WDLAbs<V>> for WDLAbs<V> {
+    type Output = WDLAbs<V>;
+
+    fn sub(self, rhs: WDLAbs<V>) -> Self::Output {
+        WDLAbs {
+            win_a: self.win_a - rhs.win_a,
+            draw: self.draw - rhs.draw,
+            win_b: self.win_b - rhs.win_b,
+        }
+    }
+}
+
+impl<V: Copy + std::ops::Add<V, Output = V>> std::ops::AddAssign<WDLAbs<V>> for WDLAbs<V> {
+    fn add_assign(&mut self, rhs: WDLAbs<V>) {
+        *self = *self + rhs;
+    }
+}
+
+impl<V: Copy + std::ops::Mul<V, Output = V>> std::ops::Mul<V> for WDLAbs<V> {
+    type Output = WDLAbs<V>;
+
+    fn mul(self, rhs: V) -> Self::Output {
+        WDLAbs {
+            win_a: self.win_a * rhs,
+            draw: self.draw * rhs,
+            win_b: self.win_b * rhs,
+        }
+    }
+}
+
+impl<V: Copy + std::ops::Div<V, Output = V>> std::ops::Div<V> for WDLAbs<V> {
+    type Output = WDLAbs<V>;
+
+    fn div(self, rhs: V) -> Self::Output {
+        WDLAbs {
+            win_a: self.win_a / rhs,
+            draw: self.draw / rhs,
+            win_b: self.win_b / rhs,
+        }
+    }
+}
+
+impl<V: Default + Copy + std::ops::Add<Output = V>> std::iter::Sum for WDLAbs<V> {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Self::default(), |a, v| a + v)
     }
