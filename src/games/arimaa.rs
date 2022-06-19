@@ -53,6 +53,14 @@ impl ArimaaBoard {
         BitBoard8(self.state.piece_board().bits_for_piece(piece, player_to_bool(player)))
     }
 
+    pub fn placement(&self) -> BitBoard8 {
+        if self.state.is_play_phase() {
+            return BitBoard8::EMPTY;
+        } else {
+            BitBoard8(self.state.piece_board().placement_bit())
+        }
+    }
+
     fn init_available_moves(&self) -> &[Action] {
         self.available_moves_cache.get_or_init(|| self.state.valid_actions())
     }
