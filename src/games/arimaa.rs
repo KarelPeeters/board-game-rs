@@ -24,6 +24,8 @@ impl Default for ArimaaBoard {
 }
 
 impl ArimaaBoard {
+    pub const MAX_STEPS_PER_TURN: usize = 4;
+
     pub fn from_state(state: GameState) -> Self {
         ArimaaBoard {
             state,
@@ -33,6 +35,12 @@ impl ArimaaBoard {
 
     pub fn state(&self) -> &GameState {
         &self.state
+    }
+
+    pub fn steps_taken(&self) -> usize {
+        self.state
+            .as_play_phase()
+            .map_or(0, |p| p.previous_piece_boards().len())
     }
 
     fn init_available_moves(&self) -> &[Action] {
