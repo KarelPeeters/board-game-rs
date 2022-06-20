@@ -3,7 +3,8 @@ use rand::Rng;
 
 pub use crate::ai::solver::is_double_forced_draw;
 use crate::ai::solver::solve_value;
-use crate::board::{Board, Outcome};
+use crate::board::{Board, Outcome, Player};
+use crate::pov::{NonPov, Pov};
 use crate::wdl::OutcomeWDL;
 
 /// Play the given moves, starting from `start`.
@@ -59,16 +60,28 @@ pub fn random_board_with_outcome<B: Board>(start: &B, outcome: Outcome, rng: &mu
 /// Generate a `Board` by playing random moves until a forced win in `depth` moves is found
 /// for `board.next_player`, which may be different from `start.next_player`.
 pub fn random_board_with_forced_win<B: Board>(start: &B, depth: u32, rng: &mut impl Rng) -> B {
-    if !B::can_lose_after_move() {
-        assert_eq!(
-            depth % 2,
-            1,
-            "forced win in an even number of moves is impossible (because the last move would be by the opponent)"
-        );
-    }
+    // TODO this is no longer true for non-alternating boards, maybe add a boolean getter for it back?
+    // if !B::can_lose_after_move() {
+    //     assert_eq!(
+    //         depth % 2,
+    //         1,
+    //         "forced win in an even number of moves is impossible (because the last move would be by the opponent)"
+    //     );
+    // }
 
     random_board_with_depth_condition(start, depth, rng, |board, depth| {
         solve_value(board, depth).to_outcome_wdl() == Some(OutcomeWDL::Win)
+    })
+}
+
+/// Generate a `Board` by playing random moves until a forced win in `depth` moves is found for `player`.
+pub fn random_board_with_forced_win_for<B: Board>(start: &B, depth: u32, player: Player, rng: &mut impl Rng) -> B {
+    random_board_with_depth_condition(start, depth, rng, |board, depth| {
+        solve_value(board, depth)
+            .to_outcome_wdl()
+            .un_pov(board.next_player())
+            .pov(player)
+            == Some(OutcomeWDL::Win)
     })
 }
 
@@ -100,7 +113,7 @@ pub fn random_board_with_condition<B: Board>(start: &B, rng: &mut impl Rng, mut 
 }
 
 /// Generate a random board such that `cond(board, depth) & !cond(board, depth-1)`.
-fn random_board_with_depth_condition<B: Board>(
+pub fn random_board_with_depth_condition<B: Board>(
     start: &B,
     depth: u32,
     rng: &mut impl Rng,
