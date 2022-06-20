@@ -3,7 +3,7 @@ use rand::Rng;
 
 pub use crate::ai::solver::is_double_forced_draw;
 use crate::ai::solver::solve_value;
-use crate::board::{AltBoard, Board, Outcome};
+use crate::board::{Board, Outcome};
 use crate::wdl::OutcomeWDL;
 
 /// Play the given moves, starting from `start`.
@@ -58,7 +58,7 @@ pub fn random_board_with_outcome<B: Board>(start: &B, outcome: Outcome, rng: &mu
 
 /// Generate a `Board` by playing random moves until a forced win in `depth` moves is found
 /// for `board.next_player`, which may be different from `start.next_player`.
-pub fn random_board_with_forced_win<B: AltBoard>(start: &B, depth: u32, rng: &mut impl Rng) -> B {
+pub fn random_board_with_forced_win<B: Board>(start: &B, depth: u32, rng: &mut impl Rng) -> B {
     if !B::can_lose_after_move() {
         assert_eq!(
             depth % 2,

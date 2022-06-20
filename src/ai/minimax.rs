@@ -7,7 +7,7 @@ use internal_iterator::InternalIterator;
 use rand::Rng;
 
 use crate::ai::Bot;
-use crate::board::{AltBoard, Board};
+use crate::board::Board;
 
 pub trait Heuristic<B: Board>: Debug {
     /// The type used to represent the heuristic value of a board.
@@ -52,7 +52,7 @@ pub struct MinimaxResult<V, R> {
 /// Evaluate the board using minimax with the given heuristic up to the given depth.
 /// Return both the value and the best move. If multiple moves have the same value pick a random one using `rng`.
 /// The returned value is from the POV of `board.next_player`.
-pub fn minimax<B: AltBoard, H: Heuristic<B>>(
+pub fn minimax<B: Board, H: Heuristic<B>>(
     board: &B,
     heuristic: &H,
     depth: u32,
@@ -77,7 +77,7 @@ pub fn minimax<B: AltBoard, H: Heuristic<B>>(
 }
 
 /// Variant of [minimax] that returns all moves that tie for the best value.
-pub fn minimax_all_moves<B: AltBoard, H: Heuristic<B>>(
+pub fn minimax_all_moves<B: Board, H: Heuristic<B>>(
     board: &B,
     heuristic: &H,
     depth: u32,
@@ -102,7 +102,7 @@ pub fn minimax_all_moves<B: AltBoard, H: Heuristic<B>>(
 
 /// Variant of [minimax] that only returns the value and not the best move.
 /// The advantage is that no rng is necessary to break ties between best moves.
-pub fn minimax_value<B: AltBoard, H: Heuristic<B>>(board: &B, heuristic: &H, depth: u32) -> H::V {
+pub fn minimax_value<B: Board, H: Heuristic<B>>(board: &B, heuristic: &H, depth: u32) -> H::V {
     negamax_recurse(
         heuristic,
         board,
@@ -212,7 +212,7 @@ impl<M> MoveSelector<M> for AllMoveSelector<M> {
 /// The core minimax implementation.
 /// Alpha-Beta Negamax, implementation based on
 /// <https://en.wikipedia.org/wiki/Negamax#Negamax_with_alpha_beta_pruning>
-fn negamax_recurse<B: AltBoard, H: Heuristic<B>, S: MoveSelector<B::Move>>(
+fn negamax_recurse<B: Board, H: Heuristic<B>, S: MoveSelector<B::Move>>(
     heuristic: &H,
     board: &B,
     board_heuristic: H::V,
@@ -236,17 +236,27 @@ fn negamax_recurse<B: AltBoard, H: Heuristic<B>, S: MoveSelector<B::Move>>(
         let child = board.clone_and_play(mv);
         let child_heuristic = heuristic.value_update(board, board_heuristic, length, mv, &child);
 
-        let child_value = -negamax_recurse(
-            heuristic,
-            &child,
-            child_heuristic,
-            length + 1,
-            depth_left - 1,
-            beta.map(Neg::neg),
-            alpha.map(Neg::neg),
-            NoMoveSelector,
-        )
-        .value;
+        let maybe_neg = |v: H::V| {
+            if child.next_player() != board.next_player() {
+                -v
+            } else {
+                v
+            }
+        };
+
+        let child_value = maybe_neg(
+            negamax_recurse(
+                heuristic,
+                &child,
+                child_heuristic,
+                length + 1,
+                depth_left - 1,
+                beta.map(maybe_neg),
+                alpha.map(maybe_neg),
+                NoMoveSelector,
+            )
+            .value,
+        );
 
         let (new_best_value, ordering) = best_value.map_or((child_value, Ordering::Greater), |best_value| {
             H::merge(best_value, child_value)
@@ -282,14 +292,14 @@ fn negamax_recurse<B: AltBoard, H: Heuristic<B>, S: MoveSelector<B::Move>>(
     }
 }
 
-pub struct MiniMaxBot<B: AltBoard, H: Heuristic<B>, R: Rng> {
+pub struct MiniMaxBot<B: Board, H: Heuristic<B>, R: Rng> {
     depth: u32,
     heuristic: H,
     rng: R,
     ph: PhantomData<B>,
 }
 
-impl<B: AltBoard, H: Heuristic<B>, R: Rng> Debug for MiniMaxBot<B, H, R> {
+impl<B: Board, H: Heuristic<B>, R: Rng> Debug for MiniMaxBot<B, H, R> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -299,7 +309,7 @@ impl<B: AltBoard, H: Heuristic<B>, R: Rng> Debug for MiniMaxBot<B, H, R> {
     }
 }
 
-impl<B: AltBoard, H: Heuristic<B>, R: Rng> MiniMaxBot<B, H, R> {
+impl<B: Board, H: Heuristic<B>, R: Rng> MiniMaxBot<B, H, R> {
     pub fn new(depth: u32, heuristic: H, rng: R) -> Self {
         assert!(depth > 0, "requires depth>0 to find the best move");
         MiniMaxBot {
@@ -311,7 +321,7 @@ impl<B: AltBoard, H: Heuristic<B>, R: Rng> MiniMaxBot<B, H, R> {
     }
 }
 
-impl<B: AltBoard, H: Heuristic<B> + Debug, R: Rng> Bot<B> for MiniMaxBot<B, H, R> {
+impl<B: Board, H: Heuristic<B> + Debug, R: Rng> Bot<B> for MiniMaxBot<B, H, R> {
     fn select_move(&mut self, board: &B) -> B::Move {
         assert!(!board.is_done());
         // SAFETY: unwrap is safe because:
