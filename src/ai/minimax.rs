@@ -77,7 +77,7 @@ pub fn minimax<B: AltBoard, H: Heuristic<B>>(
 }
 
 /// Variant of [minimax] that returns all moves that tie for the best value.
-pub fn minimax_all_moves<B: Board, H: Heuristic<B>>(
+pub fn minimax_all_moves<B: AltBoard, H: Heuristic<B>>(
     board: &B,
     heuristic: &H,
     depth: u32,
@@ -102,7 +102,7 @@ pub fn minimax_all_moves<B: Board, H: Heuristic<B>>(
 
 /// Variant of [minimax] that only returns the value and not the best move.
 /// The advantage is that no rng is necessary to break ties between best moves.
-pub fn minimax_value<B: Board, H: Heuristic<B>>(board: &B, heuristic: &H, depth: u32) -> H::V {
+pub fn minimax_value<B: AltBoard, H: Heuristic<B>>(board: &B, heuristic: &H, depth: u32) -> H::V {
     negamax_recurse(
         heuristic,
         board,
@@ -212,7 +212,7 @@ impl<M> MoveSelector<M> for AllMoveSelector<M> {
 /// The core minimax implementation.
 /// Alpha-Beta Negamax, implementation based on
 /// <https://en.wikipedia.org/wiki/Negamax#Negamax_with_alpha_beta_pruning>
-fn negamax_recurse<B: Board, H: Heuristic<B>, S: MoveSelector<B::Move>>(
+fn negamax_recurse<B: AltBoard, H: Heuristic<B>, S: MoveSelector<B::Move>>(
     heuristic: &H,
     board: &B,
     board_heuristic: H::V,

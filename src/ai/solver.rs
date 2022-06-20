@@ -114,11 +114,11 @@ pub fn solve<B: AltBoard>(board: &B, depth: u32, rng: &mut impl Rng) -> MinimaxR
     minimax(board, &SolverHeuristic, depth, rng)
 }
 
-pub fn solve_all_moves<B: Board>(board: &B, depth: u32) -> MinimaxResult<SolverValue, Vec<B::Move>> {
+pub fn solve_all_moves<B: AltBoard>(board: &B, depth: u32) -> MinimaxResult<SolverValue, Vec<B::Move>> {
     minimax_all_moves(board, &SolverHeuristic, depth)
 }
 
-pub fn solve_value<B: Board>(board: &B, depth: u32) -> SolverValue {
+pub fn solve_value<B: AltBoard>(board: &B, depth: u32) -> SolverValue {
     minimax_value(board, &SolverHeuristic, depth)
 }
 
