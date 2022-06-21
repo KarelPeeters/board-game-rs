@@ -43,7 +43,7 @@ mod parse {
     use nom::sequence::{preceded, terminated, tuple};
     use nom::IResult;
 
-    use crate::uai::command::{Command, GoTimeSettings, Position};
+    use super::*;
 
     pub fn command(input: &str) -> IResult<&str, Command> {
         let int = || map(digit1, |s: &str| s.parse().unwrap());

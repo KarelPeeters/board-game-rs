@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use crate::board::{Board, Player};
 use crate::games::ataxx::{AtaxxBoard, Move};
-use crate::uai::command::{Command, GoTimeSettings, Position};
+use crate::interface::uai::command::{Command, GoTimeSettings, Position};
 
 pub fn run(
     mut bot: impl FnMut(&AtaxxBoard, u32) -> (Move, String),

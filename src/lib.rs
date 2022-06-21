@@ -85,4 +85,4 @@ pub mod heuristic;
 
 pub mod util;
 
-pub mod uai;
+pub mod interface;
