@@ -28,7 +28,7 @@ pub enum Position<'a> {
 
 impl<'a> Command<'a> {
     pub fn parse(input: &'a str) -> Result<Command, nom::Err<nom::error::Error<&str>>> {
-        parse::command(input).map(|(left, command)| {
+        parse::command()(input).map(|(left, command)| {
             assert!(left.is_empty());
             command
         })
@@ -45,7 +45,7 @@ mod parse {
 
     use super::*;
 
-    pub fn command(input: &str) -> IResult<&str, Command> {
+    pub fn command<'a>() -> impl FnMut(&'a str) -> IResult<&'a str, Command<'a>> {
         let int = || map(digit1, |s: &str| s.parse().unwrap());
 
         let move_time = preceded(tag("movetime "), map(int(), GoTimeSettings::Move));
@@ -100,9 +100,7 @@ mod parse {
             set_option,
         ));
 
-        let mut complete = terminated(main, eof);
-
-        complete(input)
+        terminated(main, eof)
     }
 }
 
