@@ -35,6 +35,14 @@ pub fn run(
         writeln!(log, "> {}", line).unwrap();
         println!("> {}", line);
 
+        let command = match Command::parse(line) {
+            Ok(command) => command,
+            Err(_) => {
+                writeln!(output, "info < failed to parse command '{}'", line)?;
+                continue;
+            }
+        };
+
         let command = Command::parse(line).unwrap_or_else(|_| panic!("Failed to parse command '{}'", line));
 
         match command {
@@ -63,7 +71,13 @@ pub fn run(
                 });
             }
             Command::Go(time_settings) => {
-                let curr_board = curr_board.as_ref().expect("Received go command without having a board");
+                let curr_board = match curr_board.as_ref() {
+                    Some(curr_board) => curr_board,
+                    None => {
+                        writeln!(output, "info < received go command without having a board",)?;
+                        continue;
+                    }
+                };
 
                 let time_to_use = match time_settings {
                     GoTimeSettings::Move(time) => time * 95 / 100,
