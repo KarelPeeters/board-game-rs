@@ -176,7 +176,7 @@ fn ataxx_pass_move_counter() {
 fn ataxx_copy_move_counter() {
     let mut board = AtaxxBoard::from_fen("x2xxxx/-------/-------/o6/7/7/7 x 0 0").unwrap();
 
-    board.play(Move::from_uai("b7"));
+    board.play(Move::from_uai("b7").unwrap());
     assert_eq!(board.moves_since_last_copy(), 0);
 
     board_test_main(&board);
@@ -187,7 +187,7 @@ fn ataxx_jump_move_counter() {
     let mut board = AtaxxBoard::from_fen("x2xxxx/-------/-------/o6/7/7/7 x 0 0").unwrap();
 
     let prev_count = board.moves_since_last_copy();
-    board.play(Move::from_uai("a7c7"));
+    board.play(Move::from_uai("a7c7").unwrap());
     assert_eq!(board.moves_since_last_copy(), prev_count + 1);
 
     board_test_main(&board);

@@ -32,6 +32,9 @@ impl Display for Move {
     }
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub struct InvalidUaiMove(String);
+
 impl Move {
     pub fn to_uai(self) -> String {
         match self {
@@ -41,15 +44,15 @@ impl Move {
         }
     }
 
-    pub fn from_uai(s: &str) -> Move {
+    pub fn from_uai(s: &str) -> Result<Move, InvalidUaiMove> {
         match s {
-            "0000" => Move::Pass,
-            _ if s.len() == 2 => Move::Copy { to: coord_from_uai(s) },
-            _ if s.len() == 4 => Move::Jump {
+            "0000" => Ok(Move::Pass),
+            _ if s.len() == 2 => Ok(Move::Copy { to: coord_from_uai(s) }),
+            _ if s.len() == 4 => Ok(Move::Jump {
                 from: coord_from_uai(&s[..2]),
                 to: coord_from_uai(&s[2..]),
-            },
-            _ => panic!("Invalid move uai string '{}'", s),
+            }),
+            _ => Err(InvalidUaiMove(s.to_owned())),
         }
     }
 }
