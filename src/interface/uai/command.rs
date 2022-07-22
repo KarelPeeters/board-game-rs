@@ -4,9 +4,18 @@ pub enum Command<'a> {
     IsReady,
     NewGame,
     Quit,
-    Position(Position<'a>),
+    Takeback,
+    Print,
+    Position {
+        position: Position<'a>,
+        moves: Option<&'a str>,
+    },
     Go(GoTimeSettings),
-    SetOption { name: &'a str, value: &'a str },
+    SetOption {
+        name: &'a str,
+        value: &'a str,
+    },
+    Moves(&'a str),
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -39,7 +48,7 @@ mod parse {
     use nom::branch::alt;
     use nom::bytes::complete::{tag, take_until, take_while};
     use nom::character::complete::digit1;
-    use nom::combinator::{eof, map, value};
+    use nom::combinator::{eof, map, opt, value};
     use nom::sequence::{preceded, terminated, tuple};
     use nom::IResult;
 
@@ -71,16 +80,21 @@ mod parse {
 
         let go = preceded(tag("go "), map(alt((move_time, clock_time)), Command::Go));
 
-        let position = preceded(
-            tag("position "),
-            map(
+        let position = map(
+            tuple((
+                tag("position "),
                 alt((
                     value(Position::StartPos, tag("startpos")),
-                    preceded(tag("fen "), map(take_while(|_| true), Position::Fen)),
+                    preceded(tag("fen "), map(take_until(" moves"), Position::Fen)),
                 )),
-                Command::Position,
-            ),
+                opt(preceded(tag(" moves "), take_while(|_| true))),
+            )),
+            |(_, position, moves)| Command::Position { position, moves },
         );
+
+        let moves = map(preceded(tag("moves "), take_while(|_| true)), |moves| {
+            Command::Moves(moves)
+        });
 
         let set_option = preceded(
             tag("setoption "),
@@ -95,7 +109,10 @@ mod parse {
             value(Command::Uai, tag("uai")),
             value(Command::IsReady, tag("isready")),
             value(Command::Quit, tag("quit")),
+            value(Command::Takeback, tag("takeback")),
+            value(Command::Print, alt((tag("print"), tag("d")))),
             position,
+            moves,
             go,
             set_option,
         ));
@@ -114,5 +131,17 @@ mod tests {
         assert_eq!(Ok(Command::IsReady), Command::parse("isready"));
         assert_eq!(Ok(Command::NewGame), Command::parse("uainewgame"));
         assert_eq!(Ok(Command::Quit), Command::parse("quit"));
+    }
+
+    #[test]
+    fn moves() {
+        assert_eq!(
+            Ok(Command::Position {
+                position: Position::StartPos,
+                moves: Some("a b c"),
+            }),
+            Command::parse("position startpos moves a b c")
+        );
+        assert_eq!(Ok(Command::Moves("a b c")), Command::parse("moves a b c"));
     }
 }

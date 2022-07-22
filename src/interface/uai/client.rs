@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::io::Write;
 use std::io::{BufRead, BufReader, BufWriter, Read};
 use std::time::Instant;
@@ -5,6 +6,8 @@ use std::time::Instant;
 use crate::board::{Board, Player};
 use crate::games::ataxx::{AtaxxBoard, Move};
 use crate::interface::uai::command::{Command, GoTimeSettings, Position};
+
+pub const MAX_STACK_SIZE: usize = 100;
 
 pub fn run(
     mut bot: impl FnMut(&AtaxxBoard, u32) -> (Move, String),
@@ -16,18 +19,22 @@ pub fn run(
 ) -> std::io::Result<()> {
     // wrap everything
     let input = &mut BufReader::new(input);
-    let output = &mut BufWriter::new(output);
+    let mut output = &mut BufWriter::new(output);
     let log = &mut BufWriter::new(log);
 
     //warmup
     bot(&AtaxxBoard::default(), 1000);
 
     let mut line = String::new();
-    let mut curr_board = None;
+    let mut board_stack = VecDeque::new();
 
     loop {
         log.flush()?;
         output.flush()?;
+
+        while board_stack.len() > MAX_STACK_SIZE {
+            board_stack.pop_back();
+        }
 
         line.clear();
         input.read_line(&mut line)?;
@@ -38,12 +45,10 @@ pub fn run(
         let command = match Command::parse(line) {
             Ok(command) => command,
             Err(_) => {
-                writeln!(output, "info < failed to parse command '{}'", line)?;
+                writeln!(output, "error: failed to parse command '{}'", line)?;
                 continue;
             }
         };
-
-        let command = Command::parse(line).unwrap_or_else(|_| panic!("Failed to parse command '{}'", line));
 
         match command {
             Command::Uai => {
@@ -57,24 +62,47 @@ pub fn run(
             Command::SetOption { name, value } => {
                 writeln!(
                     output,
-                    "info < ignoring command setoption, name={}, value={}",
+                    "warning: ignoring command setoption, name={}, value={}",
                     name, value
                 )?;
             }
             Command::NewGame => {
-                curr_board = Some(AtaxxBoard::default());
+                board_stack.push_front(AtaxxBoard::default());
             }
-            Command::Position(position) => {
-                curr_board = Some(match position {
+            Command::Print => match board_stack.front() {
+                Some(board) => {
+                    let board = board.to_string();
+                    writeln!(output, "info: current board:")?;
+                    for line in board.lines() {
+                        writeln!(output, "info: {}", line)?;
+                    }
+                }
+                None => writeln!(output, "info: no board")?,
+            },
+            Command::Takeback => {
+                let popped = board_stack.pop_front().is_some();
+                if !popped {
+                    writeln!(output, "error: cannot takeback, board stack is empty")?;
+                }
+            }
+            Command::Position { position, moves } => {
+                let board = match position {
                     Position::StartPos => AtaxxBoard::default(),
                     Position::Fen(fen) => AtaxxBoard::from_fen(fen).unwrap(),
-                });
+                };
+                board_stack.push_front(board);
+                if let Some(moves) = moves {
+                    apply_moves(&mut output, &mut board_stack, moves)?;
+                }
+            }
+            Command::Moves(moves) => {
+                apply_moves(&mut output, &mut board_stack, moves)?;
             }
             Command::Go(time_settings) => {
-                let curr_board = match curr_board.as_ref() {
+                let curr_board = match board_stack.front() {
                     Some(curr_board) => curr_board,
                     None => {
-                        writeln!(output, "info < received go command without having a board",)?;
+                        writeln!(output, "error: received go command without having a board",)?;
                         continue;
                     }
                 };
@@ -100,8 +128,45 @@ pub fn run(
                 writeln!(output, "bestmove {}", best_move.to_uai())?;
             }
             Command::Quit => {
-                //nothing to do here
+                // no nothing
             }
         }
     }
+}
+
+fn apply_moves(mut output: impl Write, board_stack: &mut VecDeque<AtaxxBoard>, moves: &str) -> std::io::Result<()> {
+    let mut curr_board = match board_stack.front() {
+        None => {
+            writeln!(output, "error: received moves command without having a board")?;
+            return Ok(());
+        }
+        Some(board) => board.clone(),
+    };
+
+    for mv in moves.trim().split(' ') {
+        let mv = mv.trim();
+        if mv.len() != 0 {
+            let mv = match Move::from_uai(mv) {
+                Ok(mv) => mv,
+                Err(_) => {
+                    writeln!(output, "error: invalid move '{}'", mv)?;
+                    return Ok(());
+                }
+            };
+
+            if curr_board.is_done() {
+                writeln!(output, "error: cannot play move '{}', board is already done", mv)?;
+                return Ok(());
+            }
+            if !curr_board.is_available_move(mv) {
+                writeln!(output, "error: move '{}' is not available", mv)?;
+                return Ok(());
+            }
+
+            curr_board.play(mv);
+            board_stack.push_front(curr_board.clone());
+        }
+    }
+
+    Ok(())
 }
