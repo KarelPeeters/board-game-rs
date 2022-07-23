@@ -85,7 +85,10 @@ mod parse {
                 tag("position "),
                 alt((
                     value(Position::StartPos, tag("startpos")),
-                    preceded(tag("fen "), map(take_until(" moves"), Position::Fen)),
+                    preceded(
+                        tag("fen "),
+                        map(alt((take_until(" moves"), take_while(|_| true))), Position::Fen),
+                    ),
                 )),
                 opt(preceded(tag(" moves "), take_while(|_| true))),
             )),
@@ -135,6 +138,30 @@ mod tests {
 
     #[test]
     fn moves() {
+        assert_eq!(Ok(Command::Moves("a b c")), Command::parse("moves a b c"));
+    }
+
+    #[test]
+    fn position() {
+        assert_eq!(
+            Ok(Command::Position {
+                position: Position::StartPos,
+                moves: None,
+            }),
+            Command::parse("position startpos")
+        );
+
+        assert_eq!(
+            Ok(Command::Position {
+                position: Position::Fen("x5o/2o2o1/7/7/4x2/5xx/o6 x 1 4"),
+                moves: None,
+            }),
+            Command::parse("position fen x5o/2o2o1/7/7/4x2/5xx/o6 x 1 4")
+        )
+    }
+
+    #[test]
+    fn position_moves() {
         assert_eq!(
             Ok(Command::Position {
                 position: Position::StartPos,
@@ -142,6 +169,13 @@ mod tests {
             }),
             Command::parse("position startpos moves a b c")
         );
-        assert_eq!(Ok(Command::Moves("a b c")), Command::parse("moves a b c"));
+
+        assert_eq!(
+            Ok(Command::Position {
+                position: Position::Fen("x5o/2o2o1/7/7/4x2/5xx/o6 x 1 4"),
+                moves: Some("a b c"),
+            }),
+            Command::parse("position fen x5o/2o2o1/7/7/4x2/5xx/o6 x 1 4 moves a b c")
+        )
     }
 }
