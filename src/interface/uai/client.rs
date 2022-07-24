@@ -107,6 +107,14 @@ pub fn run(
                     }
                 };
 
+                if let Some(outcome) = curr_board.outcome() {
+                    output.respond(&format!(
+                        "info (error): cannot go on done board, outcome: {:?}",
+                        outcome
+                    ))?;
+                    continue;
+                }
+
                 let time_to_use = match time_settings {
                     GoTimeSettings::Move(time) => 0.95 * (time as f32 / 1000.0),
                     GoTimeSettings::Clock { w_time, b_time, .. } => {
