@@ -47,6 +47,8 @@ pub struct MinimaxResult<V, R> {
     pub best_move: Option<R>,
 }
 
+// TODO extend minimax to non-alternating games
+
 /// Evaluate the board using minimax with the given heuristic up to the given depth.
 /// Return both the value and the best move. If multiple moves have the same value pick a random one using `rng`.
 /// The returned value is from the POV of `board.next_player`.
@@ -234,17 +236,27 @@ fn negamax_recurse<B: Board, H: Heuristic<B>, S: MoveSelector<B::Move>>(
         let child = board.clone_and_play(mv);
         let child_heuristic = heuristic.value_update(board, board_heuristic, length, mv, &child);
 
-        let child_value = -negamax_recurse(
-            heuristic,
-            &child,
-            child_heuristic,
-            length + 1,
-            depth_left - 1,
-            beta.map(Neg::neg),
-            alpha.map(Neg::neg),
-            NoMoveSelector,
-        )
-        .value;
+        let maybe_neg = |v: H::V| {
+            if child.next_player() != board.next_player() {
+                -v
+            } else {
+                v
+            }
+        };
+
+        let child_value = maybe_neg(
+            negamax_recurse(
+                heuristic,
+                &child,
+                child_heuristic,
+                length + 1,
+                depth_left - 1,
+                beta.map(maybe_neg),
+                alpha.map(maybe_neg),
+                NoMoveSelector,
+            )
+            .value,
+        );
 
         let (new_best_value, ordering) = best_value.map_or((child_value, Ordering::Greater), |best_value| {
             H::merge(best_value, child_value)

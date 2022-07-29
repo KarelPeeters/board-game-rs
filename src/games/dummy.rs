@@ -29,7 +29,7 @@ use internal_iterator::{Internal, IteratorExt};
 use nom::error::Error;
 use nom::Finish;
 
-use crate::board::{Board, BoardMoves, Outcome, Player, UnitSymmetryBoard};
+use crate::board::{Alternating, Board, BoardMoves, Outcome, Player, UnitSymmetryBoard};
 
 mod parse {
     use nom::branch::alt;
@@ -147,6 +147,9 @@ impl Board for DummyGame {
         true
     }
 }
+
+// TODO maybe add a version of DummyGame that's not alternating?
+impl Alternating for DummyGame {}
 
 impl UnitSymmetryBoard for DummyGame {}
 

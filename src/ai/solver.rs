@@ -8,7 +8,8 @@ use rand::Rng;
 use crate::ai::minimax::{minimax, minimax_all_moves, minimax_value, Heuristic, MinimaxResult};
 use crate::ai::Bot;
 use crate::board::{Board, Outcome};
-use crate::wdl::{OutcomeWDL, POV};
+use crate::pov::NonPov;
+use crate::wdl::OutcomeWDL;
 
 /// Minimax [Heuristic] that only looks at board outcomes.
 /// When there are multiple winning moves it picks the shortest one,

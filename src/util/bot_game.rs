@@ -10,8 +10,9 @@ use rayon::iter::ParallelIterator;
 
 use crate::ai::Bot;
 use crate::board::{Board, Outcome, Player};
+use crate::pov::NonPov;
 use crate::util::rating::elo_from_wdl;
-use crate::wdl::{POV, WDL};
+use crate::wdl::WDL;
 
 /// Run `bot_l` against `bot_r` against each other on the board given by `start`.
 ///
@@ -119,7 +120,7 @@ fn play_single_game<B: Board>(start: &B, flip: bool, bot_l: &mut impl Bot<B>, bo
                     move_count_r,
                     debug_l: debug_to_string(bot_l),
                     debug_r: debug_to_string(bot_r),
-                }
+                };
             }
         }
     }

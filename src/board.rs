@@ -76,6 +76,14 @@ where
     fn can_lose_after_move() -> bool;
 }
 
+/// A marker trait for boards which guarantee that [Board::next_player] flips after a move is played.
+pub trait Alternating {}
+
+/// Auto trait for [Board]s that also implement [Alternating].
+pub trait AltBoard: Board + Alternating {}
+
+impl<B: Board + Alternating> AltBoard for B {}
+
 /// A helper trait to get the correct lifetimes for [BoardAvailableMoves::available_moves].
 /// This is a workaround to get generic associated types, See <https://github.com/rust-lang/rust/issues/44265>.
 pub trait BoardMoves<'a, B: Board> {

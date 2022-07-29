@@ -13,6 +13,7 @@ use board_game::board::Board;
 use board_game::symmetry::Symmetry;
 use board_game::util::game_stats;
 
+mod arimaa;
 mod ataxx;
 mod chess;
 mod connect4;

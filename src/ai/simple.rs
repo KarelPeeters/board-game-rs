@@ -6,7 +6,7 @@ use rand::Rng;
 
 use crate::ai::Bot;
 use crate::board::Board;
-use crate::wdl::POV;
+use crate::pov::NonPov;
 
 /// Bot that choses moves randomly uniformly among possible moves.
 pub struct RandomBot<R: Rng> {

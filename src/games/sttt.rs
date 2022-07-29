@@ -6,7 +6,9 @@ use internal_iterator::{Internal, InternalIterator, IteratorExt};
 use itertools::Itertools;
 use rand::Rng;
 
-use crate::board::{AllMovesIterator, AvailableMovesIterator, Board, BoardMoves, BoardSymmetry, Outcome, Player};
+use crate::board::{
+    AllMovesIterator, Alternating, AvailableMovesIterator, Board, BoardMoves, BoardSymmetry, Outcome, Player,
+};
 use crate::symmetry::D4Symmetry;
 use crate::util::bits::{get_nth_set_bit, BitIter};
 
@@ -161,6 +163,8 @@ impl Board for STTTBoard {
     }
 }
 
+impl Alternating for STTTBoard {}
+
 impl BoardSymmetry<STTTBoard> for STTTBoard {
     type Symmetry = D4Symmetry;
 
@@ -204,8 +208,8 @@ impl InternalIterator for AllMovesIterator<STTTBoard> {
     type Item = Coord;
 
     fn try_for_each<R, F>(self, f: F) -> ControlFlow<R>
-        where
-            F: FnMut(Self::Item) -> ControlFlow<R>,
+    where
+        F: FnMut(Self::Item) -> ControlFlow<R>,
     {
         Coord::all().try_for_each(f)
     }

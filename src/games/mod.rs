@@ -1,3 +1,4 @@
+pub mod arimaa;
 pub mod ataxx;
 pub mod chess;
 pub mod connect4;
