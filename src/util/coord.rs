@@ -59,6 +59,10 @@ impl<const X: u8, const Y: u8> Coord<X, Y> {
     pub const fn cast<const X2: u8, const Y2: u8>(self) -> Coord<X2, Y2> {
         Coord::<X2, Y2>::from_xy(self.x(), self.y())
     }
+
+    pub const fn valid_for_size(self, size: u8) -> bool {
+        self.x() < size && self.y() < size
+    }
 }
 
 impl<const X: u8, const Y: u8> Display for Coord<X, Y> {

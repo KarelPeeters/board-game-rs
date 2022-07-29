@@ -73,7 +73,7 @@ impl AtaxxBoard {
     }
 
     pub fn valid_coord(&self, coord: Coord8) -> bool {
-        coord.x() < self.size && coord.y() < self.size
+        coord.valid_for_size(self.size)
     }
 
     pub fn full_mask(&self) -> BitBoard8 {
@@ -203,6 +203,18 @@ impl AtaxxBoard {
     }
 }
 
+impl Move {
+    pub fn valid_for_size(self, size: u8) -> bool {
+        match self {
+            Move::Pass => true,
+            Move::Copy { to } => to.valid_for_size(size),
+            Move::Jump { from, to } => {
+                from.valid_for_size(size) && to.valid_for_size(size) && from.diagonal_distance(to) == 2
+            }
+        }
+    }
+}
+
 impl Board for AtaxxBoard {
     type Move = Move;
 
@@ -213,18 +225,16 @@ impl Board for AtaxxBoard {
     fn is_available_move(&self, mv: Self::Move) -> bool {
         assert!(!self.is_done());
 
+        if !mv.valid_for_size(self.size) {
+            return false;
+        }
+
         let next_tiles = self.tiles_pov().0;
 
         match mv {
             Move::Pass => self.must_pass_with_tiles(next_tiles),
-            Move::Copy { to } => self.valid_coord(to) && (self.free_tiles() & next_tiles.adjacent()).has(to),
-            Move::Jump { from, to } => {
-                self.valid_coord(from)
-                    && self.valid_coord(to)
-                    && self.free_tiles().has(to)
-                    && next_tiles.has(from)
-                    && from.diagonal_distance(to) == 2
-            }
+            Move::Copy { to } => (self.free_tiles() & next_tiles.adjacent()).has(to),
+            Move::Jump { from, to } => self.free_tiles().has(to) && next_tiles.has(from),
         }
     }
 
