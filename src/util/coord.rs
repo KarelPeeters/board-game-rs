@@ -30,6 +30,10 @@ impl<const X: u8, const Y: u8> Coord<X, Y> {
         self.index
     }
 
+    pub const fn dense_index(self, size: u8) -> usize {
+        size as usize * self.y() as usize + self.x() as usize
+    }
+
     pub const fn x(self) -> u8 {
         self.index % X
     }
