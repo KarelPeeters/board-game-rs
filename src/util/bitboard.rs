@@ -28,6 +28,14 @@ impl BitBoard8 {
     }
 
     #[must_use]
+    pub const fn coord_option(coord: Option<Coord8>) -> BitBoard8 {
+        match coord {
+            Some(coord) => BitBoard8::coord(coord),
+            None => BitBoard8::EMPTY,
+        }
+    }
+
+    #[must_use]
     pub const fn has(self, coord: Coord8) -> bool {
         (self.0 >> coord.index()) & 1 != 0
     }
