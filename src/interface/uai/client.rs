@@ -53,7 +53,6 @@ pub fn run(
         match command {
             Command::Uai => {
                 output.respond(&format!("id name {}", name))?;
-                output.respond(&format!("id name {}", name))?;
                 output.respond(&format!("id author {}", author))?;
                 output.respond(&format!("uaiok"))?;
             }
