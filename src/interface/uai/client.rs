@@ -137,9 +137,7 @@ pub fn run(
                 output.respond(&format!("info (info): {}", info))?;
                 output.respond(&format!("bestmove {}", best_move.to_uai()))?;
             }
-            Command::Quit => {
-                // no nothing
-            }
+            Command::Quit => return Ok(()),
         }
     }
 }
