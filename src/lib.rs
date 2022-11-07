@@ -40,7 +40,6 @@
 //! # use board_game::board::{BoardMoves, Board};
 //! # use internal_iterator::InternalIterator;
 //! # let mut rng = rand::thread_rng();
-//!
 //! let mut board = AtaxxBoard::default();
 //! println!("{}", board);
 //!
@@ -61,7 +60,6 @@
 //! # use board_game::games::ataxx::AtaxxBoard;
 //! # use board_game::ai::Bot;
 //! # use rand::thread_rng;
-//!
 //! let board = AtaxxBoard::default();
 //! println!("{}", board);
 //!
