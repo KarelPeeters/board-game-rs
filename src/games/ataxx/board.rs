@@ -40,6 +40,28 @@ impl Default for AtaxxBoard {
 impl AtaxxBoard {
     pub const MAX_SIZE: u8 = 8;
 
+    pub fn from_parts(
+        size: u8,
+        tiles_a: BitBoard8,
+        tiles_b: BitBoard8,
+        gaps: BitBoard8,
+        moves_since_last_copy: u8,
+        next_player: Player,
+    ) -> Self {
+        let mut result = AtaxxBoard {
+            size,
+            tiles_a,
+            tiles_b,
+            gaps,
+            moves_since_last_copy,
+            next_player,
+            outcome: None,
+        };
+        result.update_outcome();
+        result.assert_valid();
+        result
+    }
+
     pub fn diagonal(size: u8) -> Self {
         assert!(size <= Self::MAX_SIZE, "size {} is too large", size);
         assert!(size >= 2, "diagonal board is only possible with size > 2, got {}", size);
