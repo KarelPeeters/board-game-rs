@@ -106,8 +106,6 @@ impl D4Symmetry {
     }
 
     pub fn map_xy<V: Copy + Sub<Output = V> + One + Display>(self, mut x: V, mut y: V, size: V) -> (V, V) {
-        println!("Mapping {} {} {}", x, y, size);
-
         let max = size - V::one();
 
         if self.transpose {
@@ -119,8 +117,6 @@ impl D4Symmetry {
         if self.flip_y {
             y = max - y
         };
-
-        println!("    to {} {}", x, y);
 
         (x, y)
     }
