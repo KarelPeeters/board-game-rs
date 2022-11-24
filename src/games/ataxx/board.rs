@@ -218,8 +218,6 @@ impl AtaxxBoard {
         for coord in tiles {
             let result_coord = self.map_coord(coord, sym);
             result |= BitBoard8::coord(result_coord);
-
-            println!("After mapping {} to {}, got tiles \n{}", coord, result_coord, result);
         }
         result
     }
