@@ -36,6 +36,11 @@ impl BitBoard8 {
     }
 
     #[must_use]
+    pub fn from_coords(coords: impl IntoIterator<Item = Coord8>) -> BitBoard8 {
+        coords.into_iter().fold(BitBoard8::EMPTY, |b, c| b.set(c))
+    }
+
+    #[must_use]
     pub const fn has(self, coord: Coord8) -> bool {
         (self.0 >> coord.index()) & 1 != 0
     }
