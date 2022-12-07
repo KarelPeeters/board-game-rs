@@ -328,9 +328,15 @@ impl<V: Copy + std::ops::Div<V, Output = V>> std::ops::Div<V> for WDL<V> {
     }
 }
 
-impl<V: Default + Copy + std::ops::Add<Output = V>> std::iter::Sum for WDL<V> {
+impl<V: Default + Copy + std::ops::Add<Output = V>> std::iter::Sum<Self> for WDL<V> {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Self::default(), |a, v| a + v)
+    }
+}
+
+impl<'a, V: Default + Copy + std::ops::Add<Output = V>> std::iter::Sum<&'a Self> for WDL<V> {
+    fn sum<I: Iterator<Item = &'a Self>>(iter: I) -> Self {
+        iter.fold(Self::default(), |a, &v| a + v)
     }
 }
 
