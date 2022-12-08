@@ -174,7 +174,7 @@ fn parse_move_inner_impl(board: &ChessBoard, mv_str: &str) -> Result<ChessMove, 
         Ok(mv) => Ok(mv),
         Err(original_err) => {
             // try appending e.p. to get it to parse an en passant move
-            let mv_ep = mv.to_owned() + " e.p.";
+            let mv_ep = mv.clone() + " e.p.";
             ChessMove::from_san(board.inner(), &mv_ep).map_err(|_| ParseMoveError {
                 board: board.clone(),
                 mv: mv.into_owned(),

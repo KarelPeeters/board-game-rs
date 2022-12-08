@@ -57,7 +57,7 @@ impl ArimaaBoard {
 
     pub fn placement(&self) -> BitBoard8 {
         if self.state.is_play_phase() {
-            return BitBoard8::EMPTY;
+            BitBoard8::EMPTY
         } else {
             BitBoard8(self.state.piece_board().placement_bit())
         }
@@ -179,6 +179,6 @@ impl FromStr for ArimaaBoard {
     type Err = <GameState as FromStr>::Err;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        GameState::from_str(s).map(|state| ArimaaBoard::from_state(state))
+        GameState::from_str(s).map(ArimaaBoard::from_state)
     }
 }

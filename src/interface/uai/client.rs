@@ -54,10 +54,10 @@ pub fn run(
             Command::Uai => {
                 output.respond(&format!("id name {}", name))?;
                 output.respond(&format!("id author {}", author))?;
-                output.respond(&format!("uaiok"))?;
+                output.respond("uaiok")?;
             }
             Command::IsReady => {
-                output.respond(&format!("readyok"))?;
+                output.respond("readyok")?;
             }
             Command::SetOption { name, value } => {
                 output.respond(&format!(
@@ -71,7 +71,7 @@ pub fn run(
             Command::Print => match board_stack.front() {
                 Some(board) => {
                     let board = board.to_string();
-                    output.respond(&format!("info: current board:"))?;
+                    output.respond("info: current board:")?;
                     for line in board.lines() {
                         output.respond(&format!("info: {}", line))?;
                     }
@@ -81,7 +81,7 @@ pub fn run(
             Command::Takeback => {
                 let popped = board_stack.pop_front().is_some();
                 if !popped {
-                    output.respond(&format!("info (error): cannot takeback, board stack is empty"))?;
+                    output.respond("info (error): cannot takeback, board stack is empty")?;
                 }
             }
             Command::Position { position, moves } => {
@@ -101,7 +101,7 @@ pub fn run(
                 let curr_board = match board_stack.front() {
                     Some(curr_board) => curr_board,
                     None => {
-                        output.respond(&format!("info (error): received go command without having a board",))?;
+                        output.respond("info (error): received go command without having a board")?;
                         continue;
                     }
                 };
@@ -149,7 +149,7 @@ fn apply_moves<O: Write, L: Write>(
 ) -> std::io::Result<()> {
     let mut curr_board = match board_stack.front() {
         None => {
-            output.respond(&format!("error: received moves command without having a board"))?;
+            output.respond("error: received moves command without having a board")?;
             return Ok(());
         }
         Some(board) => board.clone(),
@@ -157,7 +157,7 @@ fn apply_moves<O: Write, L: Write>(
 
     for mv in moves.trim().split(' ') {
         let mv = mv.trim();
-        if mv.len() != 0 {
+        if !mv.is_empty() {
             let mv = match Move::from_uai(mv) {
                 Ok(mv) => mv,
                 Err(_) => {

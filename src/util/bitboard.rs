@@ -141,7 +141,7 @@ impl IntoIterator for BitBoard8 {
     type IntoIter = std::iter::Map<BitIter<u64>, fn(u8) -> Coord8>;
 
     fn into_iter(self) -> Self::IntoIter {
-        BitIter::new(self.0).map(|i| Coord8::from_index(i))
+        BitIter::new(self.0).map(Coord8::from_index)
     }
 }
 

@@ -49,7 +49,7 @@ impl Board for TTTBoard {
 
     fn is_available_move(&self, mv: Self::Move) -> bool {
         assert!(!self.is_done());
-        self.tiles[mv.index() as usize] == None
+        self.tiles[mv.index() as usize].is_none()
     }
 
     fn play(&mut self, mv: Self::Move) {

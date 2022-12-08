@@ -392,7 +392,7 @@ impl<'a> BoardMoves<'a, AtaxxBoard> for AtaxxBoard {
     }
 }
 
-impl<'a> InternalIterator for AllMovesIterator<AtaxxBoard> {
+impl InternalIterator for AllMovesIterator<AtaxxBoard> {
     type Item = Move;
 
     fn try_for_each<R, F: FnMut(Self::Item) -> ControlFlow<R>>(self, mut f: F) -> ControlFlow<R> {

@@ -23,7 +23,7 @@ impl<const X: u8, const Y: u8> Coord<X, Y> {
     }
 
     pub fn all() -> CoordAllIter<Self> {
-        (0..X * Y).map(|index| Coord::from_index(index))
+        (0..X * Y).map(Coord::from_index)
     }
 
     pub const fn index(self) -> u8 {

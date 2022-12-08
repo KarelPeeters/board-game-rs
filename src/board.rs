@@ -121,9 +121,7 @@ macro_rules! impl_unit_symmetry_board {
                 mv
             }
 
-            fn canonical_key(&self) -> Self::CanonicalKey {
-                ()
-            }
+            fn canonical_key(&self) -> Self::CanonicalKey {}
         }
     };
 }
