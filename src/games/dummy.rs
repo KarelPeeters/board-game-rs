@@ -29,7 +29,8 @@ use internal_iterator::{Internal, IteratorExt};
 use nom::error::Error;
 use nom::Finish;
 
-use crate::board::{Alternating, Board, BoardMoves, Outcome, Player, UnitSymmetryBoard};
+use crate::board::{Alternating, Board, BoardMoves, Outcome, Player};
+use crate::impl_unit_symmetry_board;
 
 mod parse {
     use nom::branch::alt;
@@ -151,7 +152,7 @@ impl Board for DummyGame {
 // TODO maybe add a version of DummyGame that's not alternating?
 impl Alternating for DummyGame {}
 
-impl UnitSymmetryBoard for DummyGame {}
+impl_unit_symmetry_board!(DummyGame);
 
 impl<'a> BoardMoves<'a, DummyGame> for DummyGame {
     type AllMovesIterator = Internal<std::ops::RangeFrom<usize>>;

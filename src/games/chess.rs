@@ -9,7 +9,8 @@ use chess::{BoardStatus, ChessMove, Color, File, MoveGen, Piece, Square};
 use internal_iterator::{Internal, InternalIterator, IteratorExt};
 use rand::Rng;
 
-use crate::board::{AllMovesIterator, Alternating, Board, BoardMoves, Outcome, Player, UnitSymmetryBoard};
+use crate::board::{AllMovesIterator, Alternating, Board, BoardMoves, Outcome, Player};
+use crate::impl_unit_symmetry_board;
 use crate::util::bot_game::Replay;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -268,7 +269,7 @@ impl Board for ChessBoard {
 
 impl Alternating for ChessBoard {}
 
-impl UnitSymmetryBoard for ChessBoard {}
+impl_unit_symmetry_board!(ChessBoard);
 
 impl<'a> BoardMoves<'a, ChessBoard> for ChessBoard {
     type AllMovesIterator = AllMovesIterator<ChessBoard>;

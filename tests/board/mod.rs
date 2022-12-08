@@ -223,6 +223,12 @@ fn test_symmetry<B: Board>(board: &B) {
             }
         }
     }
+
+    // run in separate loop so we already know symmetries work
+    let expected_canonical = board.canonicalize();
+    for &sym in B::Symmetry::all() {
+        assert_eq!(expected_canonical, board.map(sym).canonicalize());
+    }
 }
 
 fn consistent_rng() -> impl Rng {

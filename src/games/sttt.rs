@@ -167,6 +167,7 @@ impl Alternating for STTTBoard {}
 
 impl BoardSymmetry<STTTBoard> for STTTBoard {
     type Symmetry = D4Symmetry;
+    type CanonicalKey = (u32, Option<Coord>, u32, u32);
 
     fn map(&self, sym: D4Symmetry) -> STTTBoard {
         let mut grids = [0; 9];
@@ -187,6 +188,10 @@ impl BoardSymmetry<STTTBoard> for STTTBoard {
 
     fn map_move(&self, sym: D4Symmetry, mv: Coord) -> Coord {
         Coord::from_oo(map_oo(sym, mv.om()), map_oo(sym, mv.os()))
+    }
+
+    fn canonical_key(&self) -> Self::CanonicalKey {
+        (self.main_grid, self.last_move, self.macro_mask, self.macro_open)
     }
 }
 

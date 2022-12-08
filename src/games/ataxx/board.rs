@@ -346,6 +346,7 @@ impl Alternating for AtaxxBoard {}
 
 impl BoardSymmetry<AtaxxBoard> for AtaxxBoard {
     type Symmetry = D4Symmetry;
+    type CanonicalKey = (u64, u64, u64);
 
     fn map(&self, sym: Self::Symmetry) -> Self {
         AtaxxBoard {
@@ -370,6 +371,10 @@ impl BoardSymmetry<AtaxxBoard> for AtaxxBoard {
                 to: self.map_coord(to, sym),
             },
         }
+    }
+
+    fn canonical_key(&self) -> Self::CanonicalKey {
+        (self.tiles_a.0, self.tiles_b.0, self.gaps.0)
     }
 }
 

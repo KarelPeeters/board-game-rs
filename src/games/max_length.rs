@@ -69,6 +69,7 @@ impl<B: Board> Board for MaxMovesBoard<B> {
 
 impl<B: Board> BoardSymmetry<MaxMovesBoard<B>> for MaxMovesBoard<B> {
     type Symmetry = B::Symmetry;
+    type CanonicalKey = B::CanonicalKey;
 
     fn map(&self, sym: Self::Symmetry) -> Self {
         MaxMovesBoard {
@@ -80,6 +81,10 @@ impl<B: Board> BoardSymmetry<MaxMovesBoard<B>> for MaxMovesBoard<B> {
 
     fn map_move(&self, sym: Self::Symmetry, mv: B::Move) -> B::Move {
         B::map_move(self.inner(), sym, mv)
+    }
+
+    fn canonical_key(&self) -> Self::CanonicalKey {
+        self.inner.canonical_key()
     }
 }
 

@@ -7,7 +7,8 @@ use arimaa_engine_step::{Action, Direction, GameState, Piece, Square, Terminal};
 use internal_iterator::InternalIterator;
 use once_cell::sync::OnceCell;
 
-use crate::board::{AllMovesIterator, AvailableMovesIterator, Board, BoardMoves, Outcome, Player, UnitSymmetryBoard};
+use crate::board::{AllMovesIterator, AvailableMovesIterator, Board, BoardMoves, Outcome, Player};
+use crate::impl_unit_symmetry_board;
 use crate::util::bitboard::BitBoard8;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -166,7 +167,7 @@ impl Hash for ArimaaBoard {
     }
 }
 
-impl UnitSymmetryBoard for ArimaaBoard {}
+impl_unit_symmetry_board!(ArimaaBoard);
 
 impl Display for ArimaaBoard {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {

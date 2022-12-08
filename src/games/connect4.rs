@@ -115,6 +115,7 @@ impl<'a> BoardMoves<'a, Connect4> for Connect4 {
 
 impl BoardSymmetry<Connect4> for Connect4 {
     type Symmetry = D1Symmetry;
+    type CanonicalKey = (u64, u64);
 
     fn map(&self, sym: Self::Symmetry) -> Self {
         if sym.mirror {
@@ -135,6 +136,10 @@ impl BoardSymmetry<Connect4> for Connect4 {
         } else {
             mv
         }
+    }
+
+    fn canonical_key(&self) -> Self::CanonicalKey {
+        (self.tiles_next, self.tiles_occupied)
     }
 }
 

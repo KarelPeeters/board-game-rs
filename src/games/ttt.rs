@@ -2,7 +2,8 @@ use std::fmt::{Debug, Display, Formatter};
 
 use internal_iterator::{Internal, IteratorExt};
 
-use crate::board::{Alternating, Board, BoardMoves, BruteforceMoveIterator, Outcome, Player, UnitSymmetryBoard};
+use crate::board::{Alternating, Board, BoardMoves, BruteforceMoveIterator, Outcome, Player};
+use crate::impl_unit_symmetry_board;
 use crate::util::coord::{Coord3, CoordAllIter};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -86,7 +87,7 @@ impl Board for TTTBoard {
 
 impl Alternating for TTTBoard {}
 
-impl UnitSymmetryBoard for TTTBoard {}
+impl_unit_symmetry_board!(TTTBoard);
 
 impl<'a> BoardMoves<'a, TTTBoard> for TTTBoard {
     type AllMovesIterator = Internal<CoordAllIter<Coord3>>;

@@ -7,7 +7,7 @@ use std::panic::{RefUnwindSafe, UnwindSafe};
 use internal_iterator::InternalIterator;
 use rand::Rng;
 
-use crate::symmetry::{Symmetry, UnitSymmetry};
+use crate::symmetry::Symmetry;
 
 /// One of the two players.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -102,32 +102,66 @@ pub trait BoardMoves<'a, B: Board> {
 }
 
 /// A helper trait that describes the ways in which a board is symmetric.
-/// For boards without any symmetry, implement [UnitBoardSymmetry] instead to reduce boilerplate.
+/// For boards without any symmetry, the macro [impl_unit_symmetry_board] can be used to reduce boilerplate.
 /// This is a separate trait specifically to allow this trick to work.
-pub trait BoardSymmetry<B: Board> {
+pub trait BoardSymmetry<B: Board>: Sized {
     /// The type used to represent symmetries.
     type Symmetry: Symmetry;
+
+    /// The type used by [canonical_key].
+    type CanonicalKey: Ord;
 
     /// Map this board under the given symmetry.
     fn map(&self, sym: Self::Symmetry) -> Self;
 
     /// Map a move under the given symmetry.
     fn map_move(&self, sym: Self::Symmetry, mv: B::Move) -> B::Move;
+
+    /// Extract **all** of the state from this board that can potentially change when calling [map].
+    /// This is used by [canonicalize] to determine which symmetry ends up as the canonical one for the given board.
+    fn canonical_key(&self) -> Self::CanonicalKey;
+
+    /// Convert this board to a canonical version,
+    /// by mapping it with the symmetry that results in the smallest [canonical_key].
+    ///
+    /// This implies that the returned board is the same for any symmetry of this board,
+    /// which can be useful for deduplication in things like transposition takes.
+    ///
+    /// Implementations are free to override this function if they can provide a faster one.
+    fn canonicalize(&self) -> Self {
+        Self::Symmetry::all()
+            .iter()
+            .map(|&sym| self.map(sym))
+            .min_by_key(|cand| cand.canonical_key())
+            .unwrap()
+    }
 }
 
-/// Utility trait that automatically implements [BoardSymmetry].
-pub trait UnitSymmetryBoard: Board {}
+/// Utility macro to implement [BoardSymmetry] for boards with [UnitSymmetry].
+#[macro_export]
+macro_rules! impl_unit_symmetry_board {
+    ($B:ty) => {
+        impl $crate::board::BoardSymmetry<$B> for $B {
+            type Symmetry = $crate::symmetry::UnitSymmetry;
+            type CanonicalKey = ();
 
-impl<B: UnitSymmetryBoard> BoardSymmetry<B> for B {
-    type Symmetry = UnitSymmetry;
+            fn map(&self, _: Self::Symmetry) -> Self {
+                self.clone()
+            }
 
-    fn map(&self, _: Self::Symmetry) -> Self {
-        self.clone()
-    }
+            fn map_move(
+                &self,
+                _: Self::Symmetry,
+                mv: <$B as $crate::board::Board>::Move,
+            ) -> <$B as $crate::board::Board>::Move {
+                mv
+            }
 
-    fn map_move(&self, _: Self::Symmetry, mv: B::Move) -> B::Move {
-        mv
-    }
+            fn canonical_key(&self) -> Self::CanonicalKey {
+                ()
+            }
+        }
+    };
 }
 
 impl Player {
