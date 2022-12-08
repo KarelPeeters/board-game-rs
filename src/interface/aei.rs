@@ -1,7 +1,7 @@
 //! The _Arimaa Engine Interface_ (AEI).
 //!
 //! A derivative of the UCI protocol for the game Arimaa.
-//! Specification available at https://github.com/Janzert/AEI/blob/master/aei-protocol.txt
+//! Specification available at <https://github.com/Janzert/AEI/blob/master/aei-protocol.txt>.
 
 use std::fmt::{Display, Formatter};
 

@@ -9,7 +9,7 @@ use crate::symmetry::D1Symmetry;
 
 /// The Connect4 game on a 7x6 board.
 ///
-/// The bitboard implementation is based on http://blog.gamesolver.org/solving-connect-four/06-bitboard/.
+/// The bitboard implementation is based on <http://blog.gamesolver.org/solving-connect-four/06-bitboard/>.
 #[derive(Clone, Eq, PartialEq)]
 pub struct Connect4 {
     tiles_next: u64,

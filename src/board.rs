@@ -84,7 +84,7 @@ pub trait AltBoard: Board + Alternating {}
 
 impl<B: Board + Alternating> AltBoard for B {}
 
-/// A helper trait to get the correct lifetimes for [BoardAvailableMoves::available_moves].
+/// A helper trait to get the correct lifetimes for [BoardMoves::available_moves].
 /// This is a workaround to get generic associated types, See <https://github.com/rust-lang/rust/issues/44265>.
 pub trait BoardMoves<'a, B: Board> {
     type AllMovesIterator: InternalIterator<Item = B::Move>;
@@ -101,43 +101,7 @@ pub trait BoardMoves<'a, B: Board> {
     fn available_moves(&'a self) -> Self::AvailableMovesIterator;
 }
 
-/// A helper trait that describes the ways in which a board is symmetric.
-/// For boards without any symmetry, the macro [impl_unit_symmetry_board] can be used to reduce boilerplate.
-/// This is a separate trait specifically to allow this trick to work.
-pub trait BoardSymmetry<B: Board>: Sized {
-    /// The type used to represent symmetries.
-    type Symmetry: Symmetry;
-
-    /// The type used by [canonical_key].
-    type CanonicalKey: Ord;
-
-    /// Map this board under the given symmetry.
-    fn map(&self, sym: Self::Symmetry) -> Self;
-
-    /// Map a move under the given symmetry.
-    fn map_move(&self, sym: Self::Symmetry, mv: B::Move) -> B::Move;
-
-    /// Extract **all** of the state from this board that can potentially change when calling [map].
-    /// This is used by [canonicalize] to determine which symmetry ends up as the canonical one for the given board.
-    fn canonical_key(&self) -> Self::CanonicalKey;
-
-    /// Convert this board to a canonical version,
-    /// by mapping it with the symmetry that results in the smallest [canonical_key].
-    ///
-    /// This implies that the returned board is the same for any symmetry of this board,
-    /// which can be useful for deduplication in things like transposition takes.
-    ///
-    /// Implementations are free to override this function if they can provide a faster one.
-    fn canonicalize(&self) -> Self {
-        Self::Symmetry::all()
-            .iter()
-            .map(|&sym| self.map(sym))
-            .min_by_key(|cand| cand.canonical_key())
-            .unwrap()
-    }
-}
-
-/// Utility macro to implement [BoardSymmetry] for boards with [UnitSymmetry].
+/// Utility macro to implement [BoardSymmetry] for boards with [UnitSymmetry](crate::symmetry::UnitSymmetry).
 #[macro_export]
 macro_rules! impl_unit_symmetry_board {
     ($B:ty) => {
@@ -162,6 +126,42 @@ macro_rules! impl_unit_symmetry_board {
             }
         }
     };
+}
+
+/// A helper trait that describes the ways in which a board is symmetric.
+/// For boards without any symmetry, the macro [impl_unit_symmetry_board] can be used to reduce boilerplate.
+/// This is a separate trait specifically to allow this trick to work.
+pub trait BoardSymmetry<B: Board>: Sized {
+    /// The type used to represent symmetries.
+    type Symmetry: Symmetry;
+
+    /// The type used by [Self::canonical_key].
+    type CanonicalKey: Ord;
+
+    /// Map this board under the given symmetry.
+    fn map(&self, sym: Self::Symmetry) -> Self;
+
+    /// Map a move under the given symmetry.
+    fn map_move(&self, sym: Self::Symmetry, mv: B::Move) -> B::Move;
+
+    /// Extract **all** of the state from this board that can potentially change when calling [Self::map].
+    /// This is used by [Self::canonicalize] to determine which symmetry ends up as the canonical one for the given board.
+    fn canonical_key(&self) -> Self::CanonicalKey;
+
+    /// Convert this board to a canonical version,
+    /// by mapping it with the symmetry that results in the smallest [Self::canonical_key].
+    ///
+    /// This implies that the returned board is the same for any symmetry of this board,
+    /// which can be useful for deduplication in things like transposition takes.
+    ///
+    /// Implementations are free to override this function if they can provide a faster one.
+    fn canonicalize(&self) -> Self {
+        Self::Symmetry::all()
+            .iter()
+            .map(|&sym| self.map(sym))
+            .min_by_key(|cand| cand.canonical_key())
+            .unwrap()
+    }
 }
 
 impl Player {
@@ -197,7 +197,7 @@ impl Player {
     }
 }
 
-/// A convenient type to use for the iterator returned by [Board::all_possible_moves].
+/// A convenient type to use for the iterator returned by [BoardMoves::all_possible_moves].
 #[derive(Debug)]
 pub struct AllMovesIterator<B: Board>(PhantomData<B>);
 
@@ -207,12 +207,12 @@ impl<B: Board> Default for AllMovesIterator<B> {
     }
 }
 
-/// A convenient type to use for the iterator returned by [Board::available_moves].
+/// A convenient type to use for the iterator returned by [BoardMoves::available_moves].
 #[derive(Debug)]
 pub struct AvailableMovesIterator<'a, B: Board>(pub &'a B);
 
 /// A helper struct function can be used to implement [InternalIterator] for [AvailableMovesIterator].
-/// based on [Board::all_possible_moves] and [Board::is_available_move].
+/// based on [BoardMoves::all_possible_moves] and [Board::is_available_move].
 /// This may be a lot slower then directly generating the available moves.
 #[derive(Debug)]
 pub struct BruteforceMoveIterator<'a, B: Board> {

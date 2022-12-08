@@ -43,7 +43,7 @@ pub struct MinimaxResult<V, R> {
     /// The value of this board.
     pub value: V,
 
-    /// The result of the [MoveSelector], `None` if the board is done or the depth was zero.
+    /// The result of the move selection process. `None` if the board is done or the depth was zero.
     pub best_move: Option<R>,
 }
 
