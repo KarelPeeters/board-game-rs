@@ -26,40 +26,54 @@ use itertools::join;
 use crate::board::{Alternating, Board, BoardMoves, BruteforceMoveIterator, Outcome, Player};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct OwareBoard<const PITS_PER_PLAYER: usize, const INIT_SEEDS: u8> {
+pub struct OwareBoard<const PITS_PER_PLAYER: usize> {
     pits: [[u8; PITS_PER_PLAYER]; 2],
     scores: [u8; 2],
     next_player: Player,
     outcome: Option<Outcome>,
+    init_seeds: u8,
 }
 
-impl<const P: usize, const I: u8> Index<usize> for OwareBoard<P, I> {
+impl<const P: usize> Index<usize> for OwareBoard<P> {
     type Output = u8;
     fn index(&self, idx: usize) -> &Self::Output {
         &self.pits[usize::from(idx >= P) ^ self.next_player.index() as usize][idx % P]
     }
 }
 
-impl<const P: usize, const I: u8> IndexMut<usize> for OwareBoard<P, I> {
+impl<const P: usize> IndexMut<usize> for OwareBoard<P> {
     fn index_mut(&mut self, idx: usize) -> &mut Self::Output {
         &mut self.pits[usize::from(idx >= P) ^ self.next_player.index() as usize][idx % P]
     }
 }
 
-impl<const P: usize, const INIT_SEEDS: u8> Default for OwareBoard<P, INIT_SEEDS> {
+impl<const P: usize> Default for OwareBoard<P> {
     fn default() -> Self {
         Self {
-            pits: [[INIT_SEEDS; P]; 2],
+            pits: [[4; P]; 2],
             scores: Default::default(),
             next_player: Player::A,
             outcome: None,
+            init_seeds: 4,
         }
     }
 }
 
-impl<const PITS: usize, const I: u8> OwareBoard<PITS, I> {
+impl<const PITS: usize> OwareBoard<PITS> {
+    pub fn init(init_seeds: u8) -> Self {
+        Self {
+            pits: [[init_seeds; PITS]; 2],
+            init_seeds,
+            ..Self::default()
+        }
+    }
+
     pub fn score(&self, player: Player) -> u8 {
         self.scores[player.index() as usize]
+    }
+
+    pub fn get_seeds(&self, player: Player, idx: usize) -> u8 {
+        self.pits[player.index() as usize][idx]
     }
 
     fn grand_slam(&self, mv: usize) -> bool {
@@ -95,7 +109,7 @@ impl<const PITS: usize, const I: u8> OwareBoard<PITS, I> {
     }
 }
 
-impl<const PITS: usize, const INIT_SEEDS: u8> Board for OwareBoard<PITS, INIT_SEEDS> {
+impl<const PITS: usize> Board for OwareBoard<PITS> {
     type Move = usize;
 
     fn next_player(&self) -> Player {
@@ -152,17 +166,17 @@ impl<const PITS: usize, const INIT_SEEDS: u8> Board for OwareBoard<PITS, INIT_SE
         }
 
         assert!(
-            self.pits.iter().flatten().chain(self.scores.iter()).sum::<u8>() == 2 * PITS as u8 * INIT_SEEDS,
+            self.pits.iter().flatten().chain(self.scores.iter()).sum::<u8>() == 2 * PITS as u8 * self.init_seeds,
             "{} seeds should exist",
-            2 * PITS as u8 * INIT_SEEDS
+            2 * PITS as u8 * self.init_seeds
         );
 
-        let draw = self.scores.iter().all(|&x| x == PITS as u8 * INIT_SEEDS);
+        let draw = self.scores.iter().all(|&x| x == PITS as u8 * self.init_seeds);
 
         self.outcome = self
             .scores
             .iter()
-            .position(|&score| score > PITS as u8 * INIT_SEEDS)
+            .position(|&score| score > PITS as u8 * self.init_seeds)
             .map_or(if draw { Some(Outcome::Draw) } else { None }, |pl| {
                 Some(Outcome::WonBy(Player::BOTH[pl]))
             });
@@ -179,11 +193,9 @@ impl<const PITS: usize, const INIT_SEEDS: u8> Board for OwareBoard<PITS, INIT_SE
     }
 }
 
-impl<const PITS: usize, const INIT_SEEDS: u8> Alternating for OwareBoard<PITS, INIT_SEEDS> {}
+impl<const PITS: usize> Alternating for OwareBoard<PITS> {}
 
-impl<const PITS: usize, const INIT_SEEDS: u8> crate::board::BoardSymmetry<OwareBoard<PITS, INIT_SEEDS>>
-    for OwareBoard<PITS, INIT_SEEDS>
-{
+impl<const PITS: usize> crate::board::BoardSymmetry<OwareBoard<PITS>> for OwareBoard<PITS> {
     type Symmetry = crate::symmetry::UnitSymmetry;
     type CanonicalKey = ();
 
@@ -191,22 +203,16 @@ impl<const PITS: usize, const INIT_SEEDS: u8> crate::board::BoardSymmetry<OwareB
         self.clone()
     }
 
-    fn map_move(
-        &self,
-        _: Self::Symmetry,
-        mv: <OwareBoard<PITS, INIT_SEEDS> as Board>::Move,
-    ) -> <OwareBoard<PITS, INIT_SEEDS> as Board>::Move {
+    fn map_move(&self, _: Self::Symmetry, mv: <OwareBoard<PITS> as Board>::Move) -> <OwareBoard<PITS> as Board>::Move {
         mv
     }
 
     fn canonical_key(&self) -> Self::CanonicalKey {}
 }
 
-impl<'a, const PITS: usize, const INIT_SEEDS: u8> BoardMoves<'a, OwareBoard<PITS, INIT_SEEDS>>
-    for OwareBoard<PITS, INIT_SEEDS>
-{
+impl<'a, const PITS: usize> BoardMoves<'a, OwareBoard<PITS>> for OwareBoard<PITS> {
     type AllMovesIterator = Internal<std::ops::Range<usize>>;
-    type AvailableMovesIterator = BruteforceMoveIterator<'a, OwareBoard<PITS, INIT_SEEDS>>;
+    type AvailableMovesIterator = BruteforceMoveIterator<'a, OwareBoard<PITS>>;
 
     fn all_possible_moves() -> Self::AllMovesIterator {
         (0..PITS).into_internal()
@@ -217,7 +223,7 @@ impl<'a, const PITS: usize, const INIT_SEEDS: u8> BoardMoves<'a, OwareBoard<PITS
     }
 }
 
-impl<const PITS: usize, const INIT_SEEDS: u8> Display for OwareBoard<PITS, INIT_SEEDS> {
+impl<const PITS: usize> Display for OwareBoard<PITS> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let s = format!("       {}    S   ", join(0..PITS, "    "));
         writeln!(f, "{}", s.chars().rev().collect::<String>())?;
