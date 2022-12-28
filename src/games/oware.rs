@@ -1,7 +1,7 @@
 //! Oware is a strategy game from the family of mancala
 //!
 //! It has no  combos, i.e. one turn each round each player.
-//! Official version contains 12 pits and 4 initial seeds in each pit. This implementation is const generic parameterized with PITS and INIT_SEEDS.
+//! Official version contains 12 pits and 4 initial seeds in each pit. This implementation is const generic parameterized with PITS_PER_PLAYER.
 //!
 //! # Rules
 //! 1. Each player has control over half the pits that are in front of them
@@ -15,13 +15,9 @@
 //!
 //! Objective is to capture as many seeds as possible and so the game will conclude early if a
 //! player captures more than half the seeds
-use std::{
-    fmt::{Debug, Display, Formatter},
-    ops::{Index, IndexMut},
-};
-
 use internal_iterator::{Internal, IteratorExt};
 use itertools::join;
+use std::fmt::{Debug, Display, Formatter};
 
 use crate::board::{Alternating, Board, BoardMoves, BruteforceMoveIterator, Outcome, Player};
 
@@ -34,37 +30,20 @@ pub struct OwareBoard<const PITS_PER_PLAYER: usize> {
     init_seeds: u8,
 }
 
-impl<const P: usize> Index<usize> for OwareBoard<P> {
-    type Output = u8;
-    fn index(&self, idx: usize) -> &Self::Output {
-        &self.pits[usize::from(idx >= P) ^ self.next_player.index() as usize][idx % P]
-    }
-}
-
-impl<const P: usize> IndexMut<usize> for OwareBoard<P> {
-    fn index_mut(&mut self, idx: usize) -> &mut Self::Output {
-        &mut self.pits[usize::from(idx >= P) ^ self.next_player.index() as usize][idx % P]
-    }
-}
-
 impl<const P: usize> Default for OwareBoard<P> {
     fn default() -> Self {
-        Self {
-            pits: [[4; P]; 2],
-            scores: Default::default(),
-            next_player: Player::A,
-            outcome: None,
-            init_seeds: 4,
-        }
+        Self::new(4)
     }
 }
 
 impl<const PITS: usize> OwareBoard<PITS> {
-    pub fn init(init_seeds: u8) -> Self {
+    pub fn new(init_seeds: u8) -> Self {
         Self {
             pits: [[init_seeds; PITS]; 2],
             init_seeds,
-            ..Self::default()
+            scores: Default::default(),
+            next_player: Player::A,
+            outcome: None,
         }
     }
 
@@ -78,12 +57,12 @@ impl<const PITS: usize> OwareBoard<PITS> {
 
     fn grand_slam(&self, mv: usize) -> bool {
         mv >= PITS
-            && self.opp_pits().all(|x| match self[x] {
+            && self.opp_pits().all(|x| match self.at(x) {
                 2 | 3 => x <= mv,
                 0 => x > mv,
                 _ => false,
             })
-            && self.pl_pits().any(|x| self[x] > 0)
+            && self.pl_pits().any(|x| self.at(x) > 0)
     }
 
     fn pl_pits(&self) -> std::ops::Range<usize> {
@@ -94,14 +73,25 @@ impl<const PITS: usize> OwareBoard<PITS> {
         PITS..PITS * 2
     }
 
+    // gets the number of seeds w.r.t the `next_player` for a given index
+    fn at(&self, idx: usize) -> u8 {
+        self.pits[usize::from(idx >= PITS) ^ self.next_player.index() as usize][idx % PITS]
+    }
+
+    fn capture(&mut self, idx: usize) -> u8 {
+        let seeds = self.pits[usize::from(idx >= PITS) ^ self.next_player.index() as usize][idx % PITS];
+        self.pits[usize::from(idx >= PITS) ^ self.next_player.index() as usize][idx % PITS] = 0;
+        seeds
+    }
+
     fn can_overflow(&self, mv: usize) -> bool {
-        mv % PITS + self[mv] as usize >= PITS
+        mv % PITS + self.at(mv) as usize >= PITS
     }
 
     fn is_stalemate(&self) -> bool {
-        if (0..PITS * 2).fold(0, |a, c| a + self[c]) == 2 && self.pits.iter().flatten().max() == Some(&1) {
-            let f = (0..PITS * 2).position(|x| self[x] == 1).unwrap();
-            let l = (0..PITS * 2).rposition(|x| self[x] == 1).unwrap();
+        if (0..PITS * 2).fold(0, |a, c| a + self.at(c)) == 2 && self.pits.iter().flatten().max() == Some(&1) {
+            let f = (0..PITS * 2).position(|x| self.at(x) == 1).unwrap();
+            let l = (0..PITS * 2).rposition(|x| self.at(x) == 1).unwrap();
             (PITS - 1..PITS + 1).contains(&(l - f))
         } else {
             false
@@ -119,8 +109,8 @@ impl<const PITS: usize> Board for OwareBoard<PITS> {
     fn is_available_move(&self, mv: Self::Move) -> bool {
         assert!(!self.is_done());
         assert!(mv < PITS);
-        if self.opp_pits().any(|x| self[x] > 0) {
-            self[mv] > 0
+        if self.opp_pits().any(|x| self.at(x) > 0) {
+            self.at(mv) > 0
         } else {
             self.can_overflow(mv)
         }
@@ -131,37 +121,34 @@ impl<const PITS: usize> Board for OwareBoard<PITS> {
 
         let player = self.next_player.index() as usize;
 
-        let mut seeds = self[mv];
-        self[mv] = 0;
+        let mut seeds = self.capture(mv);
         let mut idx = mv;
 
         // sowing
         while seeds > 0 {
             idx = (idx + usize::from((idx + 1) % (PITS * 2) == mv) + 1) % (PITS * 2);
             seeds -= 1;
-            self[idx] += 1;
+            self.pits[usize::from(idx >= PITS) ^ player][idx % PITS] += 1;
         }
 
         // capture
         if !self.grand_slam(idx) {
-            while idx >= PITS && matches!(self[idx], 2 | 3) {
-                self.scores[player] += self[idx];
-                self[idx] = 0;
+            while idx >= PITS && matches!(self.at(idx), 2 | 3) {
+                self.scores[player] += self.capture(idx);
                 idx = (idx + (PITS * 2) - 1) % (PITS * 2);
             }
         }
 
         // No move endgame
-        if self.pl_pits().all(|x| self[x] == 0) && !self.opp_pits().any(|x| self.can_overflow(x)) {
+        if self.pl_pits().all(|x| self.at(x) == 0) && !self.opp_pits().any(|x| self.can_overflow(x)) {
             self.opp_pits().for_each(|x| {
-                self.scores[(player + 1) % 2] += self[x];
-                self[x] = 0;
+                self.scores[(player + 1) % 2] += self.capture(x);
             })
         }
 
         // Stalemate endgame
         if self.is_stalemate() {
-            (0..PITS * 2).for_each(|x| self[x] = 0);
+            (0..PITS * 2).for_each(|x| _ = self.capture(x));
             self.scores.iter_mut().for_each(|x| *x += 1);
         }
 
