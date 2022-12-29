@@ -55,6 +55,14 @@ impl<const PITS: usize> OwareBoard<PITS> {
         self.pits[player.index() as usize][idx]
     }
 
+    pub fn init_seeds(&self) -> u8 {
+        self.init_seeds
+    }
+
+    pub fn pits(&self) -> [[u8; PITS]; 2] {
+        self.pits
+    }
+
     fn grand_slam(&self, mv: usize) -> bool {
         mv >= PITS
             && self.opp_pits().all(|x| match self.at(x) {
