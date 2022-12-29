@@ -67,7 +67,7 @@ impl STTTBoard {
     fn set_tile_and_update(&mut self, player: Player, coord: Coord) {
         let om = coord.om();
         let os = coord.os();
-        let p = (9 * player.index()) as u8;
+        let p = 9 * player.index();
 
         //set tile and macro, check win
         let new_grid = self.grids[om as usize] | (1 << (os + p));

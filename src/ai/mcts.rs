@@ -25,7 +25,7 @@ impl IdxRange {
     }
 
     pub fn get(&self, index: usize) -> usize {
-        assert!(index < (self.length as usize), "Index {} out of bounds", index);
+        assert!(index < self.length, "Index {} out of bounds", index);
         self.start.get() + index
     }
 }
@@ -150,7 +150,7 @@ impl<M> Node<M> {
 
 // TODO extend mcts to non-alternating games
 
-/// A small wrapper type for Vec<SNode> that uses u64 for indexing instead.
+/// A small wrapper type for `Vec<SNode>` that uses u64 for indexing instead.
 #[derive(Debug)]
 pub struct Tree<B: AltBoard> {
     pub root_board: B,
@@ -236,13 +236,13 @@ impl<B: AltBoard> Index<usize> for Tree<B> {
     type Output = Node<B::Move>;
 
     fn index(&self, index: usize) -> &Self::Output {
-        &self.nodes[index as usize]
+        &self.nodes[index]
     }
 }
 
 impl<B: AltBoard> IndexMut<usize> for Tree<B> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.nodes[index as usize]
+        &mut self.nodes[index]
     }
 }
 
