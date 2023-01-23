@@ -45,6 +45,25 @@ fn perft_recurse<B: Board + Hash>(map: &mut HashMap<(B, u32), u64>, board: B, de
     p
 }
 
+/// Same as [perft] but without any caching of perft values for visited boards.
+pub fn perf_naive<B: Board>(board: &B, depth: u32) -> u64 {
+    if depth == 0 {
+        return 1;
+    }
+    if board.is_done() {
+        return 0;
+    }
+    if depth == 1 {
+        return board.available_moves().count() as u64;
+    }
+
+    let mut p = 0;
+    board.available_moves().for_each(|mv: B::Move| {
+        p += perf_naive(&board.clone_and_play(mv), depth - 1);
+    });
+    p
+}
+
 /// Structure returned by [`average_game_stats`].
 #[derive(Debug)]
 pub struct GameStats {
