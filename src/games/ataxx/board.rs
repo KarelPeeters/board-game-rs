@@ -274,7 +274,7 @@ impl Board for AtaxxBoard {
         let copy_count = copy_targets.count() as u32;
         let jump_count: u32 = jump_targets
             .into_iter()
-            .map(|to| (next_tiles & BitBoard8::coord(to).ring()).count() as u32)
+            .map(|to| (next_tiles & coord_to_ring(to)).count() as u32)
             .sum();
 
         let index = rng.gen_range(0..(copy_count + jump_count));
@@ -286,7 +286,7 @@ impl Board for AtaxxBoard {
         } else {
             let mut left = index - copy_count;
             for to in jump_targets {
-                let from = next_tiles & BitBoard8::coord(to).ring();
+                let from = next_tiles & coord_to_ring(to);
                 let count = from.count() as u32;
                 if left < count {
                     let from = from.get_nth(left);
@@ -403,7 +403,7 @@ impl InternalIterator for AllMovesIterator<AtaxxBoard> {
             f(Move::Copy { to })?;
         }
         for to in full_board {
-            for from in BitBoard8::coord(to).ring() & full_board {
+            for from in coord_to_ring(to) & full_board {
                 f(Move::Jump { from, to })?;
             }
         }
@@ -434,11 +434,64 @@ impl InternalIterator for AvailableMovesIterator<'_, AtaxxBoard> {
         // jump moves
         let jump_targets = free_tiles & next_tiles.ring();
         for to in jump_targets {
-            for from in next_tiles & BitBoard8::coord(to).ring() {
+            for from in next_tiles & coord_to_ring(to) {
                 f(Move::Jump { from, to })?;
             }
         }
 
         ControlFlow::Continue(())
+    }
+
+    fn count(self) -> usize {
+        let board = self.0;
+        let next_tiles = board.tiles_pov().0;
+        let free_tiles = board.free_tiles();
+
+        if board.must_pass_with_tiles(next_tiles) {
+            return 1;
+        }
+
+        let mut count = 0;
+
+        let copy_targets = free_tiles & next_tiles.adjacent();
+        count += copy_targets.count() as usize;
+
+        for from in next_tiles {
+            let to = coord_to_ring(from) & free_tiles;
+            count += to.count() as usize;
+        }
+
+        count
+    }
+}
+
+/// The same as `BitBoard8::coord(from).ring()` but hopefully faster.
+pub fn coord_to_ring(coord: Coord8) -> BitBoard8 {
+    macro_rules! coord_to_ring_values {
+        [$($index:literal),+] => {
+            [$(BitBoard8::coord(Coord8::from_index($index)).ring()),+]
+        }
+    }
+    #[rustfmt::skip]
+    const COORD_TO_RING_VALUES: [BitBoard8; 64] = coord_to_ring_values![
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+        16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+        32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47,
+        48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63
+    ];
+    COORD_TO_RING_VALUES[coord.index() as usize]
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::games::ataxx::coord_to_ring;
+    use crate::util::bitboard::BitBoard8;
+    use crate::util::coord::Coord8;
+
+    #[test]
+    fn ring() {
+        for coord in Coord8::all() {
+            assert_eq!(BitBoard8::coord(coord).ring(), coord_to_ring(coord));
+        }
     }
 }
