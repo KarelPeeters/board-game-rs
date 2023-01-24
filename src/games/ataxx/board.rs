@@ -469,7 +469,7 @@ impl InternalIterator for AvailableMovesIterator<'_, AtaxxBoard> {
 pub fn coord_to_ring(coord: Coord8) -> BitBoard8 {
     macro_rules! coord_to_ring_values {
         [$($index:literal),+] => {
-            [$(BitBoard8::coord(Coord8::from_index($index)).ring()),+]
+            [$(BitBoard8::coord(Coord8::from_index($index)).ring_const()),+]
         }
     }
     #[rustfmt::skip]

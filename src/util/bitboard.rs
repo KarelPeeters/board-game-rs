@@ -1,4 +1,6 @@
 use std::fmt::{Display, Formatter};
+use std::ops::{BitAnd, Shl, Shr};
+use std::simd::{u64x8, Simd, SimdUint};
 
 use crate::util::bits::{get_nth_set_bit, BitIter};
 use crate::util::coord::Coord8;
@@ -108,7 +110,7 @@ impl BitBoard8 {
         BitBoard8(self.orthogonal().0 | self.diagonal().0)
     }
 
-    pub const fn ring(self) -> Self {
+    pub const fn ring_const(self) -> Self {
         let x = self.0;
 
         let left_2 = (x >> 2 | x >> 10 | x >> 18 | x << 6 | x << 14) & 0x3f3f3f3f3f3f3f3f;
@@ -118,6 +120,26 @@ impl BitBoard8 {
         let right_2 = (x << 2 | x << 10 | x << 18 | x >> 6 | x >> 14) & 0xfcfcfcfcfcfcfcfc;
 
         let y = left_2 | left_1 | center | right_1 | right_2;
+        BitBoard8(y)
+    }
+
+    pub fn ring(self) -> Self {
+        let x = self.0;
+
+        let m3f = 0x3f3f3f3f3f3f3f3f;
+        let m7f = 0x7f7f7f7f7f7f7f7f;
+        let mfe = 0xfefefefefefefefe;
+        let mfc = 0xfcfcfcfcfcfcfcfc;
+        let mff = -1i64 as u64;
+
+        let shifts = Simd::from_array([2, 10, 18, 17, 16, 15, 6, 14]);
+        let mask_right = Simd::from_array([m3f, m3f, m3f, m7f, mff, mfe, mfc, mfc]);
+        let mask_left = Simd::from_array([mfc, mfc, mfc, mfe, mff, m7f, m3f, m3f]);
+
+        let right = u64x8::splat(x).shr(shifts).bitand(mask_right);
+        let left = u64x8::splat(x).shl(shifts).bitand(mask_left);
+
+        let y = (left | right).reduce_or();
         BitBoard8(y)
     }
 
@@ -209,9 +231,10 @@ mod operations {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rand::rngs::SmallRng;
     use rand::{Rng, SeedableRng};
+
+    use super::*;
 
     #[test]
     fn copy_jump() {
