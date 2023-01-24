@@ -7,5 +7,6 @@ pub mod pathfind;
 pub mod bitboard;
 pub mod bits;
 pub mod coord;
+pub mod mask;
 
 pub mod rating;

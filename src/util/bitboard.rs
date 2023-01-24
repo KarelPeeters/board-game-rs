@@ -92,38 +92,33 @@ impl BitBoard8 {
     }
 
     pub const fn orthogonal(self) -> Self {
-        BitBoard8(self.left().0 | self.right().0 | self.up().0 | self.down().0)
+        let x = self.0;
+        let y = (x >> 1) & 0x7f7f7f7f7f7f7f7f | (x << 1) & 0xfefefefefefefefe | x << 8 | x >> 8;
+        BitBoard8(y)
     }
 
     pub const fn diagonal(self) -> Self {
-        BitBoard8(self.left().up().0 | self.right().up().0 | self.left().down().0 | self.right().down().0)
+        let x = self.0;
+        let y = (x << 7 | x >> 9) & 0x7f7f7f7f7f7f7f7f | (x >> 7 | x << 9) & 0xfefefefefefefefe;
+        BitBoard8(y)
     }
 
     pub const fn adjacent(self) -> Self {
+        // writing this out yields the exact same shifts and masks as just doing this
         BitBoard8(self.orthogonal().0 | self.diagonal().0)
     }
 
     pub const fn ring(self) -> Self {
-        // this cannot be simplified to `self.adjacent().adjacent() & ~self`,
-        //   that only works for a single or a few non-overlapping bits
-        BitBoard8(
-            self.left().left().0
-                | self.left().left().down().0
-                | self.left().left().down().down().0
-                | self.left().down().down().0
-                | self.down().down().0
-                | self.right().down().down().0
-                | self.right().right().down().down().0
-                | self.right().right().down().0
-                | self.right().right().0
-                | self.right().right().up().0
-                | self.right().right().up().up().0
-                | self.right().up().up().0
-                | self.up().up().0
-                | self.left().up().up().0
-                | self.left().left().up().up().0
-                | self.left().left().up().0,
-        )
+        let x = self.0;
+
+        let left_2 = (x >> 2 | x >> 10 | x >> 18 | x << 6 | x << 14) & 0x3f3f3f3f3f3f3f3f;
+        let left_1 = (x >> 17 | x << 15) & 0x7f7f7f7f7f7f7f7f;
+        let center = x << 16 | x >> 16;
+        let right_1 = (x << 17 | x >> 15) & 0xfefefefefefefefe;
+        let right_2 = (x << 2 | x << 10 | x << 18 | x >> 6 | x >> 14) & 0xfcfcfcfcfcfcfcfc;
+
+        let y = left_2 | left_1 | center | right_1 | right_2;
+        BitBoard8(y)
     }
 
     pub const fn flip_x(self) -> BitBoard8 {
@@ -215,6 +210,8 @@ mod operations {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::rngs::SmallRng;
+    use rand::{Rng, SeedableRng};
 
     #[test]
     fn copy_jump() {
@@ -251,5 +248,68 @@ mod tests {
 
         assert_eq!(board.flip_x(), expected_flip_x);
         assert_eq!(board.flip_y(), expected_flip_y);
+    }
+
+    fn ring_slow(board: BitBoard8) -> BitBoard8 {
+        board.left().left()
+            | board.left().left().down()
+            | board.left().left().down().down()
+            | board.left().down().down()
+            | board.down().down()
+            | board.right().down().down()
+            | board.right().right().down().down()
+            | board.right().right().down()
+            | board.right().right()
+            | board.right().right().up()
+            | board.right().right().up().up()
+            | board.right().up().up()
+            | board.up().up()
+            | board.left().up().up()
+            | board.left().left().up().up()
+            | board.left().left().up()
+    }
+
+    fn assert_board_eq(expected: BitBoard8, actual: BitBoard8) {
+        if expected != actual {
+            assert_eq!(expected.to_string(), actual.to_string());
+            assert_eq!(expected, actual);
+        } else {
+            println!("ok");
+        }
+    }
+
+    fn test_spatial_all(board: BitBoard8) {
+        println!("board\n{}", board);
+
+        print!("orthogonal: ");
+        assert_board_eq(
+            board.left() | board.right() | board.up() | board.down(),
+            board.orthogonal(),
+        );
+        print!("diagonal: ");
+        assert_board_eq(
+            board.left().up() | board.right().up() | board.left().down() | board.right().down(),
+            board.diagonal(),
+        );
+        print!("adjacent: ");
+        assert_board_eq(board.orthogonal() | board.diagonal(), board.adjacent());
+        print!("ring: ");
+        assert_board_eq(ring_slow(board), board.ring());
+
+        println!();
+    }
+
+    #[test]
+    fn spatial() {
+        for coord in Coord8::all() {
+            println!("{:?} index {}", coord, coord.index());
+            test_spatial_all(BitBoard8::coord(coord));
+        }
+
+        let mut rng = SmallRng::from_entropy();
+        for _ in 0..128 {
+            let board = BitBoard8(rng.gen());
+            test_spatial_all(board);
+        }
     }
 }
