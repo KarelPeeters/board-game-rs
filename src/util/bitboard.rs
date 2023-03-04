@@ -75,39 +75,47 @@ impl BitBoard8 {
         BitBoard8(self.0 & !(1 << coord.index()))
     }
 
+    #[must_use]
     pub const fn left(self) -> Self {
         BitBoard8((self.0 >> 1) & 0x7f7f7f7f7f7f7f7f)
     }
 
+    #[must_use]
     pub const fn right(self) -> Self {
         BitBoard8((self.0 << 1) & 0xfefefefefefefefe)
     }
 
+    #[must_use]
     pub const fn down(self) -> Self {
         BitBoard8((self.0 >> 8) & 0x00ffffffffffffff)
     }
 
+    #[must_use]
     pub const fn up(self) -> Self {
         BitBoard8((self.0 << 8) & 0xffffffffffffff00)
     }
 
+    #[must_use]
     pub const fn orthogonal(self) -> Self {
         let x = self.0;
         let y = (x >> 1) & 0x7f7f7f7f7f7f7f7f | (x << 1) & 0xfefefefefefefefe | x << 8 | x >> 8;
         BitBoard8(y)
     }
 
+    #[must_use]
     pub const fn diagonal(self) -> Self {
         let x = self.0;
         let y = (x << 7 | x >> 9) & 0x7f7f7f7f7f7f7f7f | (x >> 7 | x << 9) & 0xfefefefefefefefe;
         BitBoard8(y)
     }
 
+    #[must_use]
     pub const fn adjacent(self) -> Self {
         // writing this out yields the exact same shifts and masks as just doing this
         BitBoard8(self.orthogonal().0 | self.diagonal().0)
     }
 
+    #[must_use]
     pub const fn ring(self) -> Self {
         let x = self.0;
 
@@ -121,11 +129,13 @@ impl BitBoard8 {
         BitBoard8(y)
     }
 
+    #[must_use]
     pub const fn flip_x(self) -> BitBoard8 {
         // reverse_bits is a transpose, swap_bytes a vertical flip
         BitBoard8(self.0.reverse_bits().swap_bytes())
     }
 
+    #[must_use]
     pub const fn flip_y(self) -> BitBoard8 {
         BitBoard8(self.0.swap_bytes())
     }
