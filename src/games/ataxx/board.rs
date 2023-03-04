@@ -456,12 +456,109 @@ impl InternalIterator for AvailableMovesIterator<'_, AtaxxBoard> {
         let copy_targets = free_tiles & next_tiles.adjacent();
         count += copy_targets.count() as usize;
 
-        for from in next_tiles {
-            let to = coord_to_ring(from) & free_tiles;
-            count += to.count() as usize;
-        }
+        count += (BitBoard8(next_tiles.0 << 2) & BitBoard8::FULL.left().left() & free_tiles).count() as usize;
+        count += (BitBoard8(next_tiles.0 >> 6) & BitBoard8::FULL.left().left().up() & free_tiles).count() as usize;
+        count +=
+            (BitBoard8(next_tiles.0 >> 14) & BitBoard8::FULL.left().left().up().up() & free_tiles).count() as usize;
+        count += (BitBoard8(next_tiles.0 >> 15) & BitBoard8::FULL.left().up().up() & free_tiles).count() as usize;
+        count += (BitBoard8(next_tiles.0 >> 16) & BitBoard8::FULL.up().up() & free_tiles).count() as usize;
+        count += (BitBoard8(next_tiles.0 >> 17) & BitBoard8::FULL.right().up().up() & free_tiles).count() as usize;
+        count +=
+            (BitBoard8(next_tiles.0 >> 18) & BitBoard8::FULL.right().right().up().up() & free_tiles).count() as usize;
+        count += (BitBoard8(next_tiles.0 >> 10) & BitBoard8::FULL.right().right().up() & free_tiles).count() as usize;
+        count += (BitBoard8(next_tiles.0 >> 2) & BitBoard8::FULL.right().right() & free_tiles).count() as usize;
+        count += (BitBoard8(next_tiles.0 << 6) & BitBoard8::FULL.right().right().down() & free_tiles).count() as usize;
+        count += (BitBoard8(next_tiles.0 << 14) & BitBoard8::FULL.right().right().down().down() & free_tiles).count()
+            as usize;
+        count += (BitBoard8(next_tiles.0 << 15) & BitBoard8::FULL.right().down().down() & free_tiles).count() as usize;
+        count += (BitBoard8(next_tiles.0 << 16) & BitBoard8::FULL.down().down() & free_tiles).count() as usize;
+        count += (BitBoard8(next_tiles.0 << 17) & BitBoard8::FULL.left().down().down() & free_tiles).count() as usize;
+        count +=
+            (BitBoard8(next_tiles.0 << 18) & BitBoard8::FULL.left().left().down().down() & free_tiles).count() as usize;
+        count += (BitBoard8(next_tiles.0 << 10) & BitBoard8::FULL.left().left().down() & free_tiles).count() as usize;
+
+        // for (shift, mask) in RING_STEPS {
+        //     let targets = BitBoard8(shift_signed(next_tiles.0, shift)) & mask & free_tiles;
+        //     count += targets.count() as usize;
+        // }
+
+        // for from in next_tiles {
+        //     let to = coord_to_ring(from) & free_tiles;
+        //     count += to.count() as usize;
+        // }
 
         count
+    }
+}
+
+// TODO move to bitboard
+const RING_STEPS_ABSTRACT: [(i8, fn(BitBoard8) -> BitBoard8); 16] = [
+    (-2, |b| b.left().left()),
+    (6, |b| b.left().left().up()),
+    (14, |b| b.left().left().up().up()),
+    (15, |b| b.left().up().up()),
+    (16, |b| b.up().up()),
+    (17, |b| b.right().up().up()),
+    (18, |b| b.right().right().up().up()),
+    (10, |b| b.right().right().up()),
+    (2, |b| b.right().right()),
+    (-6, |b| b.right().right().down()),
+    (-14, |b| b.right().right().down().down()),
+    (-15, |b| b.right().down().down()),
+    (-16, |b| b.down().down()),
+    (-17, |b| b.left().down().down()),
+    (-18, |b| b.left().left().down().down()),
+    (-10, |b| b.left().left().down()),
+];
+
+const RING_STEPS: [(i8, BitBoard8); 16] = [
+    (-2, BitBoard8::FULL.left().left()),
+    (6, BitBoard8::FULL.left().left().up()),
+    (14, BitBoard8::FULL.left().left().up().up()),
+    (15, BitBoard8::FULL.left().up().up()),
+    (16, BitBoard8::FULL.up().up()),
+    (17, BitBoard8::FULL.right().up().up()),
+    (18, BitBoard8::FULL.right().right().up().up()),
+    (10, BitBoard8::FULL.right().right().up()),
+    (2, BitBoard8::FULL.right().right()),
+    (-6, BitBoard8::FULL.right().right().down()),
+    (-14, BitBoard8::FULL.right().right().down().down()),
+    (-15, BitBoard8::FULL.right().down().down()),
+    (-16, BitBoard8::FULL.down().down()),
+    (-17, BitBoard8::FULL.left().down().down()),
+    (-18, BitBoard8::FULL.left().left().down().down()),
+    (-10, BitBoard8::FULL.left().left().down()),
+];
+
+#[cfg(test)]
+mod test {
+    use rand::rngs::SmallRng;
+    use rand::{Rng, SeedableRng};
+
+    use crate::games::ataxx::board::{shift_signed, RING_STEPS_ABSTRACT};
+    use crate::util::bitboard::BitBoard8;
+
+    #[test]
+    fn test_ring_steps() {
+        for (delta, f) in RING_STEPS_ABSTRACT {
+            let mut rng = SmallRng::seed_from_u64(0);
+
+            for _ in 0..100 {
+                let board = BitBoard8(rng.gen());
+
+                let shifted = BitBoard8(shift_signed(board.0, delta));
+                let masked = shifted & f(BitBoard8::FULL);
+                assert_eq!(masked, f(board));
+            }
+        }
+    }
+}
+
+fn shift_signed(x: u64, i: i8) -> u64 {
+    if i >= 0 {
+        x << i
+    } else {
+        x >> -i
     }
 }
 
