@@ -2,7 +2,7 @@ use std::fmt::{Debug, Display, Formatter};
 
 use internal_iterator::{Internal, IteratorExt};
 
-use crate::board::{Alternating, Board, BoardMoves, BruteforceMoveIterator, Outcome, Player};
+use crate::board::{Alternating, Board, BoardDone, BoardMoves, BruteforceMoveIterator, Outcome, PlayError, Player};
 use crate::impl_unit_symmetry_board;
 use crate::util::coord::{Coord3, CoordAllIter};
 
@@ -47,13 +47,13 @@ impl Board for TTTBoard {
         self.next_player
     }
 
-    fn is_available_move(&self, mv: Self::Move) -> bool {
-        assert!(!self.is_done());
-        self.tiles[mv.index() as usize].is_none()
+    fn is_available_move(&self, mv: Self::Move) -> Result<bool, BoardDone> {
+        self.check_done()?;
+        Ok(self.tiles[mv.index() as usize].is_none())
     }
 
-    fn play(&mut self, mv: Self::Move) {
-        assert!(self.is_available_move(mv), "{:?} is not available on {:?}", mv, self);
+    fn play(&mut self, mv: Self::Move) -> Result<(), PlayError> {
+        self.check_can_play(mv)?;
 
         self.tiles[mv.index() as usize] = Some(self.next_player);
 
@@ -74,6 +74,7 @@ impl Board for TTTBoard {
         };
 
         self.next_player = self.next_player.other();
+        Ok(())
     }
 
     fn outcome(&self) -> Option<Outcome> {
@@ -97,7 +98,7 @@ impl<'a> BoardMoves<'a, TTTBoard> for TTTBoard {
         Coord3::all().into_internal()
     }
 
-    fn available_moves(&'a self) -> Self::AvailableMovesIterator {
+    fn available_moves(&'a self) -> Result<Self::AvailableMovesIterator, BoardDone> {
         BruteforceMoveIterator::new(self)
     }
 }

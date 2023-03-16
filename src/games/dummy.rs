@@ -29,7 +29,7 @@ use internal_iterator::{Internal, IteratorExt};
 use nom::error::Error;
 use nom::Finish;
 
-use crate::board::{Alternating, Board, BoardMoves, Outcome, Player};
+use crate::board::{Alternating, Board, BoardDone, BoardMoves, Outcome, PlayError, Player};
 use crate::impl_unit_symmetry_board;
 
 mod parse {
@@ -123,18 +123,21 @@ impl Board for DummyGame {
         self.player
     }
 
-    fn is_available_move(&self, mv: Self::Move) -> bool {
+    fn is_available_move(&self, mv: Self::Move) -> Result<bool, BoardDone> {
+        self.check_done()?;
+
         if let Tree::Node(boards) = &self.state {
-            mv < boards.len()
+            Ok(mv < boards.len())
         } else {
-            false
+            Ok(false)
         }
     }
 
-    fn play(&mut self, mv: Self::Move) {
-        assert!(self.is_available_move(mv), "{:?} is not available on {:?}", mv, self);
+    fn play(&mut self, mv: Self::Move) -> Result<(), PlayError> {
+        self.check_can_play(mv)?;
         self.state.choose(mv);
         self.player = self.player.other();
+        Ok(())
     }
 
     fn outcome(&self) -> Option<Outcome> {
@@ -163,12 +166,11 @@ impl<'a> BoardMoves<'a, DummyGame> for DummyGame {
         (0..).into_internal()
     }
 
-    fn available_moves(&'a self) -> Self::AvailableMovesIterator {
-        assert!(!self.is_done());
+    fn available_moves(&'a self) -> Result<Self::AvailableMovesIterator, BoardDone> {
         if let Tree::Node(boards) = &self.state {
-            (0..boards.len()).into_internal()
+            Ok((0..boards.len()).into_internal())
         } else {
-            unreachable!("available_moves checks that the board is not done, so we should have a node here")
+            Err(BoardDone)
         }
     }
 }

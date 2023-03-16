@@ -21,11 +21,11 @@ fn chess_en_passant() {
     let mut board = ChessBoard::default();
     for &mv in &moves {
         println!("{}", board);
-        board.play(ChessMove::from_san(board.inner(), mv).unwrap());
+        board.play(ChessMove::from_san(board.inner(), mv).unwrap()).unwrap();
     }
 
     let capture = ChessMove::from_san(board.inner(), "ed6").unwrap();
-    assert!(board.is_available_move(capture));
+    assert!(board.is_available_move(capture).unwrap());
 
     board_test_main(&board);
 }

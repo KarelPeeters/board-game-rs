@@ -31,7 +31,7 @@ fn test_outcomes(mut board: MaxMovesBoard<DummyGame>, outcomes: &[Option<Outcome
             break;
         }
 
-        let mv = board.available_moves().next().unwrap();
-        board.play(mv);
+        let mv = board.available_moves().unwrap().next().unwrap();
+        board.play(mv).unwrap();
     }
 }

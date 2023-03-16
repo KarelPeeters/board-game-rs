@@ -5,10 +5,10 @@ use internal_iterator::InternalIterator;
 use rand::Rng;
 
 use crate::ai::Bot;
-use crate::board::Board;
+use crate::board::{Board, BoardDone};
 use crate::pov::NonPov;
 
-/// Bot that choses moves randomly uniformly among possible moves.
+/// Bot that chooses moves randomly uniformly among possible moves.
 pub struct RandomBot<R: Rng> {
     rng: R,
 }
@@ -26,12 +26,12 @@ impl<R: Rng> RandomBot<R> {
 }
 
 impl<B: Board, R: Rng> Bot<B> for RandomBot<R> {
-    fn select_move(&mut self, board: &B) -> B::Move {
+    fn select_move(&mut self, board: &B) -> Result<B::Move, BoardDone> {
         board.random_available_move(&mut self.rng)
     }
 }
 
-/// Bot that choses moves after simulating random games for each of them.
+/// Bot that chooses moves after simulating random games for each of them.
 ///
 /// The same number of simulations `rollouts / nb_moves` is done for
 /// each move, and the move resulting in the best average score is selected.
@@ -53,26 +53,24 @@ impl<R: Rng> RolloutBot<R> {
 }
 
 impl<B: Board, R: Rng> Bot<B> for RolloutBot<R> {
-    fn select_move(&mut self, board: &B) -> B::Move {
-        let rollouts_per_move = self.rollouts / board.available_moves().count() as u32;
+    fn select_move(&mut self, board: &B) -> Result<B::Move, BoardDone> {
+        let rollouts_per_move = self.rollouts / board.available_moves().unwrap().count() as u32;
 
-        board
-            .available_moves()
-            .max_by_key(|&mv| {
-                let child = board.clone_and_play(mv);
-
+        Ok(board
+            .children()?
+            .max_by_key(|(_, child)| {
                 let score: i64 = (0..rollouts_per_move)
                     .map(|_| {
                         let mut copy = child.clone();
-                        while !copy.is_done() {
-                            copy.play(copy.random_available_move(&mut self.rng))
+                        while let Ok(mv) = copy.random_available_move(&mut self.rng) {
+                            copy.play(mv).unwrap();
                         }
                         copy.outcome().unwrap().pov(board.next_player()).sign::<i64>()
                     })
                     .sum();
-
                 score
             })
-            .unwrap()
+            .map(|(mv, _)| mv)
+            .unwrap())
     }
 }

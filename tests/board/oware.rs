@@ -12,7 +12,7 @@ fn empty() {
 #[test]
 fn one_move() {
     let mut board = OwareBoard::<6>::default();
-    board.play(3);
+    board.play(3).unwrap();
 
     board_test_main(&OwareBoard::<6>::default())
 }

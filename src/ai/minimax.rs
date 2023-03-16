@@ -7,7 +7,7 @@ use internal_iterator::InternalIterator;
 use rand::Rng;
 
 use crate::ai::Bot;
-use crate::board::Board;
+use crate::board::{Board, BoardDone};
 
 pub trait Heuristic<B: Board>: Debug {
     /// The type used to represent the heuristic value of a board.
@@ -232,8 +232,7 @@ fn negamax_recurse<B: Board, H: Heuristic<B>, S: MoveSelector<B::Move>>(
     let mut best_value = None;
     let mut alpha = alpha;
 
-    let early = board.available_moves().try_for_each(|mv: B::Move| {
-        let child = board.clone_and_play(mv);
+    let early = board.children().unwrap().try_for_each(|(mv, child)| {
         let child_heuristic = heuristic.value_update(board, board_heuristic, length, mv, &child);
 
         let maybe_neg = |v: H::V| {
@@ -322,18 +321,18 @@ impl<B: Board, H: Heuristic<B>, R: Rng> MiniMaxBot<B, H, R> {
 }
 
 impl<B: Board, H: Heuristic<B> + Debug, R: Rng> Bot<B> for MiniMaxBot<B, H, R> {
-    fn select_move(&mut self, board: &B) -> B::Move {
-        assert!(!board.is_done());
+    fn select_move(&mut self, board: &B) -> Result<B::Move, BoardDone> {
+        board.check_done()?;
+
+        let result = minimax(board, &self.heuristic, self.depth, &mut self.rng);
         // unwrap is correct because:
         // * depth > 0 (see [`MiniMaxBot::new`])
-        // * the board is not done (see assert)
+        // * the board is not done (see check above)
         // * the assert in [`minimax`] states that
         //     best_move.is_none() => board.is_done() || depth == 0
         //   by contraposition, we have
         //     !board.is_done() && depth > 0 => best_move.is_some()
         // hence best_move.is_some()
-        minimax(board, &self.heuristic, self.depth, &mut self.rng)
-            .best_move
-            .unwrap()
+        Ok(result.best_move.unwrap())
     }
 }

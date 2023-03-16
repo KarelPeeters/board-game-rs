@@ -15,11 +15,12 @@
 //!
 //! Objective is to capture as many seeds as possible and so the game will conclude early if a
 //! player captures more than half the seeds
-use internal_iterator::{Internal, IteratorExt};
-use itertools::join;
 use std::fmt::{Debug, Display, Formatter};
 
-use crate::board::{Alternating, Board, BoardMoves, BruteforceMoveIterator, Outcome, Player};
+use internal_iterator::{Internal, IteratorExt};
+use itertools::join;
+
+use crate::board::{Alternating, Board, BoardDone, BoardMoves, BruteforceMoveIterator, Outcome, PlayError, Player};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct OwareBoard<const PITS_PER_PLAYER: usize> {
@@ -114,18 +115,22 @@ impl<const PITS: usize> Board for OwareBoard<PITS> {
         self.next_player
     }
 
-    fn is_available_move(&self, mv: Self::Move) -> bool {
-        assert!(!self.is_done());
-        assert!(mv < PITS);
+    fn is_available_move(&self, mv: Self::Move) -> Result<bool, BoardDone> {
+        self.check_done()?;
+
+        if mv >= PITS {
+            return Ok(false);
+        }
+
         if self.opp_pits().any(|x| self.at(x) > 0) {
-            self.at(mv) > 0
+            Ok(self.at(mv) > 0)
         } else {
-            self.can_overflow(mv)
+            Ok(self.can_overflow(mv))
         }
     }
 
-    fn play(&mut self, mv: Self::Move) {
-        assert!(self.is_available_move(mv), "{:?} is not available on {:?}", mv, self);
+    fn play(&mut self, mv: Self::Move) -> Result<(), PlayError> {
+        self.check_can_play(mv)?;
 
         let player = self.next_player.index() as usize;
 
@@ -177,6 +182,8 @@ impl<const PITS: usize> Board for OwareBoard<PITS> {
             });
 
         self.next_player = self.next_player.other();
+
+        Ok(())
     }
 
     fn outcome(&self) -> Option<Outcome> {
@@ -213,7 +220,7 @@ impl<'a, const PITS: usize> BoardMoves<'a, OwareBoard<PITS>> for OwareBoard<PITS
         (0..PITS).into_internal()
     }
 
-    fn available_moves(&'a self) -> Self::AvailableMovesIterator {
+    fn available_moves(&'a self) -> Result<Self::AvailableMovesIterator, BoardDone> {
         BruteforceMoveIterator::new(self)
     }
 }

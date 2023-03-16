@@ -25,7 +25,7 @@ fn perft_recurse<B: Board + Hash>(map: &mut HashMap<(B, u32), u64>, board: B, de
         return 0;
     }
     if depth == 1 {
-        return board.available_moves().count() as u64;
+        return board.available_moves().unwrap().count() as u64;
     }
 
     // we need keys (B, depth) because otherwise we risk miscounting if the same board is encountered at different depths
@@ -37,8 +37,8 @@ fn perft_recurse<B: Board + Hash>(map: &mut HashMap<(B, u32), u64>, board: B, de
     }
 
     let mut p = 0;
-    board.available_moves().for_each(|mv: B::Move| {
-        p += perft_recurse(map, board.clone_and_play(mv), depth - 1);
+    board.children().unwrap().for_each(|(_, child)| {
+        p += perft_recurse(map, child, depth - 1);
     });
 
     map.insert(key, p);
@@ -54,12 +54,12 @@ pub fn perf_naive<B: Board>(board: &B, depth: u32) -> u64 {
         return 0;
     }
     if depth == 1 {
-        return board.available_moves().count() as u64;
+        return board.available_moves().unwrap().count() as u64;
     }
 
     let mut p = 0;
-    board.available_moves().for_each(|mv: B::Move| {
-        p += perf_naive(&board.clone_and_play(mv), depth - 1);
+    board.available_moves().unwrap().for_each(|mv: B::Move| {
+        p += perf_naive(&board.clone_and_play(mv).unwrap(), depth - 1);
     });
     p
 }
@@ -82,10 +82,10 @@ pub fn average_game_stats<B: Board>(mut start: impl FnMut() -> B, mut bot: impl 
         let mut board = start();
 
         let outcome = loop {
-            total_moves += board.available_moves().count();
+            total_moves += board.available_moves().unwrap().count();
             total_positions += 1;
 
-            board.play(bot.select_move(&board));
+            board.play(bot.select_move(&board).unwrap()).unwrap();
 
             if let Some(outcome) = board.outcome() {
                 break outcome;
@@ -132,8 +132,9 @@ fn all_possible_boards_impl<B: Board>(
     }
 
     start
-        .available_moves()
-        .for_each(|mv| all_possible_boards_impl(&start.clone_and_play(mv), depth - 1, include_done, result, set))
+        .children()
+        .unwrap()
+        .for_each(|(_, child)| all_possible_boards_impl(&child, depth - 1, include_done, result, set))
 }
 
 /// Collect all available moves form `n` games played until the end with random moves.
@@ -144,10 +145,10 @@ pub fn all_available_moves_sampled<B: Board>(start: &B, n: u64, rng: &mut impl R
     for _ in 0..n {
         let mut curr = start.clone();
         while !curr.is_done() {
-            curr.available_moves().for_each(|mv| {
+            curr.available_moves().unwrap().for_each(|mv| {
                 *moves.entry(mv).or_default() += 1;
             });
-            curr.play(curr.random_available_move(rng));
+            curr.play_random_available_move(rng).unwrap();
         }
     }
 

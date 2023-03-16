@@ -3,7 +3,7 @@ use std::io::Write;
 use std::io::{BufRead, BufReader, BufWriter, Read};
 use std::time::Instant;
 
-use crate::board::{Board, Player};
+use crate::board::{Board, PlayError, Player};
 use crate::games::ataxx::{AtaxxBoard, Move};
 use crate::interface::uai::command::{Command, GoTimeSettings, Position};
 
@@ -166,17 +166,20 @@ fn apply_moves<O: Write, L: Write>(
                 }
             };
 
-            if curr_board.is_done() {
-                output.respond(&format!("error: cannot play move '{}', board is already done", mv))?;
-                return Ok(());
+            match curr_board.play(mv) {
+                Err(PlayError::BoardDone) => {
+                    output.respond(&format!("error: cannot play move '{}', board is already done", mv))?;
+                    return Ok(());
+                }
+                Err(PlayError::UnavailableMove) => {
+                    output.respond(&format!("error: move '{}' is not available", mv))?;
+                    return Ok(());
+                }
+                Ok(()) => {
+                    // TODO should we push after every move or just the last one?
+                    board_stack.push_front(curr_board.clone());
+                }
             }
-            if !curr_board.is_available_move(mv) {
-                output.respond(&format!("error: move '{}' is not available", mv))?;
-                return Ok(());
-            }
-
-            curr_board.play(mv);
-            board_stack.push_front(curr_board.clone());
         }
     }
 

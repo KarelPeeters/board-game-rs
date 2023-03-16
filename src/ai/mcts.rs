@@ -8,7 +8,7 @@ use rand::seq::IteratorRandom;
 use rand::Rng;
 
 use crate::ai::Bot;
-use crate::board::{AltBoard, Outcome};
+use crate::board::{AltBoard, BoardDone, Outcome};
 use crate::pov::{NonPov, Pov};
 use crate::wdl::{OutcomeWDL, WDL};
 
@@ -250,7 +250,7 @@ fn random_playout<B: AltBoard>(mut board: B, rng: &mut impl Rng) -> Outcome {
     assert!(!board.is_done(), "should never start random playout on a done board");
 
     loop {
-        board.play(board.random_available_move(rng));
+        board.play_random_available_move(rng).unwrap();
 
         if let Some(outcome) = board.outcome() {
             return outcome;
@@ -285,8 +285,7 @@ fn mcts_solver_step<B: AltBoard>(
         None => {
             let start = NonZeroUsize::new(tree.nodes.len()).unwrap();
 
-            curr_board.available_moves().for_each(|mv: B::Move| {
-                let next_board = curr_board.clone_and_play(mv);
+            curr_board.children().unwrap().for_each(|(mv, next_board)| {
                 let outcome = next_board.outcome().pov(curr_board.next_player());
                 let node = Node::new(Some(mv), outcome);
                 tree.nodes.push(node);
@@ -315,7 +314,7 @@ fn mcts_solver_step<B: AltBoard>(
     // result is from the POV of curr_board.next_player
     let (result, proven) = if let Some(picked_child) = picked_unvisited {
         let picked_mv = tree[picked_child].last_move.unwrap();
-        let next_board = curr_board.clone_and_play(picked_mv);
+        let next_board = curr_board.clone_and_play(picked_mv).unwrap();
 
         let outcome = random_playout(next_board, rng).pov(curr_board.next_player().other());
         tree[picked_child].increment(outcome);
@@ -334,7 +333,7 @@ fn mcts_solver_step<B: AltBoard>(
 
         //continue recursing
         let picked_mv = tree[picked].last_move.unwrap();
-        let next_board = curr_board.clone_and_play(picked_mv);
+        let next_board = curr_board.clone_and_play(picked_mv).unwrap();
 
         mcts_solver_step(tree, picked, &next_board, exploration_weight, rng)
     };
@@ -361,6 +360,7 @@ pub fn mcts_build_tree<B: AltBoard>(
     rng: &mut impl Rng,
 ) -> Tree<B> {
     assert!(iterations > 0);
+    assert!(!root_board.is_done());
 
     let mut tree = Tree::new(root_board.clone());
 
@@ -411,8 +411,8 @@ impl<R: Rng> MCTSBot<R> {
 }
 
 impl<R: Rng, B: AltBoard> Bot<B> for MCTSBot<R> {
-    fn select_move(&mut self, board: &B) -> B::Move {
-        assert!(!board.is_done());
-        self.build_tree(board).best_move()
+    fn select_move(&mut self, board: &B) -> Result<B::Move, BoardDone> {
+        board.check_done()?;
+        Ok(self.build_tree(board).best_move())
     }
 }

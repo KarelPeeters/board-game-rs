@@ -7,7 +7,8 @@ use itertools::Itertools;
 use rand::Rng;
 
 use crate::board::{
-    AllMovesIterator, Alternating, AvailableMovesIterator, Board, BoardMoves, BoardSymmetry, Outcome, Player,
+    AllMovesIterator, Alternating, AvailableMovesIterator, Board, BoardDone, BoardMoves, BoardSymmetry, Outcome,
+    PlayError, Player,
 };
 use crate::symmetry::D4Symmetry;
 use crate::util::bits::{get_nth_set_bit, BitIter};
@@ -109,17 +110,20 @@ impl Board for STTTBoard {
         self.next_player
     }
 
-    fn is_available_move(&self, mv: Self::Move) -> bool {
-        assert!(!self.is_done(), "Board must not be done");
+    fn is_available_move(&self, mv: Self::Move) -> Result<bool, BoardDone> {
+        self.check_done()?;
 
-        has_bit(self.macro_mask, mv.om()) && !has_bit(compact_grid(self.grids[mv.om() as usize]), mv.os())
+        let can_play_in_macro = has_bit(self.macro_mask, mv.om());
+        let micro_occupied = has_bit(compact_grid(self.grids[mv.om() as usize]), mv.os());
+
+        Ok(can_play_in_macro && !micro_occupied)
     }
 
-    fn random_available_move(&self, rng: &mut impl Rng) -> Self::Move {
+    fn random_available_move(&self, rng: &mut impl Rng) -> Result<Self::Move, BoardDone> {
         // TODO we can also implement size_hint and skip for the available move iterator,
         //   then we don't need this complicated body any more
 
-        assert!(!self.is_done(), "Board must not be done");
+        self.check_done()?;
 
         let mut count = 0;
         for om in BitIter::new(self.macro_mask) {
@@ -134,7 +138,7 @@ impl Board for STTTBoard {
 
             if index < grid_count {
                 let os = get_nth_set_bit(!compact_grid(grid), index);
-                return Coord::from_oo(om, os);
+                return Ok(Coord::from_oo(om, os));
             }
 
             index -= grid_count;
@@ -143,15 +147,17 @@ impl Board for STTTBoard {
         unreachable!()
     }
 
-    fn play(&mut self, mv: Self::Move) {
-        assert!(self.is_available_move(mv), "{:?} is not available on {:?}", mv, self);
+    fn play(&mut self, mv: Self::Move) -> Result<(), PlayError> {
+        self.check_can_play(mv)?;
 
         //do actual move
         self.set_tile_and_update(self.next_player, mv);
 
         //update for next player
         self.last_move = Some(mv);
-        self.next_player = self.next_player.other()
+        self.next_player = self.next_player.other();
+
+        Ok(())
     }
 
     fn outcome(&self) -> Option<Outcome> {
@@ -203,9 +209,8 @@ impl<'a> BoardMoves<'a, STTTBoard> for STTTBoard {
         Coord::all().into_internal()
     }
 
-    fn available_moves(&'a self) -> Self::AvailableMovesIterator {
-        assert!(!self.is_done());
-        AvailableMovesIterator(self)
+    fn available_moves(&'a self) -> Result<Self::AvailableMovesIterator, BoardDone> {
+        AvailableMovesIterator::new(self)
     }
 }
 
@@ -224,7 +229,7 @@ impl<'a> InternalIterator for AvailableMovesIterator<'a, STTTBoard> {
     type Item = Coord;
 
     fn try_for_each<R, F: FnMut(Self::Item) -> ControlFlow<R>>(self, mut f: F) -> ControlFlow<R> {
-        let board = self.0;
+        let board = self.board();
         for om in BitIter::new(board.macro_mask) {
             let free_grid = (!compact_grid(board.grids[om as usize])) & STTTBoard::FULL_MASK;
             for os in BitIter::new(free_grid) {
@@ -350,7 +355,7 @@ fn get_player(grid: u32, index: u8) -> Option<Player> {
 
 fn symbol_from_tile(board: &STTTBoard, coord: Coord) -> char {
     let is_last = Some(coord) == board.last_move;
-    let is_available = !board.is_done() && board.is_available_move(coord);
+    let is_available = board.is_available_move(coord).unwrap_or(false);
     let player = board.tile(coord);
     symbol_from_tuple(is_available, is_last, player)
 }

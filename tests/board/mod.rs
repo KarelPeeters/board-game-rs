@@ -2,14 +2,13 @@ use std::collections::hash_map::RandomState;
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::Debug;
 use std::iter::FromIterator;
-use std::panic::catch_unwind;
 use std::time::Instant;
 
 use internal_iterator::InternalIterator;
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoroshiro64StarStar;
 
-use board_game::board::Board;
+use board_game::board::{Board, BoardDone, PlayError};
 use board_game::symmetry::Symmetry;
 use board_game::util::game_stats;
 
@@ -71,15 +70,18 @@ pub fn board_perft_main<S: Debug + ?Sized, T: Debug, B: Board>(
 }
 
 fn test_done_board_panics<B: Board>(board: &B) {
-    assert!(board.is_done(), "bug in test implementation");
+    assert!(board.is_done(), "bug in test implementation, expected done board");
 
-    assert!(catch_unwind(|| board.available_moves()).is_err(), "must panic");
-    assert!(catch_unwind(|| board.random_available_move(&mut consistent_rng())).is_err());
+    assert!(matches!(board.available_moves(), Err(BoardDone)));
+    assert!(matches!(
+        board.random_available_move(&mut consistent_rng()),
+        Err(BoardDone)
+    ));
 
     B::all_possible_moves().for_each(|mv: B::Move| {
-        assert!(catch_unwind(|| board.clone().play(mv)).is_err(), "must panic");
-        assert!(catch_unwind(|| board.clone_and_play(mv)).is_err(), "must panic");
-        assert!(catch_unwind(|| board.is_available_move(mv)).is_err(), "must panic")
+        assert!(matches!(board.clone().play(mv), Err(PlayError::BoardDone)));
+        assert!(matches!(board.clone().play(mv), Err(PlayError::BoardDone)));
+        assert!(matches!(board.is_available_move(mv), Err(BoardDone)));
     });
 }
 
@@ -87,10 +89,10 @@ fn test_available_match<B: Board>(board: &B) {
     println!("available_moves and is_available match:");
 
     let all: Vec<B::Move> = B::all_possible_moves().collect();
-    let available: Vec<B::Move> = board.available_moves().collect();
+    let available: Vec<B::Move> = board.available_moves().unwrap().collect();
 
     let all_count = B::all_possible_moves().count();
-    let available_count = board.available_moves().count();
+    let available_count = board.available_moves().unwrap().count();
 
     assert_eq!(all.len(), all_count, "all_possible_moves count mismatch");
     assert_eq!(available.len(), available_count, "available_moves count mismatch");
@@ -102,7 +104,11 @@ fn test_available_match<B: Board>(board: &B) {
 
     // check that every generated move is indeed available, and that it is contained within all possible moves
     for &mv in &available {
-        assert!(board.is_available_move(mv), "generated move {:?} is not available", mv);
+        assert!(
+            board.is_available_move(mv).unwrap(),
+            "generated move {:?} is not available",
+            mv
+        );
         assert!(
             all.contains(&mv),
             "generated move {:?} is not in all_possible_moves",
@@ -112,7 +118,7 @@ fn test_available_match<B: Board>(board: &B) {
 
     // check that every available move is generated
     for &mv in &all {
-        if board.is_available_move(mv) {
+        if board.is_available_move(mv).unwrap() {
             assert!(available.contains(&mv), "available move {:?} was not generated", mv);
         } else {
             assert!(!available.contains(&mv), "non-available move {:?} was generated", mv)
@@ -134,7 +140,7 @@ fn test_available_match<B: Board>(board: &B) {
     // try playing each available move
     for &mv in &available {
         println!("Playing {}", mv);
-        println!("{}", board.clone_and_play(mv));
+        println!("{}", board.clone_and_play(mv).unwrap());
     }
 }
 
@@ -148,7 +154,7 @@ fn test_random_available_uniform<B: Board>(board: &B) {
 
     let mut rng = consistent_rng();
 
-    let available_move_count = board.available_moves().count();
+    let available_move_count = board.available_moves().unwrap().count();
     let total_samples = 1000 * available_move_count;
     let expected_samples = total_samples as f32 / available_move_count as f32;
 
@@ -159,7 +165,7 @@ fn test_random_available_uniform<B: Board>(board: &B) {
 
     let mut counts: BTreeMap<B::Move, u32> = BTreeMap::new();
     for _ in 0..total_samples {
-        let mv = board.random_available_move(&mut rng);
+        let mv = board.random_available_move(&mut rng).unwrap();
         *counts.entry(mv).or_default() += 1;
     }
 
@@ -211,8 +217,12 @@ fn test_symmetry<B: Board>(board: &B) {
         assert_eq!(board.next_player(), mapped.next_player());
 
         if !board.is_done() {
-            let mut expected_moves: Vec<B::Move> = board.available_moves().map(|c| board.map_move(sym, c)).collect();
-            let mut actual_moves: Vec<B::Move> = mapped.available_moves().collect();
+            let mut expected_moves: Vec<B::Move> = board
+                .available_moves()
+                .unwrap()
+                .map(|c| board.map_move(sym, c))
+                .collect();
+            let mut actual_moves: Vec<B::Move> = mapped.available_moves().unwrap().collect();
 
             expected_moves.sort();
             actual_moves.sort();
@@ -220,7 +230,7 @@ fn test_symmetry<B: Board>(board: &B) {
             assert_eq!(expected_moves, actual_moves);
 
             for mv in actual_moves {
-                assert!(mapped.is_available_move(mv));
+                assert!(mapped.is_available_move(mv).unwrap());
             }
         }
     }
