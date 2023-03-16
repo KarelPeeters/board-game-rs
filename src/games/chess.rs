@@ -33,17 +33,17 @@ pub struct ChessBoard {
 }
 
 #[derive(Debug)]
-pub enum ParseMoveError {
-    BoardDone,
-    ParseError(ParseMoveErrorInfo),
-}
-
-#[derive(Debug, Clone)]
-pub struct ParseMoveErrorInfo {
+pub struct ParseMoveError {
     pub board: ChessBoard,
     pub mv: String,
-    pub error: Option<chess::Error>,
-    pub parsed_as_but_not_available: Option<ChessMove>,
+    pub kind: ParseMoveErrorKind,
+}
+
+#[derive(Debug)]
+pub enum ParseMoveErrorKind {
+    BoardDone,
+    ParseError(chess::Error),
+    Unavailable(ChessMove),
 }
 
 impl ChessBoard {
@@ -68,10 +68,14 @@ impl ChessBoard {
         }
     }
 
-    pub fn parse_move(&self, mv_str: &str) -> Result<ChessMove, ParseMoveError> {
-        self.check_done()?;
+    pub fn parse_move(&self, mv_str: &str) -> Result<ChessMove, Box<ParseMoveError>> {
+        self.check_done().map_err(|_| ParseMoveError {
+            board: self.clone(),
+            mv: mv_str.to_owned(),
+            kind: ParseMoveErrorKind::BoardDone,
+        })?;
 
-        let mv = parse_move_inner_impl(self, mv_str).map_err(|e| ParseMoveError::ParseError(e))?;
+        let mv = parse_move_inner_impl(self, mv_str)?;
 
         // fix alternative castling move representation
         let current = &self.inner;
@@ -98,11 +102,10 @@ impl ChessBoard {
         if self.is_available_move(mv).unwrap() {
             Ok(mv)
         } else {
-            Err(ParseMoveError::ParseError(ParseMoveErrorInfo {
+            Err(Box::new(ParseMoveError {
                 board: self.clone(),
                 mv: mv_str.to_owned(),
-                error: None,
-                parsed_as_but_not_available: Some(mv),
+                kind: ParseMoveErrorKind::Unavailable(mv),
             }))
         }
     }
@@ -158,7 +161,7 @@ impl ChessBoard {
     }
 }
 
-fn parse_move_inner_impl(board: &ChessBoard, mv_str: &str) -> Result<ChessMove, ParseMoveErrorInfo> {
+fn parse_move_inner_impl(board: &ChessBoard, mv_str: &str) -> Result<ChessMove, Box<ParseMoveError>> {
     // first try parsing it as a pgn move
     if let Ok(mv) = ChessMove::from_str(mv_str) {
         return Ok(mv);
@@ -166,22 +169,23 @@ fn parse_move_inner_impl(board: &ChessBoard, mv_str: &str) -> Result<ChessMove, 
 
     // the chess crate move parsing is kind of strange, so we need to help it a bit
     let removed_chars: &[char] = &['=', '+', '#'];
-    let mv = if mv_str.contains(removed_chars) {
+    let mv_norm = if mv_str.contains(removed_chars) {
         Cow::from(mv_str.replace(removed_chars, ""))
     } else {
         Cow::from(mv_str)
     };
 
-    match ChessMove::from_san(board.inner(), &mv) {
+    match ChessMove::from_san(board.inner(), &mv_norm) {
         Ok(mv) => Ok(mv),
         Err(original_err) => {
             // try appending e.p. to get it to parse an en passant move
-            let mv_ep = mv.clone() + " e.p.";
-            ChessMove::from_san(board.inner(), &mv_ep).map_err(|_| ParseMoveErrorInfo {
-                board: board.clone(),
-                mv: mv.into_owned(),
-                error: Some(original_err),
-                parsed_as_but_not_available: None,
+            let mv_ep = mv_norm.clone() + " e.p.";
+            ChessMove::from_san(board.inner(), &mv_ep).map_err(|_ep_err| {
+                Box::new(ParseMoveError {
+                    board: board.clone(),
+                    mv: mv_str.to_owned(),
+                    kind: ParseMoveErrorKind::ParseError(original_err),
+                })
             })
         }
     }
@@ -402,11 +406,5 @@ impl Replay<ChessBoard> {
             Player::B => (&full_r, &full_l),
         };
         chess_game_to_pgn(white, black, &self.start, &self.moves)
-    }
-}
-
-impl From<BoardDone> for ParseMoveError {
-    fn from(_: BoardDone) -> Self {
-        ParseMoveError::BoardDone
     }
 }
