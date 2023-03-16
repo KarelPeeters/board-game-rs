@@ -42,7 +42,7 @@ Notable things currently implemented in this crate that work for any [Board](htt
 ### List the available moves on a board and play a random one.
 
 ```rust
-let mut board = AtaxxBoard::default();
+let mut board = AtaxxBoard::default ();
 println!("{}", board);
 
 board.available_moves().unwrap().for_each( | mv| {
