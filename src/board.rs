@@ -45,8 +45,8 @@ where
     fn random_available_move(&self, rng: &mut impl Rng) -> Self::Move {
         let count = self.available_moves().count();
         let index = rng.gen_range(0..count);
-        // SAFETY: unwrap is safe because the index is less than the
-        // length of the iterator.
+        // we can unwrap since we just picked the index to fall in the range
+        //   and we can assume the number of available moves did not change
         self.available_moves().nth(index).unwrap()
     }
 

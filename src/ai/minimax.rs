@@ -324,7 +324,7 @@ impl<B: Board, H: Heuristic<B>, R: Rng> MiniMaxBot<B, H, R> {
 impl<B: Board, H: Heuristic<B> + Debug, R: Rng> Bot<B> for MiniMaxBot<B, H, R> {
     fn select_move(&mut self, board: &B) -> B::Move {
         assert!(!board.is_done());
-        // SAFETY: unwrap is safe because:
+        // unwrap is correct because:
         // * depth > 0 (see [`MiniMaxBot::new`])
         // * the board is not done (see assert)
         // * the assert in [`minimax`] states that
