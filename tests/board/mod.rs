@@ -1,5 +1,5 @@
 use std::collections::hash_map::RandomState;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::iter::FromIterator;
 use std::time::Instant;
@@ -154,7 +154,10 @@ where
 
 /// Test whether the random move distribution is uniform using
 /// [Pearson's chi-squared test](https://en.wikipedia.org/wiki/Pearson%27s_chi-squared_test).
-fn test_random_available_uniform<B: Board>(board: &B) {
+fn test_random_available_uniform<B: Board>(board: &B)
+where
+    B::Move: Hash,
+{
     assert!(!board.is_done(), "invalid board to test");
 
     println!("random_available uniform:");
@@ -171,7 +174,7 @@ fn test_random_available_uniform<B: Board>(board: &B) {
         available_move_count, total_samples, expected_samples
     );
 
-    let mut counts: BTreeMap<B::Move, u32> = BTreeMap::new();
+    let mut counts: HashMap<B::Move, u32> = HashMap::new();
     for _ in 0..total_samples {
         let mv = board.random_available_move(&mut rng).unwrap();
         *counts.entry(mv).or_default() += 1;
@@ -195,7 +198,10 @@ fn test_random_available_uniform<B: Board>(board: &B) {
     }
 }
 
-fn test_symmetry<B: Board>(board: &B) {
+fn test_symmetry<B: Board>(board: &B)
+where
+    B::Move: Hash,
+{
     println!("symmetries:");
 
     let all = B::Symmetry::all();
@@ -225,15 +231,15 @@ fn test_symmetry<B: Board>(board: &B) {
         assert_eq!(board.next_player(), mapped.next_player());
 
         if !board.is_done() {
-            let mut expected_moves: Vec<B::Move> = board
+            let expected_moves_shuffled: Vec<B::Move> = board
                 .available_moves()
                 .unwrap()
                 .map(|c| board.map_move(sym, c))
                 .collect();
-            let mut actual_moves: Vec<B::Move> = mapped.available_moves().unwrap().collect();
+            let actual_moves_shuffled: Vec<B::Move> = mapped.available_moves().unwrap().collect();
 
-            expected_moves.sort();
-            actual_moves.sort();
+            let expected_moves = sort_moves::<B>(&expected_moves_shuffled);
+            let actual_moves = sort_moves::<B>(&actual_moves_shuffled);
 
             assert_eq!(expected_moves, actual_moves);
 
@@ -252,4 +258,8 @@ fn test_symmetry<B: Board>(board: &B) {
 
 fn consistent_rng() -> impl Rng {
     Xoroshiro64StarStar::seed_from_u64(0)
+}
+
+fn sort_moves<B: Board>(moves: &[B::Move]) -> Vec<B::Move> {
+    B::all_possible_moves().filter(|&mv| moves.contains(&mv)).collect()
 }

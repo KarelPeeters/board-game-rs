@@ -46,7 +46,7 @@ where
     for<'a> Self: BoardMoves<'a, Self>,
 {
     /// The type used to represent moves on this board.
-    type Move: Debug + Display + Eq + Ord + Copy + Send + Sync;
+    type Move: Debug + Display + Eq + Copy + Send + Sync;
 
     /// Return the next player to make a move.
     /// If the board is done this is the player that did not play the last move for consistency.
