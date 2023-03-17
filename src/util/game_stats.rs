@@ -12,7 +12,7 @@ use crate::wdl::WDL;
 
 /// The number of legal positions reachable after `depth` moves, including duplicates.
 /// See <https://www.chessprogramming.org/Perft>.
-pub fn perft<B: Board>(board: &B, depth: u32) -> u64 {
+pub fn perft<B: Board + Hash>(board: &B, depth: u32) -> u64 {
     let mut map = HashMap::default();
     perft_recurse(&mut map, board.clone(), depth)
 }
@@ -106,14 +106,14 @@ pub fn average_game_stats<B: Board>(mut start: impl FnMut() -> B, mut bot: impl 
 /// The returned vec does not contain duplicate elements.
 ///
 /// **Warning**: This function can easily take a long time to terminate or not terminate at all depending on the game.
-pub fn all_possible_boards<B: Board>(start: &B, depth: u32, include_done: bool) -> Vec<B> {
+pub fn all_possible_boards<B: Board + Hash>(start: &B, depth: u32, include_done: bool) -> Vec<B> {
     let mut set = HashSet::new();
     let mut result = vec![];
     all_possible_boards_impl(start, depth, include_done, &mut result, &mut set);
     result
 }
 
-fn all_possible_boards_impl<B: Board>(
+fn all_possible_boards_impl<B: Board + Hash>(
     start: &B,
     depth: u32,
     include_done: bool,
@@ -139,7 +139,10 @@ fn all_possible_boards_impl<B: Board>(
 
 /// Collect all available moves form `n` games played until the end with random moves.
 /// Also returns the number of time each move was availalbe.
-pub fn all_available_moves_sampled<B: Board>(start: &B, n: u64, rng: &mut impl Rng) -> HashMap<B::Move, u64> {
+pub fn all_available_moves_sampled<B: Board>(start: &B, n: u64, rng: &mut impl Rng) -> HashMap<B::Move, u64>
+where
+    B::Move: Hash,
+{
     let mut moves = HashMap::default();
 
     for _ in 0..n {

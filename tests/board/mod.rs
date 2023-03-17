@@ -21,7 +21,10 @@ mod oware;
 mod sttt;
 mod ttt;
 
-pub fn board_test_main<B: Board>(board: &B) {
+pub fn board_test_main<B: Board>(board: &B)
+where
+    B::Move: Hash,
+{
     println!("Currently testing board\n{:?}\n{}", board, board);
 
     if board.is_done() {
@@ -34,7 +37,9 @@ pub fn board_test_main<B: Board>(board: &B) {
     test_symmetry(board);
 }
 
-pub fn board_perft_main<S: Debug + ?Sized, T: Debug, B: Board>(
+use std::hash::Hash;
+
+pub fn board_perft_main<S: Debug + ?Sized, T: Debug, B: Board + Hash>(
     f: impl Fn(&S) -> B,
     r: Option<impl Fn(&B) -> T>,
     cases: Vec<(&S, Vec<u64>)>,
@@ -85,7 +90,10 @@ fn test_done_board_panics<B: Board>(board: &B) {
     });
 }
 
-fn test_available_match<B: Board>(board: &B) {
+fn test_available_match<B: Board>(board: &B)
+where
+    B::Move: Hash,
+{
     println!("available_moves and is_available match:");
 
     let all: Vec<B::Move> = B::all_possible_moves().collect();

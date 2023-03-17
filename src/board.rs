@@ -34,13 +34,19 @@ pub enum PlayError {
 }
 
 /// The main trait of this crate. Represents the state of a game.
-/// Each game implementation is supposed to provide it's own constructors to allow for customizable start positions.
-pub trait Board: 'static + Debug + Display + Clone + Eq + Hash + Send + Sync + BoardSymmetry<Self>
+///
+/// Each game implementation is supposed to provide its own constructors to allow for customizable start positions.
+///
+/// Implementing [Board] also requires [BoardSymmetry] and [BoardMoves] to be implemented.
+///
+/// Additionally it can be useful to implement [Hash] for both the board and move types, some utility functions require those extra bounds.
+/// Do **not** implement [Copy] for the board, since the type is mutated by some of the functions and this can quickly lead to confusion.   
+pub trait Board: 'static + Debug + Display + Clone + Eq + Send + Sync + BoardSymmetry<Self>
 where
     for<'a> Self: BoardMoves<'a, Self>,
 {
     /// The type used to represent moves on this board.
-    type Move: Debug + Display + Eq + Ord + Hash + Copy + Send + Sync;
+    type Move: Debug + Display + Eq + Ord + Copy + Send + Sync;
 
     /// Return the next player to make a move.
     /// If the board is done this is the player that did not play the last move for consistency.
