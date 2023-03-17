@@ -25,9 +25,9 @@ fn typical_placement() {
 #[test]
 fn can_pass() {
     let mut board = ArimaaBoard::from_str(BASIC_SETUP).unwrap();
-    board.play(board.available_moves().next().unwrap());
+    board.play(board.available_moves().unwrap().next().unwrap()).unwrap();
 
-    assert!(board.is_available_move(Action::Pass));
+    assert!(board.is_available_move(Action::Pass).unwrap());
     board_test_main(&board);
 }
 

@@ -7,7 +7,9 @@ use arimaa_engine_step::{Action, Direction, GameState, Piece, Square, Terminal};
 use internal_iterator::InternalIterator;
 use once_cell::sync::OnceCell;
 
-use crate::board::{AllMovesIterator, AvailableMovesIterator, Board, BoardMoves, Outcome, Player};
+use crate::board::{
+    AllMovesIterator, AvailableMovesIterator, Board, BoardDone, BoardMoves, Outcome, PlayError, Player,
+};
 use crate::impl_unit_symmetry_board;
 use crate::util::bitboard::BitBoard8;
 
@@ -75,17 +77,21 @@ impl Board for ArimaaBoard {
         player_from_bool(self.state.is_p1_turn_to_move())
     }
 
-    fn is_available_move(&self, mv: Action) -> bool {
-        assert!(!self.is_done());
-        self.init_available_moves().contains(&mv)
+    fn is_available_move(&self, mv: Action) -> Result<bool, BoardDone> {
+        if self.is_done() {
+            Err(BoardDone)
+        } else {
+            Ok(self.init_available_moves().contains(&mv))
+        }
     }
 
-    fn play(&mut self, mv: Action) {
-        assert!(!self.is_done());
-        assert!(self.is_available_move(mv));
+    fn play(&mut self, mv: Action) -> Result<(), PlayError> {
+        self.check_can_play(mv)?;
 
         self.state = self.state.take_action(&mv);
         self.available_moves_cache = OnceCell::new();
+
+        Ok(())
     }
 
     fn outcome(&self) -> Option<Outcome> {
@@ -122,9 +128,8 @@ impl<'a> BoardMoves<'a, ArimaaBoard> for ArimaaBoard {
         AllMovesIterator::default()
     }
 
-    fn available_moves(&'a self) -> Self::AvailableMovesIterator {
-        assert!(!self.is_done());
-        AvailableMovesIterator(self)
+    fn available_moves(&'a self) -> Result<Self::AvailableMovesIterator, BoardDone> {
+        AvailableMovesIterator::new(self)
     }
 }
 
@@ -157,7 +162,7 @@ impl InternalIterator for AvailableMovesIterator<'_, ArimaaBoard> {
     where
         F: FnMut(Self::Item) -> ControlFlow<R>,
     {
-        self.0.init_available_moves().iter().copied().try_for_each(f)
+        self.board().init_available_moves().iter().copied().try_for_each(f)
     }
 }
 

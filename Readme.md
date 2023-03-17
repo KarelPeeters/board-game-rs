@@ -45,13 +45,13 @@ Notable things currently implemented in this crate that work for any [Board](htt
 let mut board = AtaxxBoard::default();
 println!("{}", board);
 
-board.available_moves().for_each(|mv| {
+board.available_moves().unwrap().for_each(|mv| {
     println!("{:?}", mv)
 });
 
-let mv = board.random_available_move(&mut rng);
+let mv = board.random_available_move(&mut rng).unwrap();
 println!("Picked move {:?}", mv);
-board.play(mv);
+board.play(mv).unwrap();
 println!("{}", board);
 ```
 

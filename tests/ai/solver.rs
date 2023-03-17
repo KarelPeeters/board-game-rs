@@ -1,7 +1,7 @@
 use internal_iterator::InternalIterator;
 
 use board_game::ai::solver::{solve_all_moves, solve_value, SolverValue};
-use board_game::board::{Board, BoardMoves};
+use board_game::board::Board;
 use board_game::games::ttt::TTTBoard;
 use board_game::util::coord::Coord3;
 use board_game::util::game_stats::all_possible_boards;
@@ -22,8 +22,8 @@ fn solver_ttt_root() {
 #[test]
 fn solver_ttt_win() {
     let mut board = TTTBoard::default();
-    board.play(Coord3::from_xy(0, 0));
-    board.play(Coord3::from_xy(1, 0));
+    board.play(Coord3::from_xy(0, 0)).unwrap();
+    board.play(Coord3::from_xy(1, 0)).unwrap();
     println!("{}", board);
 
     let root_eval = solve_all_moves(&board, 20);
@@ -35,9 +35,9 @@ fn solver_ttt_win() {
 #[test]
 fn solver_ttt_loss() {
     let mut board = TTTBoard::default();
-    board.play(Coord3::from_xy(0, 0));
-    board.play(Coord3::from_xy(1, 0));
-    board.play(Coord3::from_xy(1, 1));
+    board.play(Coord3::from_xy(0, 0)).unwrap();
+    board.play(Coord3::from_xy(1, 0)).unwrap();
+    board.play(Coord3::from_xy(1, 1)).unwrap();
     println!("{}", board);
 
     let root_eval = solve_all_moves(&board, 20);
@@ -56,9 +56,7 @@ fn solver_ttt_consistent() {
         println!("{}", board);
         println!("{:?}", eval);
 
-        board.available_moves().for_each(|mv| {
-            let child = board.clone_and_play(mv);
-
+        board.children().unwrap().for_each(|(mv, child)| {
             let child_eval = solve_value(&child, 20);
             println!("  {:?}: {:?}", mv, child_eval);
 

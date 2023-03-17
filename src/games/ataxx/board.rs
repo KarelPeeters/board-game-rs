@@ -5,7 +5,8 @@ use internal_iterator::InternalIterator;
 use rand::Rng;
 
 use crate::board::{
-    AllMovesIterator, Alternating, AvailableMovesIterator, Board, BoardMoves, BoardSymmetry, Outcome, Player,
+    AllMovesIterator, Alternating, AvailableMovesIterator, Board, BoardDone, BoardMoves, BoardSymmetry, Outcome,
+    PlayError, Player,
 };
 use crate::symmetry::D4Symmetry;
 use crate::util::bitboard::BitBoard8;
@@ -242,30 +243,31 @@ impl Board for AtaxxBoard {
         self.next_player
     }
 
-    fn is_available_move(&self, mv: Self::Move) -> bool {
-        assert!(!self.is_done());
+    fn is_available_move(&self, mv: Self::Move) -> Result<bool, BoardDone> {
+        self.check_done()?;
 
         if !mv.valid_for_size(self.size) {
-            return false;
+            return Ok(false);
         }
 
         let next_tiles = self.tiles_pov().0;
 
-        match mv {
+        let result = match mv {
             Move::Pass => self.must_pass_with_tiles(next_tiles),
             Move::Copy { to } => (self.free_tiles() & next_tiles.adjacent()).has(to),
             Move::Jump { from, to } => self.free_tiles().has(to) && next_tiles.has(from),
-        }
+        };
+        Ok(result)
     }
 
-    fn random_available_move(&self, rng: &mut impl Rng) -> Self::Move {
-        assert!(!self.is_done());
+    fn random_available_move(&self, rng: &mut impl Rng) -> Result<Self::Move, BoardDone> {
+        self.check_done()?;
 
         let next_tiles = self.tiles_pov().0;
         let free_tiles = self.free_tiles();
 
         if self.must_pass_with_tiles(next_tiles) {
-            return Move::Pass;
+            return Ok(Move::Pass);
         }
 
         let copy_targets = free_tiles & next_tiles.adjacent();
@@ -280,9 +282,9 @@ impl Board for AtaxxBoard {
         let index = rng.gen_range(0..(copy_count + jump_count));
 
         if index < copy_count {
-            Move::Copy {
+            Ok(Move::Copy {
                 to: copy_targets.get_nth(index),
-            }
+            })
         } else {
             let mut left = index - copy_count;
             for to in jump_targets {
@@ -290,7 +292,7 @@ impl Board for AtaxxBoard {
                 let count = from.count() as u32;
                 if left < count {
                     let from = from.get_nth(left);
-                    return Move::Jump { from, to };
+                    return Ok(Move::Jump { from, to });
                 }
                 left -= count;
             }
@@ -299,8 +301,8 @@ impl Board for AtaxxBoard {
         }
     }
 
-    fn play(&mut self, mv: Self::Move) {
-        assert!(self.is_available_move(mv), "{:?} is not available on {:?}", mv, self);
+    fn play(&mut self, mv: Self::Move) -> Result<(), PlayError> {
+        self.check_can_play(mv)?;
 
         let (next_tiles, other_tiles) = self.tiles_pov_mut();
 
@@ -310,7 +312,7 @@ impl Board for AtaxxBoard {
                 //   a real move, since otherwise the game would have finished already
                 self.next_player = self.next_player.other();
                 self.moves_since_last_copy += 1;
-                return;
+                return Ok(());
             }
             Move::Copy { to } => to,
             Move::Jump { from, to } => {
@@ -331,6 +333,8 @@ impl Board for AtaxxBoard {
 
         self.update_outcome();
         self.next_player = self.next_player.other();
+
+        Ok(())
     }
 
     fn outcome(&self) -> Option<Outcome> {
@@ -386,9 +390,8 @@ impl<'a> BoardMoves<'a, AtaxxBoard> for AtaxxBoard {
         AllMovesIterator::default()
     }
 
-    fn available_moves(&'a self) -> Self::AvailableMovesIterator {
-        assert!(!self.is_done());
-        AvailableMovesIterator(self)
+    fn available_moves(&'a self) -> Result<Self::AvailableMovesIterator, BoardDone> {
+        AvailableMovesIterator::new(self)
     }
 }
 
@@ -416,7 +419,7 @@ impl InternalIterator for AvailableMovesIterator<'_, AtaxxBoard> {
     type Item = Move;
 
     fn try_for_each<R, F: FnMut(Self::Item) -> ControlFlow<R>>(self, mut f: F) -> ControlFlow<R> {
-        let board = self.0;
+        let board = self.board();
         let next_tiles = board.tiles_pov().0;
         let free_tiles = board.free_tiles();
 
@@ -443,7 +446,7 @@ impl InternalIterator for AvailableMovesIterator<'_, AtaxxBoard> {
     }
 
     fn count(self) -> usize {
-        let board = self.0;
+        let board = self.board();
         let next_tiles = board.tiles_pov().0;
         let free_tiles = board.free_tiles();
 

@@ -7,7 +7,7 @@ use rand::Rng;
 
 use crate::ai::minimax::{minimax, minimax_all_moves, minimax_value, Heuristic, MinimaxResult};
 use crate::ai::Bot;
-use crate::board::{Board, Outcome};
+use crate::board::{Board, BoardDone, Outcome};
 use crate::pov::NonPov;
 use crate::wdl::OutcomeWDL;
 
@@ -133,16 +133,16 @@ pub fn is_double_forced_draw(board: &impl Board, depth: u32) -> Option<bool> {
     }
 
     let mut unknown = false;
-    let draw_or_unknown = board.available_moves().all(|mv| {
-        let child = board.clone_and_play(mv);
-        match is_double_forced_draw(&child, depth - 1) {
+    let draw_or_unknown = board
+        .children()
+        .unwrap()
+        .all(|(_, child)| match is_double_forced_draw(&child, depth - 1) {
             Some(draw) => draw,
             None => {
                 unknown = true;
                 true
             }
-        }
-    });
+        });
 
     if draw_or_unknown && unknown {
         None
@@ -170,9 +170,10 @@ impl<R: Rng> SolverBot<R> {
 }
 
 impl<B: Board, R: Rng> Bot<B> for SolverBot<R> {
-    fn select_move(&mut self, board: &B) -> B::Move {
-        minimax(board, &SolverHeuristic, self.depth, &mut self.rng)
+    fn select_move(&mut self, board: &B) -> Result<B::Move, BoardDone> {
+        board.check_done()?;
+        Ok(minimax(board, &SolverHeuristic, self.depth, &mut self.rng)
             .best_move
-            .unwrap()
+            .unwrap())
     }
 }

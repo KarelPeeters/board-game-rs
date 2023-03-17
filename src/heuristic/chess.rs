@@ -30,7 +30,8 @@ impl Heuristic<ChessBoard> for ChessPieceValueHeuristic {
             };
 
             for square in *board.inner().pieces(piece) {
-                // SAFETY: unwrap is safe because `square` contains a piece.
+                // we can unwrap here since we're iterating over the squares that contain the current piece,
+                //   so we know the square must also have a color
                 if board.inner().color_on(square).unwrap() == board.inner().side_to_move() {
                     total += value;
                 } else {

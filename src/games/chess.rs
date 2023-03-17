@@ -9,7 +9,7 @@ use chess::{BoardStatus, ChessMove, Color, File, MoveGen, Piece, Square};
 use internal_iterator::{Internal, InternalIterator, IteratorExt};
 use rand::Rng;
 
-use crate::board::{AllMovesIterator, Alternating, Board, BoardMoves, Outcome, Player};
+use crate::board::{AllMovesIterator, Alternating, Board, BoardDone, BoardMoves, Outcome, PlayError, Player};
 use crate::impl_unit_symmetry_board;
 use crate::util::bot_game::Replay;
 
@@ -32,12 +32,18 @@ pub struct ChessBoard {
     outcome: Option<Outcome>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ParseMoveError {
     pub board: ChessBoard,
     pub mv: String,
-    pub error: Option<chess::Error>,
-    pub parsed_as_but_not_available: Option<ChessMove>,
+    pub kind: ParseMoveErrorKind,
+}
+
+#[derive(Debug)]
+pub enum ParseMoveErrorKind {
+    BoardDone,
+    ParseError(chess::Error),
+    Unavailable(ChessMove),
 }
 
 impl ChessBoard {
@@ -62,13 +68,12 @@ impl ChessBoard {
         }
     }
 
-    pub fn parse_move(&self, mv_str: &str) -> Result<ChessMove, ParseMoveError> {
-        assert!(
-            !self.is_done(),
-            "Cannot parse move {:?} for done board {:?}",
-            mv_str,
-            self
-        );
+    pub fn parse_move(&self, mv_str: &str) -> Result<ChessMove, Box<ParseMoveError>> {
+        self.check_done().map_err(|_| ParseMoveError {
+            board: self.clone(),
+            mv: mv_str.to_owned(),
+            kind: ParseMoveErrorKind::BoardDone,
+        })?;
 
         let mv = parse_move_inner_impl(self, mv_str)?;
 
@@ -93,26 +98,26 @@ impl ChessBoard {
         };
 
         // ensure the move is actually available
-        if self.is_available_move(mv) {
+        //   we can unwrap here since we already checked the board is not done
+        if self.is_available_move(mv).unwrap() {
             Ok(mv)
         } else {
-            Err(ParseMoveError {
+            Err(Box::new(ParseMoveError {
                 board: self.clone(),
                 mv: mv_str.to_owned(),
-                error: None,
-                parsed_as_but_not_available: Some(mv),
-            })
+                kind: ParseMoveErrorKind::Unavailable(mv),
+            }))
         }
     }
 
-    pub fn to_san(&self, mv: ChessMove) -> String {
-        assert!(self.is_available_move(mv));
+    pub fn to_san(&self, mv: ChessMove) -> Result<String, PlayError> {
+        self.check_can_play(mv)?;
 
         let piece = match self.inner.piece_on(mv.get_source()).unwrap() {
             Piece::Pawn => "".to_string(),
             Piece::King => match (mv.get_source().get_file(), mv.get_dest().get_file()) {
-                (File::E, File::G) => return "O-O".to_string(),
-                (File::E, File::C) => return "O-O-O".to_string(),
+                (File::E, File::G) => return Ok("O-O".to_string()),
+                (File::E, File::C) => return Ok("O-O-O".to_string()),
                 _ => "K".to_string(),
             },
             piece => piece.to_string(Color::White),
@@ -126,7 +131,7 @@ impl ChessBoard {
             write!(f, "={}", promotion.to_string(Color::White)).unwrap();
         }
 
-        result
+        Ok(result)
     }
 
     /// Count how often the given position occurs in this boards history.
@@ -156,7 +161,7 @@ impl ChessBoard {
     }
 }
 
-fn parse_move_inner_impl(board: &ChessBoard, mv_str: &str) -> Result<ChessMove, ParseMoveError> {
+fn parse_move_inner_impl(board: &ChessBoard, mv_str: &str) -> Result<ChessMove, Box<ParseMoveError>> {
     // first try parsing it as a pgn move
     if let Ok(mv) = ChessMove::from_str(mv_str) {
         return Ok(mv);
@@ -164,22 +169,23 @@ fn parse_move_inner_impl(board: &ChessBoard, mv_str: &str) -> Result<ChessMove, 
 
     // the chess crate move parsing is kind of strange, so we need to help it a bit
     let removed_chars: &[char] = &['=', '+', '#'];
-    let mv = if mv_str.contains(removed_chars) {
+    let mv_norm = if mv_str.contains(removed_chars) {
         Cow::from(mv_str.replace(removed_chars, ""))
     } else {
         Cow::from(mv_str)
     };
 
-    match ChessMove::from_san(board.inner(), &mv) {
+    match ChessMove::from_san(board.inner(), &mv_norm) {
         Ok(mv) => Ok(mv),
         Err(original_err) => {
             // try appending e.p. to get it to parse an en passant move
-            let mv_ep = mv.clone() + " e.p.";
-            ChessMove::from_san(board.inner(), &mv_ep).map_err(|_| ParseMoveError {
-                board: board.clone(),
-                mv: mv.into_owned(),
-                error: Some(original_err),
-                parsed_as_but_not_available: None,
+            let mv_ep = mv_norm.clone() + " e.p.";
+            ChessMove::from_san(board.inner(), &mv_ep).map_err(|_ep_err| {
+                Box::new(ParseMoveError {
+                    board: board.clone(),
+                    mv: mv_str.to_owned(),
+                    kind: ParseMoveErrorKind::ParseError(original_err),
+                })
             })
         }
     }
@@ -198,20 +204,20 @@ impl Board for ChessBoard {
         color_to_player(self.inner.side_to_move())
     }
 
-    fn is_available_move(&self, mv: Self::Move) -> bool {
-        assert!(!self.is_done());
-        self.inner.legal(mv)
+    fn is_available_move(&self, mv: Self::Move) -> Result<bool, BoardDone> {
+        self.check_done()?;
+        Ok(self.inner.legal(mv))
     }
 
-    fn random_available_move(&self, rng: &mut impl Rng) -> Self::Move {
-        assert!(!self.is_done());
+    fn random_available_move(&self, rng: &mut impl Rng) -> Result<Self::Move, BoardDone> {
+        self.check_done()?;
         let mut move_gen = MoveGen::new_legal(&self.inner);
         let picked = rng.gen_range(0..move_gen.len());
-        move_gen.nth(picked).unwrap()
+        Ok(move_gen.nth(picked).unwrap())
     }
 
-    fn play(&mut self, mv: Self::Move) {
-        assert!(self.is_available_move(mv), "{:?} is not available on {:?}", mv, self);
+    fn play(&mut self, mv: Self::Move) -> Result<(), PlayError> {
+        self.check_can_play(mv)?;
 
         // keep track of stats for reversible moves
         let prev = self.inner;
@@ -255,7 +261,9 @@ impl Board for ChessBoard {
                 BoardStatus::Stalemate => Some(Outcome::Draw),
                 BoardStatus::Checkmate => Some(Outcome::WonBy(self.next_player().other())),
             }
-        }
+        };
+
+        Ok(())
     }
 
     fn outcome(&self) -> Option<Outcome> {
@@ -279,9 +287,9 @@ impl<'a> BoardMoves<'a, ChessBoard> for ChessBoard {
         AllMovesIterator::default()
     }
 
-    fn available_moves(&'a self) -> Self::AvailableMovesIterator {
-        assert!(!self.is_done());
-        MoveGen::new_legal(self.inner()).into_internal()
+    fn available_moves(&'a self) -> Result<Self::AvailableMovesIterator, BoardDone> {
+        self.check_done()?;
+        Ok(MoveGen::new_legal(self.inner()).into_internal())
     }
 }
 
@@ -380,9 +388,9 @@ pub fn chess_game_to_pgn(white: &str, black: &str, start: &ChessBoard, moves: &[
             write!(f, "{}. ", 1 + i / 2).unwrap();
         }
 
-        write!(f, "{} ", board.to_san(mv)).unwrap();
+        write!(f, "{} ", board.to_san(mv).unwrap()).unwrap();
 
-        board.play(mv);
+        board.play(mv).unwrap();
     }
 
     result

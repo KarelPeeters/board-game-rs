@@ -105,8 +105,9 @@ fn play_single_game<B: Board>(start: &B, flip: bool, bot_l: &mut impl Bot<B>, bo
                     mv
                 };
 
+                let mv = mv.unwrap();
                 moves.push(mv);
-                board.play(mv);
+                board.play(mv).unwrap();
             }
             Some(outcome) => {
                 return Replay {

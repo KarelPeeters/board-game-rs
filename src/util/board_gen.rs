@@ -3,7 +3,7 @@ use rand::Rng;
 
 pub use crate::ai::solver::is_double_forced_draw;
 use crate::ai::solver::solve_value;
-use crate::board::{Board, Outcome, Player};
+use crate::board::{Board, BoardDone, Outcome, Player};
 use crate::pov::{NonPov, Pov};
 use crate::wdl::OutcomeWDL;
 
@@ -12,13 +12,14 @@ pub fn board_with_moves<B: Board>(start: B, moves: &[B::Move]) -> B {
     let mut curr = start;
     for &mv in moves {
         assert!(!curr.is_done(), "Board already done, playing {} on {}", mv, curr);
-        assert!(
+        assert_eq!(
             curr.is_available_move(mv),
+            Ok(true),
             "Move not available, playing {} on {}",
             mv,
             curr
         );
-        curr.play(mv);
+        curr.play(mv).unwrap();
     }
     curr
 }
@@ -27,14 +28,13 @@ pub fn board_with_moves<B: Board>(start: B, moves: &[B::Move]) -> B {
 pub fn random_board_with_moves<B: Board>(start: &B, n: u32, rng: &mut impl Rng) -> B {
     //this implementation could be made faster with backtracking instead of starting from scratch,
     // but this only starts to matter for very high n and that's not really the main use case
-
-    'newtry: loop {
+    'new_try: loop {
         let mut board = start.clone();
         for _ in 0..n {
-            if board.is_done() {
-                continue 'newtry;
+            match board.play_random_available_move(rng) {
+                Ok(()) => {}
+                Err(BoardDone) => continue 'new_try,
             }
-            board.play(board.random_available_move(rng))
         }
         return board;
     }
@@ -51,8 +51,7 @@ pub fn random_board_with_outcome<B: Board>(start: &B, outcome: Outcome, rng: &mu
                 }
                 break;
             }
-
-            board.play(board.random_available_move(rng))
+            board.play_random_available_move(rng).unwrap();
         }
     }
 }
@@ -98,13 +97,14 @@ pub fn random_board_with_condition<B: Board>(start: &B, rng: &mut impl Rng, mut 
     if cond(start) {
         return start.clone();
     }
+    assert!(
+        !start.is_done(),
+        "Start board is done and does not match condition, so we won't find anything that does"
+    );
 
     loop {
         let mut board = start.clone();
-
-        while !board.is_done() {
-            board.play(board.random_available_move(rng));
-
+        while let Ok(()) = board.play_random_available_move(rng) {
             if cond(&board) {
                 return board;
             }
@@ -133,10 +133,10 @@ pub fn random_board_with_depth_condition<B: Board>(
                 return board;
             }
 
-            if board.is_done() {
-                break;
+            match board.play_random_available_move(rng) {
+                Ok(()) => {}
+                Err(BoardDone) => break,
             }
-            board.play(board.random_available_move(rng));
         }
     }
 }

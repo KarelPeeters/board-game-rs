@@ -4,7 +4,9 @@ use std::ops::Range;
 
 use internal_iterator::{Internal, IteratorExt};
 
-use crate::board::{Alternating, Board, BoardMoves, BoardSymmetry, BruteforceMoveIterator, Outcome, Player};
+use crate::board::{
+    Alternating, Board, BoardDone, BoardMoves, BoardSymmetry, BruteforceMoveIterator, Outcome, PlayError, Player,
+};
 use crate::symmetry::D1Symmetry;
 
 /// The Connect4 game on a 7x6 board.
@@ -60,14 +62,14 @@ impl Board for Connect4 {
         }
     }
 
-    fn is_available_move(&self, mv: Self::Move) -> bool {
-        assert!(!self.is_done());
-        assert!(mv < Self::WIDTH);
-        self.tiles_occupied & mask(mv, Self::HEIGHT - 1) == 0
+    fn is_available_move(&self, mv: Self::Move) -> Result<bool, BoardDone> {
+        self.check_done()?;
+        Ok((mv < Self::WIDTH) && self.tiles_occupied & mask(mv, Self::HEIGHT - 1) == 0)
     }
 
-    fn play(&mut self, mv: Self::Move) {
-        assert!(self.is_available_move(mv), "{:?} is not available on {:?}", mv, self);
+    fn play(&mut self, mv: Self::Move) -> Result<(), PlayError> {
+        self.check_can_play(mv)?;
+
         let curr_player = self.next_player();
 
         // play move
@@ -87,6 +89,8 @@ impl Board for Connect4 {
         if self.outcome.is_none() && self.tiles_occupied.count_ones() == (Self::WIDTH * Self::HEIGHT) as u32 {
             self.outcome = Some(Outcome::Draw)
         }
+
+        Ok(())
     }
 
     fn outcome(&self) -> Option<Outcome> {
@@ -108,7 +112,7 @@ impl<'a> BoardMoves<'a, Connect4> for Connect4 {
         (0..Self::WIDTH).into_internal()
     }
 
-    fn available_moves(&'a self) -> Self::AvailableMovesIterator {
+    fn available_moves(&'a self) -> Result<Self::AvailableMovesIterator, BoardDone> {
         BruteforceMoveIterator::new(self)
     }
 }

@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter};
 
 use rand::Rng;
 
-use crate::board::{Board, BoardMoves, BoardSymmetry, Outcome, Player};
+use crate::board::{Board, BoardDone, BoardMoves, BoardSymmetry, Outcome, PlayError, Player};
 
 /// A wrapper around an existing board that has the same behaviour,
 /// except that the outcome is a draw after a fixed number of moves has been played.
@@ -38,20 +38,23 @@ impl<B: Board> Board for MaxMovesBoard<B> {
         self.inner.next_player()
     }
 
-    fn is_available_move(&self, mv: Self::Move) -> bool {
-        assert!(!self.is_done());
+    fn is_available_move(&self, mv: Self::Move) -> Result<bool, BoardDone> {
+        self.check_done()?;
         self.inner.is_available_move(mv)
     }
 
-    fn random_available_move(&self, rng: &mut impl Rng) -> Self::Move {
-        assert!(!self.is_done());
+    fn random_available_move(&self, rng: &mut impl Rng) -> Result<Self::Move, BoardDone> {
+        self.check_done()?;
         self.inner.random_available_move(rng)
     }
 
-    fn play(&mut self, mv: Self::Move) {
-        assert!(!self.is_done());
-        self.inner.play(mv);
+    fn play(&mut self, mv: Self::Move) -> Result<(), PlayError> {
+        // we don't use `check_can_play` here, the inner one will do that
+        //   we still need to `check_done` though, since that might be different
+        self.check_done()?;
+        self.inner.play(mv)?;
         self.moves += 1;
+        Ok(())
     }
 
     fn outcome(&self) -> Option<Outcome> {
@@ -96,7 +99,7 @@ impl<'a, B: Board> BoardMoves<'a, MaxMovesBoard<B>> for MaxMovesBoard<B> {
         B::all_possible_moves()
     }
 
-    fn available_moves(&'a self) -> Self::AvailableMovesIterator {
+    fn available_moves(&'a self) -> Result<Self::AvailableMovesIterator, BoardDone> {
         assert!(!self.is_done());
         self.inner.available_moves()
     }

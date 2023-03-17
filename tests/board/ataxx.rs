@@ -105,8 +105,8 @@ fn ataxx_done_full() {
 fn ataxx_forced_pass() {
     let board = AtaxxBoard::from_fen("xxxxxxx/-------/-------/o6/7/7/7 x 0 0").unwrap();
     assert!(!board.is_done(), "Board is not done, player B can still play");
-    assert!(board.available_moves().all(|mv| mv == Move::Pass));
     assert!(board.must_pass());
+    assert_eq!(board.available_moves().unwrap().collect::<Vec<_>>(), vec![Move::Pass]);
     board_test_main(&board)
 }
 
@@ -150,8 +150,8 @@ fn ataxx_2_sym() {
 fn ataxx_5_pass() {
     let board = AtaxxBoard::from_fen("xoooo/xoo2/ooooo/ooooo/xxooo x 0 0").unwrap();
 
-    assert_eq!(board.available_moves().count(), 1);
-    assert!(board.is_available_move(Move::Pass));
+    assert_eq!(board.available_moves().unwrap().count(), 1);
+    assert!(board.is_available_move(Move::Pass).unwrap());
 
     board_test_main(&board);
 }
@@ -168,7 +168,7 @@ fn ataxx_pass_move_counter() {
     board_test_main(&board);
 
     let prev_count = board.moves_since_last_copy();
-    board.play(Move::Pass);
+    board.play(Move::Pass).unwrap();
     assert_eq!(board.moves_since_last_copy(), prev_count + 1);
 }
 
@@ -176,7 +176,7 @@ fn ataxx_pass_move_counter() {
 fn ataxx_copy_move_counter() {
     let mut board = AtaxxBoard::from_fen("x2xxxx/-------/-------/o6/7/7/7 x 0 0").unwrap();
 
-    board.play(Move::from_uai("b7").unwrap());
+    board.play(Move::from_uai("b7").unwrap()).unwrap();
     assert_eq!(board.moves_since_last_copy(), 0);
 
     board_test_main(&board);
@@ -187,7 +187,7 @@ fn ataxx_jump_move_counter() {
     let mut board = AtaxxBoard::from_fen("x2xxxx/-------/-------/o6/7/7/7 x 0 0").unwrap();
 
     let prev_count = board.moves_since_last_copy();
-    board.play(Move::from_uai("a7c7").unwrap());
+    board.play(Move::from_uai("a7c7").unwrap()).unwrap();
     assert_eq!(board.moves_since_last_copy(), prev_count + 1);
 
     board_test_main(&board);
