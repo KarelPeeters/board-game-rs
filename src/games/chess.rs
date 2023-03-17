@@ -6,10 +6,12 @@ use std::ops::ControlFlow;
 use std::str::FromStr;
 
 use chess::{BoardStatus, ChessMove, Color, File, MoveGen, Piece, Square};
-use internal_iterator::{Internal, InternalIterator, IteratorExt};
+use internal_iterator::InternalIterator;
 use rand::Rng;
 
-use crate::board::{AllMovesIterator, Alternating, Board, BoardDone, BoardMoves, Outcome, PlayError, Player};
+use crate::board::{
+    AllMovesIterator, Alternating, AvailableMovesIterator, Board, BoardDone, BoardMoves, Outcome, PlayError, Player,
+};
 use crate::impl_unit_symmetry_board;
 use crate::util::bot_game::Replay;
 
@@ -281,15 +283,14 @@ impl_unit_symmetry_board!(ChessBoard);
 
 impl<'a> BoardMoves<'a, ChessBoard> for ChessBoard {
     type AllMovesIterator = AllMovesIterator<ChessBoard>;
-    type AvailableMovesIterator = Internal<MoveGen>;
+    type AvailableMovesIterator = AvailableMovesIterator<'a, ChessBoard>;
 
     fn all_possible_moves() -> Self::AllMovesIterator {
         AllMovesIterator::default()
     }
 
     fn available_moves(&'a self) -> Result<Self::AvailableMovesIterator, BoardDone> {
-        self.check_done()?;
-        Ok(MoveGen::new_legal(self.inner()).into_internal())
+        AvailableMovesIterator::new(self)
     }
 }
 
@@ -309,6 +310,19 @@ impl InternalIterator for AllMovesIterator<ChessBoard> {
         }
 
         ControlFlow::Continue(())
+    }
+}
+
+impl InternalIterator for AvailableMovesIterator<'_, ChessBoard> {
+    type Item = ChessMove;
+
+    fn try_for_each<R, F>(self, f: F) -> ControlFlow<R>
+    where
+        F: FnMut(Self::Item) -> ControlFlow<R>,
+    {
+        // TODO ideally we'd cache this MoveGen instance so cloning this iterator doesn't need to recreate it
+        //   unfortunately MoveGen does not implement Clone and has private fields
+        MoveGen::new_legal(self.board().inner()).try_for_each(f)
     }
 }
 

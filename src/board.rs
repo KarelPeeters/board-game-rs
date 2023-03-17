@@ -135,8 +135,8 @@ impl<B: Board + Alternating> AltBoard for B {}
 /// A helper trait to get the correct lifetimes for [BoardMoves::available_moves].
 /// This is a workaround to get generic associated types, See <https://github.com/rust-lang/rust/issues/44265>.
 pub trait BoardMoves<'a, B: Board> {
-    type AllMovesIterator: InternalIterator<Item = B::Move>;
-    type AvailableMovesIterator: InternalIterator<Item = B::Move>;
+    type AllMovesIterator: InternalIterator<Item = B::Move> + Clone;
+    type AvailableMovesIterator: InternalIterator<Item = B::Move> + Clone;
 
     /// All theoretically possible moves, for any possible board.
     /// Moves returned by `available_moves` will always be a subset of these moves.
@@ -244,7 +244,7 @@ impl Player {
 }
 
 /// A convenient type to use for the iterator returned by [BoardMoves::all_possible_moves].
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AllMovesIterator<B: Board>(PhantomData<B>);
 
 impl<B: Board> Default for AllMovesIterator<B> {
@@ -254,7 +254,7 @@ impl<B: Board> Default for AllMovesIterator<B> {
 }
 
 /// A convenient type to use for the iterator returned by [BoardMoves::available_moves].
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AvailableMovesIterator<'a, B: Board> {
     board: &'a B,
 }
@@ -262,7 +262,7 @@ pub struct AvailableMovesIterator<'a, B: Board> {
 /// A helper struct function can be used to implement [InternalIterator] for [AvailableMovesIterator].
 /// based on [BoardMoves::all_possible_moves] and [Board::is_available_move].
 /// This may be a lot slower then directly generating the available moves.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BruteforceMoveIterator<'a, B: Board> {
     board: &'a B,
 }
@@ -285,19 +285,6 @@ impl<'a, B: Board> BruteforceMoveIterator<'a, B> {
     }
 }
 
-pub struct BoardChildrenIterator<'a, B: Board> {
-    board: &'a B,
-    available: <B as BoardMoves<'a, B>>::AvailableMovesIterator,
-}
-
-impl<'a, B: Board> Debug for BoardChildrenIterator<'a, B> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("BoardChildrenIterator")
-            .field("board", self.board)
-            .finish_non_exhaustive()
-    }
-}
-
 impl<'a, B: Board> InternalIterator for BruteforceMoveIterator<'a, B> {
     type Item = B::Move;
 
@@ -314,6 +301,11 @@ impl<'a, B: Board> InternalIterator for BruteforceMoveIterator<'a, B> {
             }
         })
     }
+}
+
+pub struct BoardChildrenIterator<'a, B: Board> {
+    board: &'a B,
+    available: <B as BoardMoves<'a, B>>::AvailableMovesIterator,
 }
 
 impl<'a, B: Board> BoardChildrenIterator<'a, B> {
@@ -334,6 +326,26 @@ impl<'a, B: Board> InternalIterator for BoardChildrenIterator<'a, B> {
         self.available
             .map(|mv: B::Move| (mv, board.clone_and_play(mv).unwrap()))
             .try_for_each(f)
+    }
+}
+
+impl<'a, B: Board> Debug for BoardChildrenIterator<'a, B> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BoardChildrenIterator")
+            .field("board", self.board)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<'a, B: Board> Clone for BoardChildrenIterator<'a, B>
+where
+    <B as BoardMoves<'a, B>>::AvailableMovesIterator: Clone,
+{
+    fn clone(&self) -> Self {
+        BoardChildrenIterator {
+            board: self.board,
+            available: self.available.clone(),
+        }
     }
 }
 

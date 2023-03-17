@@ -16,11 +16,12 @@
 //! Objective is to capture as many seeds as possible and so the game will conclude early if a
 //! player captures more than half the seeds
 use std::fmt::{Debug, Display, Formatter};
+use std::ops::Range;
 
-use internal_iterator::{Internal, IteratorExt};
 use itertools::join;
 
 use crate::board::{Alternating, Board, BoardDone, BoardMoves, BruteforceMoveIterator, Outcome, PlayError, Player};
+use crate::util::iter::ClonableInternal;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct OwareBoard<const PITS_PER_PLAYER: usize> {
@@ -213,11 +214,11 @@ impl<const PITS: usize> crate::board::BoardSymmetry<OwareBoard<PITS>> for OwareB
 }
 
 impl<'a, const PITS: usize> BoardMoves<'a, OwareBoard<PITS>> for OwareBoard<PITS> {
-    type AllMovesIterator = Internal<std::ops::Range<usize>>;
+    type AllMovesIterator = ClonableInternal<Range<usize>>;
     type AvailableMovesIterator = BruteforceMoveIterator<'a, OwareBoard<PITS>>;
 
     fn all_possible_moves() -> Self::AllMovesIterator {
-        (0..PITS).into_internal()
+        ClonableInternal::new(0..PITS)
     }
 
     fn available_moves(&'a self) -> Result<Self::AvailableMovesIterator, BoardDone> {

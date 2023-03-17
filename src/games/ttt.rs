@@ -1,10 +1,9 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use internal_iterator::{Internal, IteratorExt};
-
 use crate::board::{Alternating, Board, BoardDone, BoardMoves, BruteforceMoveIterator, Outcome, PlayError, Player};
 use crate::impl_unit_symmetry_board;
 use crate::util::coord::{Coord3, CoordAllIter};
+use crate::util::iter::ClonableInternal;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct TTTBoard {
@@ -91,11 +90,11 @@ impl Alternating for TTTBoard {}
 impl_unit_symmetry_board!(TTTBoard);
 
 impl<'a> BoardMoves<'a, TTTBoard> for TTTBoard {
-    type AllMovesIterator = Internal<CoordAllIter<Coord3>>;
+    type AllMovesIterator = ClonableInternal<CoordAllIter<Coord3>>;
     type AvailableMovesIterator = BruteforceMoveIterator<'a, TTTBoard>;
 
     fn all_possible_moves() -> Self::AllMovesIterator {
-        Coord3::all().into_internal()
+        ClonableInternal::new(Coord3::all())
     }
 
     fn available_moves(&'a self) -> Result<Self::AvailableMovesIterator, BoardDone> {

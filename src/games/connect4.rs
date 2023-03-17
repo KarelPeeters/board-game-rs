@@ -2,12 +2,11 @@ use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::ops::Range;
 
-use internal_iterator::{Internal, IteratorExt};
-
 use crate::board::{
     Alternating, Board, BoardDone, BoardMoves, BoardSymmetry, BruteforceMoveIterator, Outcome, PlayError, Player,
 };
 use crate::symmetry::D1Symmetry;
+use crate::util::iter::ClonableInternal;
 
 /// The Connect4 game on a 7x6 board.
 ///
@@ -105,11 +104,11 @@ impl Board for Connect4 {
 impl Alternating for Connect4 {}
 
 impl<'a> BoardMoves<'a, Connect4> for Connect4 {
-    type AllMovesIterator = Internal<Range<u8>>;
+    type AllMovesIterator = ClonableInternal<Range<u8>>;
     type AvailableMovesIterator = BruteforceMoveIterator<'a, Connect4>;
 
     fn all_possible_moves() -> Self::AllMovesIterator {
-        (0..Self::WIDTH).into_internal()
+        ClonableInternal::new(0..Self::WIDTH)
     }
 
     fn available_moves(&'a self) -> Result<Self::AvailableMovesIterator, BoardDone> {

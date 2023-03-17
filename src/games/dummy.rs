@@ -25,12 +25,12 @@
 use std::fmt;
 use std::str::FromStr;
 
-use internal_iterator::{Internal, IteratorExt};
 use nom::error::Error;
 use nom::Finish;
 
 use crate::board::{Alternating, Board, BoardDone, BoardMoves, Outcome, PlayError, Player};
 use crate::impl_unit_symmetry_board;
+use crate::util::iter::ClonableInternal;
 
 mod parse {
     use nom::branch::alt;
@@ -158,17 +158,17 @@ impl Alternating for DummyGame {}
 impl_unit_symmetry_board!(DummyGame);
 
 impl<'a> BoardMoves<'a, DummyGame> for DummyGame {
-    type AllMovesIterator = Internal<std::ops::RangeFrom<usize>>;
-    type AvailableMovesIterator = Internal<std::ops::Range<usize>>;
+    type AllMovesIterator = ClonableInternal<std::ops::RangeFrom<usize>>;
+    type AvailableMovesIterator = ClonableInternal<std::ops::Range<usize>>;
 
     fn all_possible_moves() -> Self::AllMovesIterator {
         //TODO questionable, maybe we could take &self here and base us on that?
-        (0..).into_internal()
+        ClonableInternal::new(0..)
     }
 
     fn available_moves(&'a self) -> Result<Self::AvailableMovesIterator, BoardDone> {
         if let Tree::Node(boards) = &self.state {
-            Ok((0..boards.len()).into_internal())
+            Ok(ClonableInternal::new(0..boards.len()))
         } else {
             Err(BoardDone)
         }

@@ -2,7 +2,7 @@ use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::ControlFlow;
 
-use internal_iterator::{Internal, InternalIterator, IteratorExt};
+use internal_iterator::InternalIterator;
 use itertools::Itertools;
 use rand::Rng;
 
@@ -12,6 +12,7 @@ use crate::board::{
 };
 use crate::symmetry::D4Symmetry;
 use crate::util::bits::{get_nth_set_bit, BitIter};
+use crate::util::iter::ClonableInternal;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Coord(u8);
@@ -202,11 +203,11 @@ impl BoardSymmetry<STTTBoard> for STTTBoard {
 }
 
 impl<'a> BoardMoves<'a, STTTBoard> for STTTBoard {
-    type AllMovesIterator = Internal<CoordIter>;
+    type AllMovesIterator = ClonableInternal<CoordIter>;
     type AvailableMovesIterator = AvailableMovesIterator<'a, STTTBoard>;
 
     fn all_possible_moves() -> Self::AllMovesIterator {
-        Coord::all().into_internal()
+        ClonableInternal::new(Coord::all())
     }
 
     fn available_moves(&'a self) -> Result<Self::AvailableMovesIterator, BoardDone> {
