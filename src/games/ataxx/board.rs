@@ -197,13 +197,18 @@ impl AtaxxBoard {
     }
 
     pub fn assert_valid(&self) {
+        // no invalid bits
         let invalid_mask = !self.full_mask();
         assert!((self.tiles_a & invalid_mask).none());
         assert!((self.tiles_b & invalid_mask).none());
         assert!((self.gaps & invalid_mask).none());
+
+        // no overlapping tiles
         assert!((self.tiles_a & self.tiles_b).none());
         assert!((self.tiles_a & self.gaps).none());
         assert!((self.tiles_b & self.gaps).none());
+
+        // correct outcome
         let mut clone = self.clone();
         clone.update_outcome();
         assert_eq!(self.outcome, clone.outcome);
