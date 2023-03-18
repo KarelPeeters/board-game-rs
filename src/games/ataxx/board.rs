@@ -215,6 +215,8 @@ impl AtaxxBoard {
     }
 
     pub fn map_tiles(&self, tiles: BitBoard8, sym: D4Symmetry) -> BitBoard8 {
+        // TODO do this with some proper bit operations
+        //   careful: it's not as simple as just using the BitBoard functions, since we need to support smaller sizes
         let mut result = BitBoard8::EMPTY;
         for coord in tiles {
             let result_coord = self.map_coord(coord, sym);

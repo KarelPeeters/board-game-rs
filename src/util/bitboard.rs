@@ -131,13 +131,36 @@ impl BitBoard8 {
 
     #[must_use]
     pub const fn flip_x(self) -> BitBoard8 {
-        // reverse_bits is a transpose, swap_bytes a vertical flip
+        // reverse_bits flips both x and y, so undo y
         BitBoard8(self.0.reverse_bits().swap_bytes())
     }
 
     #[must_use]
     pub const fn flip_y(self) -> BitBoard8 {
         BitBoard8(self.0.swap_bytes())
+    }
+
+    #[must_use]
+    pub const fn transpose(self) -> BitBoard8 {
+        // implementation from Hacker's Delight, 2nd Edition
+        let x = self.0;
+        BitBoard8(
+            x & 0x8040201008040201
+                | (x & 0x0080402010080402) << 7
+                | (x & 0x0000804020100804) << 14
+                | (x & 0x0000008040201008) << 21
+                | (x & 0x0000000080402010) << 28
+                | (x & 0x0000000000804020) << 35
+                | (x & 0x0000000000008040) << 42
+                | (x & 0x0000000000000080) << 49
+                | (x >> 7) & 0x0080402010080402
+                | (x >> 14) & 0x0000804020100804
+                | (x >> 21) & 0x0000008040201008
+                | (x >> 28) & 0x0000000080402010
+                | (x >> 35) & 0x0000000000804020
+                | (x >> 42) & 0x0000000000008040
+                | (x >> 49) & 0x0000000000000080,
+        )
     }
 }
 
@@ -219,9 +242,10 @@ mod operations {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rand::rngs::SmallRng;
     use rand::{Rng, SeedableRng};
+
+    use super::*;
 
     #[test]
     fn copy_jump() {
