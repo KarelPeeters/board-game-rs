@@ -5,6 +5,7 @@ pub mod connect4;
 pub mod oware;
 pub mod sttt;
 pub mod ttt;
+pub mod monster_chess;
 
 pub mod dummy;
 pub mod max_length;
