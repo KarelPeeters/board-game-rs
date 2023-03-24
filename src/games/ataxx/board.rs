@@ -157,7 +157,7 @@ impl AtaxxBoard {
         }
     }
 
-    fn tiles_pov_mut(&mut self) -> (&mut BitBoard8, &mut BitBoard8) {
+    pub(super) fn tiles_pov_mut(&mut self) -> (&mut BitBoard8, &mut BitBoard8) {
         match self.next_player {
             Player::A => (&mut self.tiles_a, &mut self.tiles_b),
             Player::B => (&mut self.tiles_b, &mut self.tiles_a),

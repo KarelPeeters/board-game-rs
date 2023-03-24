@@ -224,3 +224,10 @@ fn ataxx_perft() {
         ],
     );
 }
+
+#[test]
+fn ataxx_start_reverse() {
+    let board = AtaxxBoard::diagonal(7);
+
+    let moves =
+}

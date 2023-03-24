@@ -1,9 +1,9 @@
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 
 use crate::util::bits::{get_nth_set_bit, BitIter};
 use crate::util::coord::Coord8;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct BitBoard8(pub u64);
 
 impl BitBoard8 {
@@ -196,6 +196,23 @@ impl Display for BitBoard8 {
             }
             writeln!(f)?;
         }
+        Ok(())
+    }
+}
+
+impl Debug for BitBoard8 {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "BitBoard8(")?;
+        for y in (0..8).rev() {
+            for x in 0..8 {
+                let coord = Coord8::from_xy(x, y);
+                write!(f, "{}", if self.has(coord) { '1' } else { '.' })?;
+            }
+            if y != 0 {
+                write!(f, "/")?;
+            }
+        }
+        write!(f, ")")?;
         Ok(())
     }
 }
