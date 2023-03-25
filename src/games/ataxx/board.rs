@@ -14,6 +14,9 @@ use crate::util::coord::Coord8;
 
 pub const MAX_MOVES_SINCE_LAST_COPY: u8 = 100;
 
+// TODO in theory we can remove size and just add more gaps
+//   maybe an issue for move encoding, although it can also just check the gaps mask
+
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct AtaxxBoard {
     pub(super) size: u8,
