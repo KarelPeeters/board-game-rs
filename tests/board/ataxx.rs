@@ -4,9 +4,11 @@ use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 
 use board_game::board::{Board, BoardMoves, BoardSymmetry, Outcome, Player};
-use board_game::games::ataxx::{AtaxxBoard, Move};
+use board_game::games::ataxx::{ataxx_back_perft, AtaxxBoard, BackMove, Move, PrevTerminal};
 use board_game::symmetry::D4Symmetry;
+use board_game::util::bitboard::BitBoard8;
 use board_game::util::board_gen::random_board_with_moves;
+use board_game::util::game_stats::perft;
 
 use crate::board::{board_perft_main, board_test_main};
 
@@ -200,6 +202,7 @@ fn ataxx_perft() {
     board_perft_main(
         |s| AtaxxBoard::from_fen(s).unwrap(),
         Some(AtaxxBoard::to_fen),
+        perft,
         vec![
             ("7/7/7/7/7/7/7 x 0 1", vec![1, 0, 0, 0, 0]),
             ("7/7/7/7/7/7/7 o 0 1", vec![1, 0, 0, 0, 0]),
@@ -226,8 +229,45 @@ fn ataxx_perft() {
 }
 
 #[test]
-fn ataxx_start_reverse() {
-    let board = AtaxxBoard::diagonal(7);
+fn ataxx_back_pass() {
+    let board = AtaxxBoard::from_fen("oxxxooo/oxxxooo/ooxxxoo/ooxxxoo/xxxxxoo/xxxxxxx/xx1xxoo x 0 0").unwrap();
+    println!("{}", board);
 
-    let moves =
+    let back_moves = board.back_moves().collect::<Vec<_>>();
+    for back in &back_moves {
+        println!("  {:?}", back);
+    }
+
+    assert!(back_moves.contains(&BackMove::PASS));
+}
+
+#[test]
+fn ataxx_back_terminal() {
+    let mut board = AtaxxBoard::from_fen("x1x2/1x3/1x3/5/4x o 0 1").unwrap();
+    println!("{}", board);
+
+    // try a move that still yields a terminal move
+    let back = BackMove {
+        mv: Move::from_uai("b4").unwrap(),
+        converted: BitBoard8::EMPTY,
+    };
+    let result = board.play_back(back);
+    assert_eq!(result, Err(PrevTerminal));
+}
+
+#[test]
+fn ataxx_perft_back() {
+    #[rustfmt::skip]
+    board_perft_main(
+        |s| AtaxxBoard::from_fen(s).unwrap(),
+        Some(AtaxxBoard::to_fen),
+        ataxx_back_perft,
+        vec![
+            ("x5o/7/7/7/7/7/o5x x 0 1", vec![1, 10, 100, 1584, 23132, 350092, 4978660, 77305740]),
+            ("6o/7/7/7/7/xx5/xx5 o 0 1", vec![1, 220, 2375, 37766, 609479, 11097618, 190111539]),
+            ("6o/7/7/7/7/7/xx5 o 0 1", vec![1, 24, 162, 1868, 22874, 308829, 3675210, 44830928]),
+            ("oxxxooo/oxxxooo/ooxxxoo/ooxxxoo/xxxxxoo/xxxxxxx/xx1xxoo x 0 1", vec![1, 132, 188826, 11199385]),
+            ("-------/-------/x1x2--/1x3--/1x3--/5--/4x-- o 0 1", vec![1, 109, 405, 6127]),
+        ],
+    );
 }

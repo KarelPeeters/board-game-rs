@@ -1,11 +1,26 @@
-use board_game::board::{Board, BoardMoves};
-use board_game::games::ataxx::AtaxxBoard;
+#![allow(dead_code)]
+
 use internal_iterator::InternalIterator;
-use rand::Rng;
+use rand::rngs::SmallRng;
+use rand::{Rng, SeedableRng};
+
+use board_game::board::{Board, BoardMoves};
+use board_game::games::ataxx::{AtaxxBoard, BackMove, Move, PrevTerminal};
+use board_game::util::bitboard::BitBoard8;
 
 fn main() {
     // demo();
-    fuzz();
+    // fuzz();
+    custom()
+}
+
+fn custom() {
+    let board = AtaxxBoard::from_fen("x1x2/1x3/1x3/5/4x o 0 1").unwrap();
+    println!("board:\n{}", board);
+
+    board.back_moves().for_each(|back| {
+        println!("  {:?}", back);
+    })
 }
 
 #[derive(Default)]
@@ -16,7 +31,8 @@ struct Count {
 }
 
 fn fuzz() {
-    let mut rng = rand::thread_rng();
+    // deterministic rng
+    let mut rng = SmallRng::seed_from_u64(0);
 
     let mut count = Count::default();
 
@@ -41,39 +57,78 @@ fn fuzz_test(board: &AtaxxBoard, count: &mut Count) {
         return;
     }
 
+    println!("board {:?}", board);
     // println!("{}", board);
-    count.pos += 1;
 
+    count.pos += 1;
     count.mv += board.available_moves().unwrap().count() as u64;
+    count.back += board.back_moves().count() as u64;
+
+    // clear the move counter
+    let mut board_clear = board.clone();
+    board_clear.clear_moves_since_last_copy();
 
     // check that all back moves are valid and distinct
     let mut all_back = vec![];
+    let mut all_prev = vec![];
 
     board.back_moves().for_each(|back| {
-        count.back += 1;
+        // println!("  checking back {:?}", back);
 
-        // println!("  {:?}", back);
+        // ensure the back move yields a valid board
         let mut prev = board.clone();
-        prev.play_back(back);
+        prev.play_back(back).unwrap();
         board.assert_valid();
 
+        // ensure playing the corresponding move again works and yields the same board
+        let mut next = prev.clone_and_play(back.mv).unwrap();
+        next.clear_moves_since_last_copy();
+        assert_eq!(board_clear, next);
+
+        // ensure the back move is unique
         assert!(!all_back.contains(&back));
         all_back.push(back);
+
+        // ensure the resulting previous board is unique
+        assert!(!all_prev.contains(&prev));
+        all_prev.push(prev);
     });
 
-    // TODO check that back returns the right board
-    // board.available_moves().unwrap().for_each(|mv| {
-    //     println!("  {}", mv);
-    //     let child = board.clone_and_play(mv).unwrap();
-    //
-    //     // check that the back move exists
-    //     assert!(child.back_moves().any(|back| back.mv == mv));
-    //
-    //     let orig = child.play_back(back);
-    // };
+    board.available_moves().unwrap().for_each(|mv| {
+        // println!("  playing move {}", mv);
+        let child = board.clone_and_play(mv).unwrap();
+
+        // println!("    child: {:?}", child);
+
+        // get potential back moves
+        let back_moves = child.back_moves().filter(|back| back.mv == mv).collect::<Vec<_>>();
+        assert!(!back_moves.is_empty());
+
+        // ensure the prev board matches exactly one back move
+        let mut matched_count = 0;
+
+        for back in back_moves {
+            // println!("    back cand: {:?}", back);
+            let mut prev = child.clone();
+            let r = prev.play_back(back);
+
+            match r {
+                Ok(()) => {
+                    // println!("      prev: {:?}", prev);
+                    if prev == board_clear {
+                        // println!("      matches!");
+                        matched_count += 1;
+                    }
+                }
+                Err(PrevTerminal) => continue,
+            }
+        }
+
+        assert_eq!(matched_count, 1);
+    });
 }
 
-fn demo() {
+fn _demo() {
     // let board = AtaxxBoard::diagonal(7);
     let board = AtaxxBoard::from_fen("x5o/7/7/7/7/oo5/oo4x x 0 1").unwrap();
 

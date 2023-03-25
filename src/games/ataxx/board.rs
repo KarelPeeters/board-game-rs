@@ -115,6 +115,10 @@ impl AtaxxBoard {
         None
     }
 
+    pub fn clear_moves_since_last_copy(&mut self) {
+        self.moves_since_last_copy = 0;
+    }
+
     pub fn moves_since_last_copy(&self) -> u8 {
         self.moves_since_last_copy
     }
@@ -146,7 +150,7 @@ impl AtaxxBoard {
     }
 
     /// Return whether the player with the given tiles has to pass, ie. cannot make a copy or jump move.
-    fn must_pass_with_tiles(&self, tiles: BitBoard8) -> bool {
+    pub(super) fn must_pass_with_tiles(&self, tiles: BitBoard8) -> bool {
         (tiles.adjacent_or_ring_not_self() & self.free_tiles()).none()
     }
 

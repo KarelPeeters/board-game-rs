@@ -1,6 +1,7 @@
 use std::collections::hash_map::RandomState;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
+use std::hash::Hash;
 use std::iter::FromIterator;
 use std::time::Instant;
 
@@ -10,7 +11,6 @@ use rand_xoshiro::Xoroshiro64StarStar;
 
 use board_game::board::{Board, BoardDone, PlayError};
 use board_game::symmetry::Symmetry;
-use board_game::util::game_stats;
 
 mod arimaa;
 mod ataxx;
@@ -37,16 +37,16 @@ where
     test_symmetry(board);
 }
 
-use std::hash::Hash;
-
 pub fn board_perft_main<S: Debug + ?Sized, T: Debug, B: Board + Hash>(
     f: impl Fn(&S) -> B,
     r: Option<impl Fn(&B) -> T>,
+    p: impl Fn(&B, u32) -> u64,
     cases: Vec<(&S, Vec<u64>)>,
 ) where
     for<'a> &'a S: PartialEq<T>,
 {
     let total_start = Instant::now();
+    let mut first_fail = None;
 
     for (desc, expected_perfts) in cases {
         let board = f(desc);
@@ -59,7 +59,7 @@ pub fn board_perft_main<S: Debug + ?Sized, T: Debug, B: Board + Hash>(
 
         for (depth, &expected_perft) in expected_perfts.iter().enumerate() {
             let curr_start = Instant::now();
-            let perft = game_stats::perft(&board, depth as u32);
+            let perft = p(&board, depth as u32);
             println!(
                 "   depth {} -> {} =? {}, took {:?}",
                 depth,
@@ -67,11 +67,20 @@ pub fn board_perft_main<S: Debug + ?Sized, T: Debug, B: Board + Hash>(
                 perft,
                 curr_start.elapsed()
             );
-            assert_eq!(expected_perft, perft)
+
+            if expected_perft != perft && first_fail.is_none() {
+                first_fail = Some((desc, depth));
+            }
         }
+
+        println!("\n");
     }
 
     println!("Total: took {:?}", total_start.elapsed());
+
+    if let Some(first_fail) = first_fail {
+        panic!("First fail at {:?}", first_fail);
+    }
 }
 
 fn test_done_board_panics<B: Board>(board: &B) {

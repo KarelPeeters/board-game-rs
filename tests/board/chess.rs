@@ -4,6 +4,7 @@ use chess::ChessMove;
 
 use board_game::board::Board;
 use board_game::games::chess::{ChessBoard, Rules};
+use board_game::util::game_stats::perft;
 
 use crate::board::{board_perft_main, board_test_main};
 
@@ -57,11 +58,12 @@ fn test_parse_castle_black() {
 fn chess_perft() {
     #[rustfmt::skip]
         board_perft_main(
-        |s| ChessBoard::new_without_history(chess::Board::from_str(s).unwrap(), Rules::default()),
-        Some(|b: &ChessBoard| b.inner().to_string()),
-        vec![
-            ("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", vec![1, 20, 400, 8902, 197281, 4865609]),
-            ("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1", vec![1, 48, 2039, 97862, 4085603]),
-        ],
-    );
+            |s| ChessBoard::new_without_history(chess::Board::from_str(s).unwrap(), Rules::default()),
+            Some(|b: &ChessBoard| b.inner().to_string()),
+            perft,
+            vec![
+                ("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", vec![1, 20, 400, 8902, 197281, 4865609]),
+                ("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1", vec![1, 48, 2039, 97862, 4085603]),
+            ],
+        );
 }
