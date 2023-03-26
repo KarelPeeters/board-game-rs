@@ -1,25 +1,98 @@
 #![allow(dead_code)]
 
+use board_game::ai::minimax::minimax;
 use internal_iterator::InternalIterator;
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
+use std::collections::HashSet;
 
+use board_game::ai::solver::{solve, solve_all_moves};
 use board_game::board::{Board, BoardMoves};
-use board_game::games::ataxx::{AtaxxBoard, BackMove, Move, PrevTerminal};
-use board_game::util::bitboard::BitBoard8;
+use board_game::games::ataxx::{AtaxxBoard, Move, PrevTerminal};
+use board_game::heuristic::ataxx::AtaxxTileHeuristic;
+use board_game::util::game_stats::perft;
 
 fn main() {
     // demo();
     // fuzz();
-    custom()
+    // tree();
+    // custom();
+    derp();
+}
+
+fn derp() {
+    // let board = AtaxxBoard::from_fen("xxxxo/ooxoo/ooooo/xxxxx/xxx2 x 0 1").unwrap();
+    let mut board = AtaxxBoard::from_fen("ooo1o/1oxxx/xxxxx/xxxxx/ooooo o 0 1").unwrap();
+    println!("{}", board);
+
+    let mut seen = HashSet::new();
+
+    loop {
+        if !seen.insert(board.clone()) {
+            break;
+        }
+
+        for depth in 0.. {
+            let eval = solve_all_moves(&board, depth);
+            // let eval = minimax(&board, &AtaxxTileHeuristic::default(), depth, &mut rng);
+            // println!("depth {}: {:?}", depth, eval);
+
+            // if eval.value.to_outcome_wdl().is_some() {
+            //     break;
+            // }
+
+            if depth >= 20 {
+                let mv = eval.best_move.unwrap()[0];
+                println!("Playing {}", mv);
+                board.play(mv).unwrap();
+                board.clear_moves_since_last_copy();
+                println!("{}", board);
+                break;
+            }
+        }
+    }
 }
 
 fn custom() {
-    let board = AtaxxBoard::from_fen("x1x2/1x3/1x3/5/4x o 0 1").unwrap();
-    println!("board:\n{}", board);
+    let mut board = AtaxxBoard::from_fen("7/7/7/7/7/7/xx5 o 0 1").unwrap();
+    println!("{}", board);
+
+    let mut count = 0;
 
     board.back_moves().for_each(|back| {
-        println!("  {:?}", back);
+        let mut prev = board.clone();
+        if prev.play_back(back).is_ok() {
+            println!("{:?}", back);
+            println!("{}", prev);
+            count += 1;
+        }
+    });
+
+    println!("{}", count);
+}
+
+fn tree() {
+    let board = AtaxxBoard::from_fen("-------/-------/x1x2--/1x3--/1x3--/5--/4x-- o 0 1").unwrap();
+    println!("board:\n{}", board);
+
+    board.back_moves().for_each(|back_0| {
+        let mut prev_0 = board.clone();
+        if prev_0.play_back(back_0).is_err() {
+            println!("{:?} => terminal", back_0);
+            return;
+        } else {
+            println!("{:?} => {:?}", back_0, prev_0);
+        }
+
+        prev_0.back_moves().for_each(|back_1| {
+            let mut prev_1 = prev_0.clone();
+            if prev_1.play_back(back_1).is_err() {
+                println!("  {:?} => terminal", back_1);
+                return;
+            } else {
+                println!("  {:?} => {:?}", back_1, prev_1);
+            }
+        })
     })
 }
 
@@ -53,15 +126,11 @@ fn fuzz() {
 }
 
 fn fuzz_test(board: &AtaxxBoard, count: &mut Count) {
-    if board.is_done() {
-        return;
-    }
-
     println!("board {:?}", board);
     // println!("{}", board);
 
     count.pos += 1;
-    count.mv += board.available_moves().unwrap().count() as u64;
+    count.mv += board.available_moves().map_or(0, |a| a.count() as u64);
     count.back += board.back_moves().count() as u64;
 
     // clear the move counter
@@ -77,10 +146,14 @@ fn fuzz_test(board: &AtaxxBoard, count: &mut Count) {
 
         // ensure the back move yields a valid board
         let mut prev = board.clone();
-        prev.play_back(back).unwrap();
+        let r = prev.play_back(back);
+        match r {
+            Ok(()) => {}
+            Err(PrevTerminal) => return,
+        }
         board.assert_valid();
 
-        // ensure playing the corresponding move again works and yields the same board
+        // ensure playing the corresponding move again works and yields original board
         let mut next = prev.clone_and_play(back.mv).unwrap();
         next.clear_moves_since_last_copy();
         assert_eq!(board_clear, next);
@@ -93,6 +166,10 @@ fn fuzz_test(board: &AtaxxBoard, count: &mut Count) {
         assert!(!all_prev.contains(&prev));
         all_prev.push(prev);
     });
+
+    if board.is_done() {
+        return;
+    }
 
     board.available_moves().unwrap().for_each(|mv| {
         // println!("  playing move {}", mv);

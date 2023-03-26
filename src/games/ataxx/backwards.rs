@@ -172,9 +172,6 @@ pub fn ataxx_back_perft(board: &AtaxxBoard, depth: u32) -> u64 {
     if depth == 0 {
         return 1;
     }
-    if depth == 1 {
-        return board.back_moves().count() as u64;
-    }
 
     let mut p = 0;
     board.back_moves().for_each(|back| {

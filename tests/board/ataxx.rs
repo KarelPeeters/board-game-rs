@@ -10,7 +10,88 @@ use board_game::util::bitboard::BitBoard8;
 use board_game::util::board_gen::random_board_with_moves;
 use board_game::util::game_stats::perft;
 
-use crate::board::{board_perft_main, board_test_main};
+use crate::board::board_perft_main;
+
+// TODO move this into the main board tester once we have a general interface for backwards movegen
+fn board_test_main(board: &AtaxxBoard) {
+    crate::board::board_test_main(board);
+    test_back_moves(board);
+}
+
+fn test_back_moves(board: &AtaxxBoard) {
+    println!("board {:?}", board);
+
+    // clear the move counter
+    let mut board_clear = board.clone();
+    board_clear.clear_moves_since_last_copy();
+
+    // check that all back moves are valid and distinct
+    let mut all_back = vec![];
+    let mut all_prev = vec![];
+
+    board.back_moves().for_each(|back| {
+        // println!("  checking back {:?}", back);
+
+        // ensure the back move yields a valid board
+        let mut prev = board.clone();
+        let r = prev.play_back(back);
+        match r {
+            Ok(()) => {}
+            Err(PrevTerminal) => return,
+        }
+        board.assert_valid();
+
+        // ensure playing the corresponding move again works and yields original board
+        let mut next = prev.clone_and_play(back.mv).unwrap();
+        next.clear_moves_since_last_copy();
+        assert_eq!(board_clear, next);
+
+        // ensure the back move is unique
+        assert!(!all_back.contains(&back));
+        all_back.push(back);
+
+        // ensure the resulting previous board is unique
+        assert!(!all_prev.contains(&prev));
+        all_prev.push(prev);
+    });
+
+    if board.is_done() {
+        return;
+    }
+
+    board.available_moves().unwrap().for_each(|mv| {
+        // println!("  playing move {}", mv);
+        let child = board.clone_and_play(mv).unwrap();
+
+        // println!("    child: {:?}", child);
+
+        // get potential back moves
+        let back_moves = child.back_moves().filter(|back| back.mv == mv).collect::<Vec<_>>();
+        assert!(!back_moves.is_empty());
+
+        // ensure the prev board matches exactly one back move
+        let mut matched_count = 0;
+
+        for back in back_moves {
+            // println!("    back cand: {:?}", back);
+            let mut prev = child.clone();
+            let r = prev.play_back(back);
+
+            match r {
+                Ok(()) => {
+                    // println!("      prev: {:?}", prev);
+                    if prev == board_clear {
+                        // println!("      matches!");
+                        matched_count += 1;
+                    }
+                }
+                Err(PrevTerminal) => continue,
+            }
+        }
+
+        assert_eq!(matched_count, 1);
+    });
+}
 
 #[test]
 fn ataxx_empty() {
@@ -261,13 +342,17 @@ fn ataxx_perft_back() {
     board_perft_main(
         |s| AtaxxBoard::from_fen(s).unwrap(),
         Some(AtaxxBoard::to_fen),
-        ataxx_back_perft,
+        |p, d| {
+            board_test_main(p);
+            ataxx_back_perft(p, d)
+        },
         vec![
             ("x5o/7/7/7/7/7/o5x x 0 1", vec![1, 10, 100, 1584, 23132, 350092, 4978660, 77305740]),
             ("6o/7/7/7/7/xx5/xx5 o 0 1", vec![1, 220, 2375, 37766, 609479, 11097618, 190111539]),
             ("6o/7/7/7/7/7/xx5 o 0 1", vec![1, 24, 162, 1868, 22874, 308829, 3675210, 44830928]),
             ("oxxxooo/oxxxooo/ooxxxoo/ooxxxoo/xxxxxoo/xxxxxxx/xx1xxoo x 0 1", vec![1, 132, 188826, 11199385]),
-            ("-------/-------/x1x2--/1x3--/1x3--/5--/4x-- o 0 1", vec![1, 109, 405, 6127, 56898, 910186, 8979185]),
+            ("-------/-------/x1x2--/1x3--/1x3--/5--/4x-- o 0 1", vec![1, 74, 405, 6127, 56898, 910186, 8979185]),
+            ("7/7/7/7/7/7/xx5 o 0 1", vec![1, 11, 42, 251, 1973, 17706]),
         ],
     );
 }
