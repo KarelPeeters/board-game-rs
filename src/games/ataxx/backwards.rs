@@ -132,7 +132,7 @@ impl<'a> InternalIterator for BackMovesIterator<'a, AtaxxBoard> {
     }
 }
 
-fn generate_captures<R, F>(board: &AtaxxBoard, from: Option<Coord8>, to: Coord8, mut f: F) -> ControlFlow<R, bool>
+fn generate_captures<R, F>(board: &AtaxxBoard, from: Option<Coord8>, to: Coord8, mut f: F) -> ControlFlow<R>
 where
     F: FnMut(BackMove) -> ControlFlow<R>,
 {
@@ -154,18 +154,16 @@ where
         1 << potentially_converted.count()
     };
 
-    let mut any = false;
-
+    // TODO consider using new bit iterator for this, although it appears slower :/
     for converted_dense in 0..limit_dense {
         let converted = BitBoard8(converted_dense.pdep(potentially_converted.0));
         debug_assert_eq!(converted & !potentially_converted, BitBoard8::EMPTY);
 
         let back_mv = BackMove { mv, converted };
         f(back_mv)?;
-        any = true;
     }
 
-    ControlFlow::Continue(any)
+    ControlFlow::Continue(())
 }
 
 pub fn ataxx_back_perft(board: &AtaxxBoard, depth: u32) -> u64 {
