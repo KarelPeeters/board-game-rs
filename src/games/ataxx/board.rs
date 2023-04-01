@@ -52,6 +52,19 @@ impl AtaxxBoard {
         moves_since_last_copy: u8,
         next_player: Player,
     ) -> Self {
+        let result = Self::from_parts_unchecked(size, tiles_a, tiles_b, gaps, moves_since_last_copy, next_player);
+        result.assert_valid();
+        result
+    }
+
+    pub fn from_parts_unchecked(
+        size: u8,
+        tiles_a: BitBoard8,
+        tiles_b: BitBoard8,
+        gaps: BitBoard8,
+        moves_since_last_copy: u8,
+        next_player: Player,
+    ) -> Self {
         let mut result = AtaxxBoard {
             size,
             tiles_a,
@@ -62,7 +75,9 @@ impl AtaxxBoard {
             outcome: None,
         };
         result.update_outcome();
-        result.assert_valid();
+        if cfg!(debug_assertions) {
+            result.assert_valid();
+        }
         result
     }
 
