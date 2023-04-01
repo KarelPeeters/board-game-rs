@@ -129,6 +129,20 @@ impl BitBoard8 {
         BitBoard8(y)
     }
 
+    /// The same as `(self.adjacent() | self.ring()) & !self` but expected to faster.
+    #[must_use]
+    pub const fn adjacent_or_ring_not_self(self) -> Self {
+        let x = self.0;
+        let line = (x << 2) & 0xfcfcfcfcfcfcfcfc
+            | (x << 1) & 0xfefefefefefefefe
+            | x
+            | (x >> 1) & 0x7f7f7f7f7f7f7f7f
+            | (x >> 2) & 0x3f3f3f3f3f3f3f3f;
+        let y = (line | line << 8 | line >> 8 | line << 16 | line >> 16) & !x;
+        debug_assert!(y == (self.adjacent().0 | self.ring().0) & !self.0);
+        BitBoard8(y)
+    }
+
     #[must_use]
     pub const fn flip_x(self) -> BitBoard8 {
         // reverse_bits flips both x and y, so undo y
