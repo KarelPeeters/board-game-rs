@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::fmt::Write;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::ControlFlow;
+use std::str::FromStr;
 
 use internal_iterator::InternalIterator;
 use itertools::Itertools;
@@ -48,7 +49,7 @@ pub enum Move {
     Place(Tile),
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Tile {
     pub x: u8,
     pub y: u8,
@@ -66,7 +67,28 @@ impl Direction {
     pub const ALL: [Direction; 4] = [Direction::Up, Direction::Down, Direction::Left, Direction::Right];
 }
 
+#[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
+pub struct InvalidTile;
+
+#[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
+pub struct InvalidX;
+
 impl Tile {
+    // By convention 'I' is skipped because it can be confused with "1".
+    pub const TILE_X_NAMES: &'static [u8] = b"ABCDEFGHJKLMNOPQRSTUVWXYZ";
+
+    pub fn x_to_char(x: u8) -> Result<char, InvalidX> {
+        Self::TILE_X_NAMES.get(x as usize).map(|&c| c as char).ok_or(InvalidX)
+    }
+
+    pub fn x_from_char(n: char) -> Result<u8, InvalidX> {
+        Self::TILE_X_NAMES
+            .iter()
+            .position(|&c| c == n as u8)
+            .map(|x| x as u8)
+            .ok_or(InvalidX)
+    }
+
     pub fn new(x: u8, y: u8) -> Self {
         Self { x, y }
     }
@@ -355,6 +377,32 @@ impl InternalIterator for AvailableMovesIterator<'_, GoBoard> {
 // TODO implement proper symmetry
 impl_unit_symmetry_board!(GoBoard);
 
+impl Display for Tile {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", Tile::x_to_char(self.x).unwrap(), self.y + 1)
+    }
+}
+
+impl Debug for Tile {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Tile(({}, {}), {})", self.x, self.y, self)
+    }
+}
+
+impl FromStr for Tile {
+    type Err = InvalidTile;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        check(s.len() >= 2 && s.is_ascii())?;
+
+        let x = Tile::x_from_char(s.as_bytes()[0] as char).map_err(|_| InvalidTile)?;
+        let y_1 = s[1..].parse::<u8>().map_err(|_| InvalidTile)?;
+        check(y_1 > 0)?;
+
+        Ok(Tile::new(x, y_1 - 1))
+    }
+}
+
 impl Debug for GoBoard {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "GoBoard({:?})", self.to_fen())
@@ -401,7 +449,7 @@ impl Display for GoBoard {
 
         write!(f, "   ")?;
         for x in 0..self.size {
-            write!(f, "{}", (x + b'a') as char)?;
+            write!(f, "{}", Tile::x_to_char(x).unwrap())?;
         }
         writeln!(f)?;
 
@@ -413,7 +461,7 @@ impl Display for Move {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Move::Pass => write!(f, "PASS"),
-            Move::Place(tile) => write!(f, "{}{}", (b'A' + tile.x) as char, tile.y + 1),
+            Move::Place(tile) => write!(f, "{}", tile),
         }
     }
 }
@@ -425,7 +473,7 @@ fn player_symbol(player: Player) -> char {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
 pub struct InvalidFen;
 
 impl GoBoard {
@@ -514,9 +562,9 @@ impl GoBoard {
     }
 }
 
-fn check(c: bool) -> Result<(), InvalidFen> {
+fn check<E: Default>(c: bool) -> Result<(), E> {
     match c {
         true => Ok(()),
-        false => Err(InvalidFen),
+        false => Err(E::default()),
     }
 }

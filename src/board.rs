@@ -65,6 +65,7 @@ where
         Ok(self.available_moves()?.nth(index).unwrap())
     }
 
+    // TODO is play with an invalid move allowed to leave the board in an inconsistent state?
     /// Play the move `mv`, modifying this board.
     fn play(&mut self, mv: Self::Move) -> Result<(), PlayError>;
 
