@@ -3,9 +3,36 @@ use board_game::games::go::{GoBoard, Move, Rules, Tile};
 use board_game::util::board_gen::board_with_moves;
 use board_game::util::game_stats::{perf_naive, perft};
 
-use crate::board::{board_test_main, print_board_with_moves};
+use crate::board::{board_perft_main, board_test_main, print_board_with_moves};
 
 #[test]
+fn tile() {
+    let cases = [
+        // basic
+        ((0, 0), "A1"),
+        ((1, 0), "B1"),
+        ((0, 1), "A2"),
+        // i skipped
+        ((7, 0), "H1"),
+        ((8, 0), "J1"),
+        ((9, 0), "K1"),
+        // largest 19x19 tile
+        ((0, 18), "A19"),
+        ((18, 0), "T1"),
+        ((18, 18), "T19"),
+        // largest tile
+        ((24, 24), "Z25"),
+    ];
+
+    for ((x, y), s) in cases {
+        let tile = Tile::new(x, y);
+        assert_eq!(tile.to_string(), s);
+        assert_eq!(tile, s.parse().unwrap());
+    }
+}
+
+#[test]
+#[ignore]
 fn empty_0() {
     let cases = [
         (0, "/ b 0"),
@@ -83,6 +110,52 @@ fn double_pass() {
     board_test_main(&board);
 }
 
+fn simulate_moves(start: &str, moves: &[Move], result: &str) {
+    let rules = Rules::tromp_taylor();
+    let board = print_board_with_moves(GoBoard::from_fen(start, rules).unwrap(), moves);
+
+    let result = GoBoard::from_fen(result, rules).unwrap();
+    println!("Expected:\n{}", result);
+
+    assert_eq!(board, result);
+}
+
+#[test]
+fn capture_large() {
+    simulate_moves(
+        ".w.../wbw../bbbw./wbb../.ww.. w 0",
+        &[Move::Place(Tile::new(3, 1))],
+        ".w.../w.w../...w./w..w./.ww.. b 0",
+    );
+}
+
+#[test]
+fn capture_inner() {
+    simulate_moves(
+        "...../.w.../wbw../b.bw./bbw.. w 0",
+        &[Move::Place(Tile::new(1, 1))],
+        "...../.w.../w.w../.w.w./..w.. b 0",
+    );
+}
+
+#[test]
+fn self_capture() {
+    simulate_moves(
+        "...../.w.../wbw../b.bw./bbw.. b 0",
+        &[Move::Place(Tile::new(1, 1))],
+        "...../.w.../w.w../...w./..w.. w 0",
+    );
+}
+
+#[test]
+fn double_eye() {
+    let start = "...../...../wwwww/bbbbb/.b.bb w 0";
+    let end = "...../...../wwwww/bbbbb/.b.bb b 0";
+
+    simulate_moves(start, &[Move::Place(Tile::new(0, 0))], end);
+    simulate_moves(start, &[Move::Place(Tile::new(2, 0))], end);
+}
+
 #[test]
 #[ignore]
 fn go_perft_19() {
@@ -127,4 +200,18 @@ fn go_perft_5() {
     }
 
     assert!(all_correct);
+}
+
+#[test]
+fn go_perft_fast() {
+    let rules = Rules::tromp_taylor();
+
+    board_perft_main(
+        |s| GoBoard::from_fen(s, rules).unwrap(),
+        Some(GoBoard::to_fen),
+        vec![
+            ("...../...../...../...../..... b 0", vec![1, 26, 651, 15650, 361233]),
+            ("...../...../...../...b./..b.b w 0", vec![1, 23, 508, 10715, 216332]),
+        ],
+    );
 }
