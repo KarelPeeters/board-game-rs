@@ -1,5 +1,6 @@
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
+use std::iter::zip;
 
 use crate::board::Player;
 use crate::games::go::tile::{Direction, Tile};
@@ -229,6 +230,36 @@ impl Chains {
 
         !dead_groups.is_empty()
     }
+
+    fn tile_for_eq_hash(&self, content: Content) -> EqHashTile {
+        let Content {
+            has_had_a,
+            has_had_b,
+            group_id,
+        } = content;
+
+        let player = group_id.map(|id| {
+            let Group {
+                player,
+                stone_count: _,
+                liberty_count: _,
+            } = self.groups[id as usize];
+            player
+        });
+
+        EqHashTile {
+            has_had_a,
+            has_had_b,
+            player,
+        }
+    }
+}
+
+#[derive(Eq, PartialEq, Hash)]
+struct EqHashTile {
+    has_had_a: bool,
+    has_had_b: bool,
+    player: Option<Player>,
 }
 
 #[allow(clippy::derivable_impls)]
@@ -243,14 +274,22 @@ impl Default for Content {
 }
 
 impl PartialEq for Chains {
-    fn eq(&self, _: &Self) -> bool {
-        todo!()
+    fn eq(&self, other: &Self) -> bool {
+        if self.tiles.len() != other.tiles.len() {
+            return false;
+        }
+        zip(&self.tiles, &other.tiles).all(|(&self_content, &other_content)| {
+            self.tile_for_eq_hash(self_content) == other.tile_for_eq_hash(other_content)
+        })
     }
 }
 
 impl Hash for Chains {
-    fn hash<H: Hasher>(&self, _: &mut H) {
-        todo!()
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        // TODO switch to proper Zobrist hashing, this is pretty slow
+        for content in &self.tiles {
+            self.tile_for_eq_hash(*content).hash(state);
+        }
     }
 }
 
