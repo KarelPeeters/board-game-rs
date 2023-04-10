@@ -218,20 +218,46 @@ impl GoBoard {
         false
     }
 
+    // TODO move the buffers in-place on board with extra states?
+    // TODO use bitsets?
+    // TODO replace todo with recursion?
+    // TODO only start clearing from the newly placed tile
     fn clear(&mut self, player: Player) -> bool {
-        let mut to_clear = vec![];
+        let mut reaches_empty = vec![false; self.tiles.len()];
+        let mut todo = Vec::new();
 
         for tile in Tile::all(self.size) {
-            if self.tile(tile) == Some(player) && !self.reaches(tile, None) {
-                to_clear.push(tile);
+            if self.tile(tile).is_none() {
+                todo.push(tile);
             }
         }
 
-        for &tile in &to_clear {
-            *self.tile_mut(tile) = None;
+        while let Some(tile) = todo.pop() {
+            let index = tile.index(self.size);
+            if reaches_empty[index] {
+                continue;
+            }
+            reaches_empty[index] = true;
+
+            for dir in Direction::ALL {
+                if let Some(adj) = tile.adjacent(dir, self.size) {
+                    let value = self.tile(adj);
+                    if value == Some(player) {
+                        todo.push(adj);
+                    }
+                }
+            }
         }
 
-        !to_clear.is_empty()
+        let mut removed_any = false;
+        for tile in Tile::all(self.size) {
+            if self.tile(tile) == Some(player) && !reaches_empty[tile.index(self.size)] {
+                *self.tile_mut(tile) = None;
+                removed_any = true;
+            }
+        }
+
+        removed_any
     }
 
     fn update_state_passed(&mut self) {
@@ -248,6 +274,13 @@ impl GoBoard {
             }
             State::Done(_) => unreachable!(),
         };
+    }
+
+    fn any_adjacent_of_value(&self, tile: Tile, value: Option<Player>) -> bool {
+        Direction::ALL.iter().any(|&dir| {
+            tile.adjacent(dir, self.size)
+                .map_or(false, |adj| self.tile(adj) == value)
+        })
     }
 }
 
@@ -284,11 +317,14 @@ impl Board for GoBoard {
             }
             Move::Place(tile) => {
                 let curr = self.next_player;
+                let other = curr.other();
+
                 let prev_tile = self.tile_mut(tile).replace(curr);
                 assert_eq!(prev_tile, None);
 
-                let capture = self.clear(curr.other());
-                let suicide = self.clear(curr);
+                // avoid clearing if possible by short-circuiting
+                let capture = (self.any_adjacent_of_value(tile, Some(other))) && self.clear(other);
+                let suicide = (!self.any_adjacent_of_value(tile, None)) && self.clear(curr);
 
                 // source for this assert: http://webdocs.cs.ualberta.ca/~hayward/396/hoven/tromptaylor.pdf
                 // TODO maybe just skip clearing curr instead for performance
@@ -296,7 +332,7 @@ impl Board for GoBoard {
                     assert!(!suicide);
                 }
 
-                self.next_player = self.next_player.other();
+                self.next_player = other;
                 self.state = State::Normal;
             }
         }
