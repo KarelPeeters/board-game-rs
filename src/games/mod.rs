@@ -2,6 +2,7 @@ pub mod arimaa;
 pub mod ataxx;
 pub mod chess;
 pub mod connect4;
+pub mod go;
 pub mod oware;
 pub mod sttt;
 pub mod ttt;

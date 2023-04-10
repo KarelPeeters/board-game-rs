@@ -16,6 +16,7 @@ mod arimaa;
 mod ataxx;
 mod chess;
 mod connect4;
+mod go;
 mod max_moves;
 mod oware;
 mod sttt;
@@ -262,4 +263,17 @@ fn consistent_rng() -> impl Rng {
 
 fn sort_moves<B: Board>(moves: &[B::Move]) -> Vec<B::Move> {
     B::all_possible_moves().filter(|&mv| moves.contains(&mv)).collect()
+}
+
+pub fn print_board_with_moves<B: Board>(start: B, moves: &[B::Move]) -> B {
+    let mut board = start;
+    println!("{}", board);
+
+    for &mv in moves {
+        println!("Playing {}", mv);
+        board.play(mv).unwrap();
+        println!("{}", board);
+    }
+
+    board
 }
