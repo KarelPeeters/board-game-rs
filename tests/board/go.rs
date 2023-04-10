@@ -118,6 +118,8 @@ fn simulate_moves(start: &str, moves: &[Move], result: &str) {
     println!("Expected:\n{}", result);
 
     assert_eq!(board, result);
+
+    board_test_main(&board);
 }
 
 #[test]
@@ -154,6 +156,38 @@ fn double_eye() {
 
     simulate_moves(start, &[Move::Place(Tile::new(0, 0))], end);
     simulate_moves(start, &[Move::Place(Tile::new(2, 0))], end);
+}
+
+#[test]
+fn suicide_1() {
+    let start = "...../...../...../b..../.b... w 0";
+    let mv = Move::Place(Tile::new(0, 0));
+
+    let board = GoBoard::from_fen(start, Rules::tromp_taylor()).unwrap();
+    println!("{}", board);
+
+    // not allowed, would immediately repeat
+    assert_eq!(Ok(false), board.is_available_move(mv));
+
+    board_test_main(&board);
+}
+
+#[test]
+fn suicide_2() {
+    let start = "...../...../b..../wb.../.b... w 0";
+    let mv = Move::Place(Tile::new(0, 0));
+
+    let board_tt = GoBoard::from_fen(start, Rules::tromp_taylor()).unwrap();
+    let board_cgos = GoBoard::from_fen(start, Rules::cgos()).unwrap();
+    println!("{}", board_tt);
+
+    // allowed in TT, does not repeat (yet)
+    assert_eq!(Ok(false), board_tt.is_available_move(mv));
+    // not allowed in CGOS, suicide is banned
+    assert_eq!(Ok(false), board_cgos.is_available_move(mv));
+
+    board_test_main(&board_tt);
+    board_test_main(&board_cgos);
 }
 
 #[test]
