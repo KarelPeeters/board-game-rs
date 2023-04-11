@@ -80,6 +80,10 @@ impl Chains {
         self.size
     }
 
+    pub fn area(&self) -> u16 {
+        self.size as u16 * self.size as u16
+    }
+
     pub fn content(&self, tile: Tile) -> Content {
         self.tiles[tile.index(self.size)]
     }
@@ -349,6 +353,28 @@ impl Chains {
             captured_other: cleared_enemy,
             captured_any: suicide | cleared_enemy,
         })
+    }
+
+    pub fn assert_valid(&self) {
+        for tile in &self.tiles {
+            if let Some(id) = tile.group_id {
+                assert!((id as usize) < self.groups.len());
+                let group = self.groups[id as usize];
+                assert!(group.liberty_edge_count > 0 && group.stone_count > 0);
+
+                if group.player == Player::A {
+                    assert!(tile.has_had_a);
+                }
+                if group.player == Player::B {
+                    assert!(tile.has_had_b);
+                }
+            }
+        }
+
+        for group in &self.groups {
+            // stone_count and liberty_edge_count must agree on whether the group is dead
+            assert_eq!((group.stone_count == 0), (group.liberty_edge_count == 0));
+        }
     }
 
     fn tile_for_eq_hash(&self, content: Content) -> EqHashTile {
