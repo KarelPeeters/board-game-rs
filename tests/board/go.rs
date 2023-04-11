@@ -1,7 +1,7 @@
-use board_game::board::{Board, Outcome};
+use board_game::board::{Board, Outcome, PlayError};
 use board_game::games::go::{GoBoard, Move, Rules, Tile};
 use board_game::util::board_gen::board_with_moves;
-use board_game::util::game_stats::{perf_naive, perft};
+use board_game::util::game_stats::perf_naive;
 
 use crate::board::go_chains::chains_test_main;
 use crate::board::{board_perft_main, print_board_with_moves};
@@ -170,6 +170,7 @@ fn suicide_1() {
 
     // not allowed, would immediately repeat
     assert_eq!(Ok(false), board.is_available_move(mv));
+    assert_eq!(board.clone_and_play(mv), Err(PlayError::UnavailableMove));
 
     go_board_test_main(&board);
 }
@@ -185,8 +186,10 @@ fn suicide_2() {
 
     // allowed in TT, does not repeat (yet)
     assert_eq!(Ok(true), board_tt.is_available_move(mv));
+    assert_eq!(board_tt.clone_and_play(mv), Err(PlayError::UnavailableMove));
     // not allowed in CGOS, suicide is banned
     assert_eq!(Ok(false), board_cgos.is_available_move(mv));
+    assert_eq!(board_cgos.clone_and_play(mv), Err(PlayError::UnavailableMove));
 
     // TODO set up repeating situation that is disallowed by TT
 
@@ -199,22 +202,18 @@ fn super_ko() {
     // TODO write superko test
 }
 
-#[test]
-#[ignore]
-fn go_perft_19() {
-    let rules = Rules::tromp_taylor();
-    let board = GoBoard::new(19, rules);
-
+// TODO add profiling
+fn go_perft_main(board: GoBoard, all_expected: &[u64]) {
+    println!("Running perft with {:?} for:", board.rules());
     println!("{}", board);
 
-    // TODO some of these might not consider a double pass to be game over
-    // TODO these are probably still allowing repetition
-    let all_expected = [1, 362, 130683, 47046604, 16890120013];
     let mut all_correct = true;
 
     for (depth, &expected) in all_expected.iter().enumerate() {
         let value = perf_naive(&board, depth as u32);
-        println!("Perft {}: {} ?= {}", depth, value, expected);
+
+        let suffix = if value == expected { "" } else { " -> wrong!" };
+        println!("Perft depth {}: expected {} got {}{}", depth, value, expected, suffix);
 
         all_correct &= value == expected;
     }
@@ -224,25 +223,35 @@ fn go_perft_19() {
 
 #[test]
 #[ignore]
+fn go_perft_3() {
+    go_perft_main(
+        GoBoard::new(3, Rules::tromp_taylor()),
+        &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    );
+    go_perft_main(
+        GoBoard::new(3, Rules::cgos()),
+        &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    );
+}
+
+#[test]
+#[ignore]
 fn go_perft_5() {
-    let rules = Rules::tromp_taylor();
-    let board = GoBoard::new(5, rules);
+    go_perft_main(GoBoard::new(5, Rules::tromp_taylor()), &[1, 1, 1, 1, 1, 1, 1, 1]);
+    go_perft_main(GoBoard::new(5, Rules::cgos()), &[1, 1, 1, 1, 1, 1, 1, 1]);
+}
 
-    println!("{}", board);
-
-    // TODO some of these might not consider a double pass to be game over
-    // TODO these are probably still allowing repetition
-    let all_expected = [1, 26, 651, 15650, 361233, 7992928, 169263152, 3424697296];
-    let mut all_correct = true;
-
-    for (depth, &expected) in all_expected.iter().enumerate() {
-        let value = perft(&board, depth as u32);
-        println!("Perft {}: {} ?= {}", depth, value, expected);
-
-        all_correct &= value == expected;
-    }
-
-    assert!(all_correct);
+#[test]
+#[ignore]
+fn go_perft_19() {
+    go_perft_main(
+        GoBoard::new(19, Rules::cgos()),
+        &[1, 362, 130683, 47046242, 16889859009],
+    );
+    go_perft_main(
+        GoBoard::new(19, Rules::tromp_taylor()),
+        &[1, 362, 130683, 47046242, 16889859009],
+    );
 }
 
 #[test]
