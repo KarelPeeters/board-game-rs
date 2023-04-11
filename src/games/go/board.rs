@@ -141,7 +141,7 @@ impl Board for GoBoard {
             Move::Place(tile) => {
                 let chains = self.chains.take().expect("Board is in invalid state after failed play");
                 // TODO handle this error properly, eg. "unavailable move"
-                let new_chains = chains.place_tile_full(tile, curr, &self.rules).unwrap().chains;
+                let new_chains = chains.place_tile(tile, curr, &self.rules).unwrap().chains;
                 self.chains = Some(new_chains);
 
                 self.next_player = other;
