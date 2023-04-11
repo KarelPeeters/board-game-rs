@@ -105,7 +105,7 @@ fn capture_corner() {
     assert_eq!(chains.group_at(Tile::new(1, 0)), Some(expected));
     assert_eq!(chains.group_at(Tile::new(0, 1)), Some(expected));
 
-    check_chains_valid(&chains, &rules);
+    chains_test_main(&chains, &rules);
 }
 
 #[test]
@@ -172,7 +172,7 @@ fn capture_cyclic_group() {
     assert_eq!(chains.group_at(Tile::new(2, 4)), Some(expected_edge_new));
     assert_eq!(chains.group_at(Tile::new(2, 2)), Some(expected_center));
 
-    check_chains_valid(&chains, &rules);
+    chains_test_main(&chains, &rules);
 }
 
 #[test]
@@ -203,7 +203,7 @@ fn fill_board() {
         println!("{}", new_chains);
         assert_eq!(new_chains.to_fen(), Chains::new(size).to_fen());
 
-        check_chains_valid(&new_chains, &rules);
+        chains_test_main(&new_chains, &rules);
     }
 
     {
@@ -212,7 +212,7 @@ fn fill_board() {
         println!("{}", new_chains);
         assert_eq!(new_chains.to_fen(), "....w/...../...../...../.....");
 
-        check_chains_valid(&new_chains, &rules);
+        chains_test_main(&new_chains, &rules);
     }
 }
 
@@ -237,7 +237,7 @@ fn capture_jagged() {
     };
     assert_eq!(new_chains.group_at(Tile::new(0, 0)), Some(expected));
 
-    check_chains_valid(&new_chains, &rules);
+    chains_test_main(&new_chains, &rules);
 }
 
 #[test]
@@ -284,7 +284,7 @@ fn fuzz_test() {
                         println!("success:");
                         println!("{}", chains);
 
-                        check_chains_valid(&chains, &rules);
+                        chains_test_main(&chains, &rules);
 
                         break 'tries;
                     }
@@ -305,12 +305,12 @@ fn build_chains(size: u8, rules: Rules, tiles: &[(u8, u8, Player)]) -> Chains {
         chains = chains.place_tile_full(Tile::new(x, y), player, &rules).unwrap().chains;
         // TODO remove print
         println!("{}", chains);
-        check_chains_valid(&chains, &rules);
+        chains_test_main(&chains, &rules);
     }
     chains
 }
 
-fn check_chains_valid(chains: &Chains, rules: &Rules) {
+pub fn chains_test_main(chains: &Chains, rules: &Rules) {
     chains.assert_valid();
     check_fen(chains, rules);
     check_floodfill(chains);

@@ -3,7 +3,8 @@ use board_game::games::go::{GoBoard, Move, Rules, Tile};
 use board_game::util::board_gen::board_with_moves;
 use board_game::util::game_stats::{perf_naive, perft};
 
-use crate::board::{board_perft_main, board_test_main, print_board_with_moves};
+use crate::board::go_chains::chains_test_main;
+use crate::board::{board_perft_main, print_board_with_moves};
 
 #[test]
 fn tile() {
@@ -49,7 +50,7 @@ fn empty_0() {
         assert_eq!(board.to_fen(), fen);
         assert_eq!(Ok(&board), GoBoard::from_fen(fen, rules).as_ref());
 
-        board_test_main(&board);
+        go_board_test_main(&board);
     }
 }
 
@@ -93,9 +94,9 @@ fn clear_corner() {
     let moves = [(0, 0), (0, 1), (4, 4), (1, 0)].map(|(x, y)| Move::Place(Tile::new(x, y)));
 
     let board = print_board_with_moves(start, &moves);
-    assert_eq!(board.tile(Tile::new(0, 0)), None);
+    assert_eq!(board.stone_at(Tile::new(0, 0)), None);
 
-    board_test_main(&board);
+    go_board_test_main(&board);
 }
 
 #[test]
@@ -107,7 +108,7 @@ fn double_pass() {
     let board = print_board_with_moves(start, &moves);
     assert_eq!(board.outcome(), Some(Outcome::Draw));
 
-    board_test_main(&board);
+    go_board_test_main(&board);
 }
 
 fn simulate_moves(start: &str, moves: &[Move], result: &str) {
@@ -117,9 +118,10 @@ fn simulate_moves(start: &str, moves: &[Move], result: &str) {
     let result = GoBoard::from_fen(result, rules).unwrap();
     println!("Expected:\n{}", result);
 
-    assert_eq!(board, result);
+    // TODO find a better way to compare without considering history
+    assert_eq!(board.to_fen(), result.to_fen());
 
-    board_test_main(&board);
+    go_board_test_main(&board);
 }
 
 #[test]
@@ -169,7 +171,7 @@ fn suicide_1() {
     // not allowed, would immediately repeat
     assert_eq!(Ok(false), board.is_available_move(mv));
 
-    board_test_main(&board);
+    go_board_test_main(&board);
 }
 
 #[test]
@@ -182,12 +184,19 @@ fn suicide_2() {
     println!("{}", board_tt);
 
     // allowed in TT, does not repeat (yet)
-    assert_eq!(Ok(false), board_tt.is_available_move(mv));
+    assert_eq!(Ok(true), board_tt.is_available_move(mv));
     // not allowed in CGOS, suicide is banned
     assert_eq!(Ok(false), board_cgos.is_available_move(mv));
 
-    board_test_main(&board_tt);
-    board_test_main(&board_cgos);
+    // TODO set up repeating situation that is disallowed by TT
+
+    go_board_test_main(&board_tt);
+    go_board_test_main(&board_cgos);
+}
+
+#[test]
+fn super_ko() {
+    // TODO write superko test
 }
 
 #[test]
@@ -200,7 +209,7 @@ fn go_perft_19() {
 
     // TODO some of these might not consider a double pass to be game over
     // TODO these are probably still allowing repetition
-    let all_expected = [1, 362, 130_683, 47_046_604, 16_890_120_013];
+    let all_expected = [1, 362, 130683, 47046604, 16890120013];
     let mut all_correct = true;
 
     for (depth, &expected) in all_expected.iter().enumerate() {
@@ -248,4 +257,9 @@ fn go_perft_fast() {
             ("...../...../...../...b./..b.b w 0", vec![1, 23, 508, 10715, 216332]),
         ],
     );
+}
+
+fn go_board_test_main(board: &GoBoard) {
+    chains_test_main(board.chains(), &board.rules());
+    crate::board::board_test_main(board);
 }
