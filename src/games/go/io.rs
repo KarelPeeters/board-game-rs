@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Display, Formatter, Write};
+use std::fmt::{Debug, Display, Formatter};
 use std::str::FromStr;
 
 use itertools::Itertools;
@@ -139,6 +139,40 @@ pub enum InvalidFen {
 
 impl GoBoard {
     pub fn to_fen(&self) -> String {
+        let chains = self.chains().to_fen();
+        let next_player = player_symbol(self.next_player());
+        let pass_counter = match self.state() {
+            State::Normal => 0,
+            State::Passed => 1,
+            State::Done(_) => 2,
+        };
+        format!("{} {} {}", chains, next_player, pass_counter)
+    }
+
+    pub fn from_fen(fen: &str, rules: Rules) -> Result<GoBoard, InvalidFen> {
+        let (tiles, next, pass) = fen.split(' ').collect_tuple().ok_or(InvalidFen::Syntax)?;
+
+        let chains = Chains::from_fen(tiles, &rules)?;
+
+        let next_player = match next {
+            "b" => Player::A,
+            "w" => Player::B,
+            _ => return Err(InvalidFen::InvalidChar),
+        };
+
+        let state = match pass {
+            "0" => State::Normal,
+            "1" => State::Passed,
+            "2" => State::Done(chains.score().to_outcome()),
+            _ => return Err(InvalidFen::InvalidChar),
+        };
+
+        Ok(GoBoard::from_parts(rules, chains, next_player, state))
+    }
+}
+
+impl Chains {
+    pub fn to_fen(&self) -> String {
         let size = self.size();
         let mut fen = String::new();
 
@@ -161,75 +195,45 @@ impl GoBoard {
             }
         }
 
-        write!(&mut fen, " {}", player_symbol(self.next_player())).unwrap();
-
-        let pass_counter = match self.state() {
-            State::Normal => 0,
-            State::Passed => 1,
-            State::Done(_) => 2,
-        };
-        write!(&mut fen, " {}", pass_counter).unwrap();
-
         fen
     }
 
-    pub fn from_fen(fen: &str, rules: Rules) -> Result<GoBoard, InvalidFen> {
-        let (tiles, next, pass) = fen.split(' ').collect_tuple().ok_or(InvalidFen::Syntax)?;
+    pub fn from_fen(fen: &str, rules: &Rules) -> Result<Chains, InvalidFen> {
+        check(fen.chars().all(|c| "/wb.".contains(c)), InvalidFen::InvalidChar)?;
 
-        check(tiles.chars().all(|c| "/wb.".contains(c)), InvalidFen::InvalidChar)?;
-
-        let chains = if tiles == "/" {
-            Chains::new(0)
+        if fen == "/" {
+            Ok(Chains::new(0))
         } else {
-            chains_from_non_empty_fen(tiles, &rules)?
-        };
+            let lines: Vec<&str> = fen.split('/').collect_vec();
+            let size = lines.len();
 
-        let next_player = match next {
-            "b" => Player::A,
-            "w" => Player::B,
-            _ => return Err(InvalidFen::InvalidChar),
-        };
+            check(size <= Chains::MAX_SIZE as usize, InvalidFen::TooLarge)?;
+            let size = size as u8;
 
-        let state = match pass {
-            "0" => State::Normal,
-            "1" => State::Passed,
-            "2" => State::Done(chains.score().to_outcome()),
-            _ => return Err(InvalidFen::InvalidChar),
-        };
+            let mut chains = Chains::new(size);
+            for (y_rev, line) in lines.iter().enumerate() {
+                let y = size as usize - 1 - y_rev;
+                check(line.len() == size as usize, InvalidFen::InvalidShape)?;
 
-        Ok(GoBoard::from_parts(rules, chains, next_player, state))
-    }
-}
+                for (x, value) in line.chars().enumerate() {
+                    let tile = Tile::new(x as u8, y as u8);
+                    let value = match value {
+                        'b' => Some(Player::A),
+                        'w' => Some(Player::B),
+                        '.' => None,
+                        _ => unreachable!(),
+                    };
 
-fn chains_from_non_empty_fen(fen_tiles: &str, rules: &Rules) -> Result<Chains, InvalidFen> {
-    let lines: Vec<&str> = fen_tiles.split('/').collect_vec();
-    let size = lines.len();
-
-    check(size <= Chains::MAX_SIZE as usize, InvalidFen::TooLarge)?;
-    let size = size as u8;
-
-    let mut chains = Chains::new(size);
-    for (y_rev, line) in lines.iter().enumerate() {
-        let y = size as usize - 1 - y_rev;
-        check(line.len() == size as usize, InvalidFen::InvalidShape)?;
-
-        for (x, value) in line.chars().enumerate() {
-            let tile = Tile::new(x as u8, y as u8);
-            let value = match value {
-                'b' => Some(Player::A),
-                'w' => Some(Player::B),
-                '.' => None,
-                _ => unreachable!(),
-            };
-
-            if let Some(player) = value {
-                let removed_stones = chains.place_tile_full(tile, player, rules);
-                check(!removed_stones, InvalidFen::HasDeadStones)?;
+                    if let Some(player) = value {
+                        let removed_stones = chains.place_tile_full(tile, player, rules);
+                        check(!removed_stones, InvalidFen::HasDeadStones)?;
+                    }
+                }
             }
+
+            Ok(chains)
         }
     }
-
-    Ok(chains)
 }
 
 fn check<E>(c: bool, e: E) -> Result<(), E> {

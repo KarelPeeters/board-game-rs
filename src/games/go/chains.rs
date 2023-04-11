@@ -1,4 +1,4 @@
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::iter::zip;
 
@@ -9,7 +9,14 @@ use crate::games::go::{Rules, Score};
 // TODO add function to remove stones?
 //   could be tricky since groups would have to be split
 //   can be pretty slow
-#[derive(Debug, Clone, Eq)]
+// TODO add self-consistency checker to use in unit tests or with debug_assert
+//   * each group has the right number of liberties
+//   * each group is connected
+//   * group stone counts are correct
+//   * dead groups have BOTH stones and liberties as 0
+// TODO rename group, tile, content... : stone_at, group_at, content_at
+//   same for GoBoard: stone_at
+#[derive(Clone, Eq)]
 pub struct Chains {
     size: u8,
     tiles: Vec<Content>,
@@ -30,7 +37,11 @@ pub struct Content {
 pub struct Group {
     pub player: Player,
     pub stone_count: u16,
-    pub liberty_count: u16,
+    /// Similar to the liberty count, except that liberties may be counted multiple times.
+    /// This is easier to compute incrementally but still enough to know if a group has `0` liberties left.
+    pub liberty_edge_count: u16,
+    // TODO also track the real liberty count?
+    //   not necessary for correctness, just for heuristics and convenience
 }
 
 impl Chains {
@@ -59,6 +70,33 @@ impl Chains {
 
     pub fn tile(&self, tile: Tile) -> Option<Player> {
         self.group(tile).map(|group| group.player)
+    }
+
+    /// Iterator over all of the groups that currently exist.
+    /// The items are `(group_id, group)`. `group_id` is not necessarily continuous.
+    pub fn groups(&self) -> impl Iterator<Item = (u16, Group)> + '_ {
+        self.groups
+            .iter()
+            .copied()
+            .enumerate()
+            .filter(|(_, group)| group.stone_count != 0)
+            .map(|(id, group)| (id as u16, group))
+    }
+
+    pub fn clear_history(&mut self) {
+        // reset ownership history to only the stones that currently exist
+        let groups = &self.groups;
+        for content in &mut self.tiles {
+            let curr_owner = content.group_id.map(|id| groups[id as usize].player);
+            content.has_had_a = curr_owner == Some(Player::A);
+            content.has_had_b = curr_owner == Some(Player::B);
+        }
+    }
+
+    pub fn without_history(&self) -> Self {
+        let mut result = self.clone();
+        result.clear_history();
+        result
     }
 
     /// Is there a path between `start` and another tile with value `target` over only `player` tiles?
@@ -137,27 +175,27 @@ impl Chains {
         let mut curr_group = Group {
             player: curr,
             stone_count: 1,
-            liberty_count: initial_liberties as u16,
+            liberty_edge_count: initial_liberties as u16,
         };
         println!("  initial group: {:?}", curr_group);
 
         // merge with matching neighbors
         let mut merged_groups = vec![];
         for adj in all_adjacent.clone() {
-            if let Some(group_id) = self.tiles[adj.index(self.size)].group_id {
-                let other_group = &mut self.groups[group_id as usize];
+            if let Some(adj_group_id) = self.tiles[adj.index(self.size)].group_id {
+                let adj_group = &mut self.groups[adj_group_id as usize];
 
-                if other_group.player == curr {
-                    println!("    merging with {}, id {}, {:?}", adj, group_id, other_group);
-                    merged_groups.push(group_id);
+                if adj_group.player == curr {
+                    println!("    merging with {}, id {}, {:?}", adj, adj_group_id, adj_group);
+                    merged_groups.push(adj_group_id);
 
-                    curr_group.stone_count += other_group.stone_count;
-                    // TODO this is wrong, we might be double counting liberties is both groups had overlapping ones
-                    //   really? can't we just double count anyway but make sure to properly subtract twice as well?
-                    curr_group.liberty_count += other_group.liberty_count - 1;
+                    curr_group.stone_count += adj_group.stone_count;
+                    curr_group.liberty_edge_count += adj_group.liberty_edge_count;
+                    curr_group.liberty_edge_count -= 1;
 
-                    // mark other group as dead
-                    other_group.stone_count = 0;
+                    // this also nicely handles the edge case where we merge the same group twice,
+                    //  the second time both stone_count and liberty_edge_count will be zero
+                    adj_group.mark_dead();
                 }
             }
         }
@@ -191,8 +229,8 @@ impl Chains {
                 let group = &mut self.groups[group_id as usize];
                 if group.player == other {
                     println!("  subtracting liberty from enemy group {}", group_id);
-                    group.liberty_count -= 1;
-                    if group.liberty_count == 0 {
+                    group.liberty_edge_count -= 1;
+                    if group.liberty_edge_count == 0 {
                         println!("  scheduling clearing of enemy group {}", group_id);
                         cleared_enemy |= true;
                         cleared_groups.push(group_id);
@@ -202,7 +240,7 @@ impl Chains {
         }
 
         // check for suicide
-        if !cleared_enemy && curr_group.liberty_count == 0 {
+        let suicide = if !cleared_enemy && curr_group.liberty_edge_count == 0 {
             assert!(
                 curr_group.stone_count > 1,
                 "1-stone suicide would immediately repeat so is never allowed"
@@ -222,7 +260,7 @@ impl Chains {
         // mark cleared groups as dead
         // TODO inline this with pushing them to vec?
         for &group in &cleared_groups {
-            self.groups[group as usize].stone_count = 0;
+            self.groups[group as usize].mark_dead();
         }
 
         // fixup per-tile-state
@@ -246,12 +284,13 @@ impl Chains {
         }
 
         // update content of the current tile
-        // TODO if suicide don't do some of this
         // TODO should we update "has_had" in case of suicide? no, right?
-        let content = &mut self.tiles[tile.index(self.size)];
-        content.group_id = Some(curr_group_id);
-        content.has_had_a |= curr == Player::A;
-        content.has_had_b |= curr == Player::B;
+        if !suicide {
+            let content = &mut self.tiles[tile.index(self.size)];
+            content.group_id = Some(curr_group_id);
+            content.has_had_a |= curr == Player::A;
+            content.has_had_b |= curr == Player::B;
+        }
 
         println!();
 
@@ -269,7 +308,7 @@ impl Chains {
             let Group {
                 player,
                 stone_count: _,
-                liberty_count: _,
+                liberty_edge_count: _,
             } = self.groups[id as usize];
             player
         });
@@ -279,6 +318,13 @@ impl Chains {
             has_had_b,
             player,
         }
+    }
+}
+
+impl Group {
+    fn mark_dead(&mut self) {
+        self.stone_count = 0;
+        self.liberty_edge_count = 0;
     }
 }
 
@@ -320,6 +366,14 @@ impl Hash for Chains {
     }
 }
 
+// TODO move to io?
+impl Debug for Chains {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Chains({:?})", self.to_fen())
+    }
+}
+
+// TODO move to io?
 impl Display for Chains {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Chains {{")?;
@@ -344,6 +398,7 @@ impl Display for Chains {
         }
         writeln!(f)?;
 
+        // TODO only print alive groups?
         writeln!(f, "  groups:")?;
         for (i, group) in self.groups.iter().enumerate() {
             writeln!(f, "    group {}: {:?}", i, group)?;
