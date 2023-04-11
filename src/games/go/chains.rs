@@ -175,11 +175,38 @@ impl Chains {
         Score { a: score_a, b: score_b }
     }
 
+    fn allocate_group(&mut self, new: Group) -> u16 {
+        match self.groups.iter().position(|g| g.stone_count == 0) {
+            Some(id) => {
+                self.groups[id] = new;
+                id as u16
+            }
+            None => {
+                let id = self.groups.len() as u16;
+                self.groups.push(new);
+                id
+            }
+        }
+    }
+
+    fn set_tile_group_and_hist(&mut self, tile: Tile, value: Player, group_id: u16, suicide: bool) {
+        let size = self.size();
+
+        let content = &mut self.tiles[tile.index(size)];
+        content.group_id = Some(group_id);
+
+        if !suicide {
+            // TODO should we update "has_had" in case of suicide? no, right?
+            content.has_had_a |= value == Player::A;
+            content.has_had_b |= value == Player::B;
+        }
+    }
+
     // TODO store the current tile in the content too without the extra indirection?
     // TODO add fast path for exactly one friendly neighbor, just modify the existing group
     /// We take `self` by value to ensure it never gets left in an invalid state
     /// if we return an error and bail out halfway.
-    pub fn place_tile_full(
+    pub fn place_tile(
         mut self,
         placed_tile: Tile,
         placed_value: Player,
@@ -190,6 +217,11 @@ impl Chains {
         if content.group_id.is_some() {
             return Err(InvalidPlacement::Occupied);
         }
+
+        // match self.place_tile_fast(placed_tile, placed_value) {
+        //     Ok(p) => return Ok(p),
+        //     Err(chains) => self = chains,
+        // }
 
         let all_adjacent = placed_tile.all_adjacent(size);
 
@@ -224,17 +256,8 @@ impl Chains {
         // push new group, reuse old id if possible
         // TODO speed up by keeping a free linked list of ids?
         // TODO only do all of this if there is no suicide
-        let curr_group_id = match self.groups.iter().position(|g| g.stone_count == 0) {
-            Some(id) => {
-                self.groups[id] = curr_group;
-                id as u16
-            }
-            None => {
-                let id = self.groups.len() as u16;
-                self.groups.push(curr_group);
-                id
-            }
-        };
+        // TODO try immediately reusing existing friendly group without even checking the list?
+        let curr_group_id = self.allocate_group(curr_group);
 
         // TODO replace with small size-4 on-stack vec
         let mut cleared_groups = vec![];
@@ -276,15 +299,9 @@ impl Chains {
         }
 
         // place new tile
-        //   important for proper liberty updating
+        //   it's important that we do this before tile state fixing
         //   if suicide the tile-updating logic will remove it anyway
-        let content = &mut self.tiles[placed_tile.index(size)];
-        content.group_id = Some(curr_group_id);
-        if !suicide {
-            // TODO should we update "has_had" in case of suicide? no, right?
-            content.has_had_a |= placed_value == Player::A;
-            content.has_had_b |= placed_value == Player::B;
-        }
+        self.set_tile_group_and_hist(placed_tile, placed_value, curr_group_id, suicide);
 
         // fixup per-tile-state
         self.fix_tile_state(&merged_groups, curr_group_id, &cleared_groups);
@@ -295,6 +312,92 @@ impl Chains {
             captured_other: cleared_enemy,
             captured_any: suicide | cleared_enemy,
         })
+    }
+
+    /// Fast version of [place_tile_full] that only works in simple cases without any group merging or clearing.
+    fn place_tile_fast(self, placed_tile: Tile, placed_value: Player) -> Result<Placement, Self> {
+        let size = self.size();
+        let all_adjacent = placed_tile.all_adjacent(size);
+
+        // check if the following conditions hold:
+        // * at most one distinct friendly adjacent group
+        // * both friendly and enemy adjacent groups should have enough liberties left
+        let mut friendly_group = None;
+        let mut enemy_count = 0;
+        let mut matches = true;
+        let mut liberties = 0;
+
+        for adj in all_adjacent.clone() {
+            let content = self.content_at(adj);
+            match content.group_id {
+                None => liberties += 1,
+                Some(id) => {
+                    let group = self.groups[id as usize];
+                    if group.player == placed_value {
+                        // TODO allow the same friendly group multiple times if there are enough liberties
+                        // we already optimistically count new liberties
+                        if friendly_group.is_some() || group.liberty_edge_count + liberties <= 1 {
+                            matches = false;
+                            break;
+                        }
+                        friendly_group = Some(id);
+                    } else {
+                        // this works: if we see the same enemy group multiple times, the Nth time we will
+                        //   ensure it has at least N+1 liberties left
+                        if group.liberty_edge_count <= enemy_count + 1 {
+                            matches = false;
+                            break;
+                        }
+                        enemy_count += 1;
+                    }
+                }
+            }
+        }
+
+        matches &= liberties > 0;
+
+        if matches {
+            let mut result = self;
+
+            // remove liberties from adjacent groups
+            for adj in all_adjacent {
+                if let Some(id) = result.content_at(adj).group_id {
+                    result.groups[id as usize].liberty_edge_count -= 1;
+                }
+            }
+
+            // get the right group for this tile
+            let group_id = match friendly_group {
+                None => {
+                    // create new group
+                    result.allocate_group(Group {
+                        player: placed_value,
+                        stone_count: 1,
+                        liberty_edge_count: liberties,
+                    })
+                }
+                Some(group_id) => {
+                    // increment liberties of existing group
+                    let group = &mut result.groups[group_id as usize];
+                    group.stone_count += 1;
+                    group.liberty_edge_count += liberties;
+                    group_id
+                }
+            };
+
+            // set current tile
+            result.set_tile_group_and_hist(placed_tile, placed_value, group_id, false);
+
+            Ok(Placement {
+                chains: result,
+                captured_self: false,
+                captured_other: false,
+                captured_any: false,
+            })
+        } else {
+            // return self unmodified
+            Err(self)
+        }
     }
 
     #[inline(never)]

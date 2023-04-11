@@ -90,10 +90,7 @@ fn capture_corner() {
     println!("{}", chains);
     assert_eq!(chains.to_fen(), "...../...../...../w..../b....");
 
-    chains = chains
-        .place_tile_full(Tile::new(1, 0), Player::B, &rules)
-        .unwrap()
-        .chains;
+    chains = chains.place_tile(Tile::new(1, 0), Player::B, &rules).unwrap().chains;
     println!("{}", chains);
     assert_eq!(chains.to_fen(), "...../...../...../w..../.w...");
 
@@ -149,10 +146,7 @@ fn capture_cyclic_group() {
     assert_eq!(chains.group_at(Tile::new(2, 4)), Some(expected_edge));
     assert_eq!(chains.group_at(Tile::new(1, 1)), Some(expected_core));
 
-    chains = chains
-        .place_tile_full(Tile::new(2, 2), Player::A, &rules)
-        .unwrap()
-        .chains;
+    chains = chains.place_tile(Tile::new(2, 2), Player::A, &rules).unwrap().chains;
     println!("{}", chains);
     assert_eq!(chains.to_fen(), ".bbb./b...b/b.b.b/b...b/.bbb.");
 
@@ -195,11 +189,7 @@ fn fill_board() {
 
     {
         // ensure the full board gets suicide captured
-        let new_chains = chains
-            .clone()
-            .place_tile_full(last_tile, Player::A, &rules)
-            .unwrap()
-            .chains;
+        let new_chains = chains.clone().place_tile(last_tile, Player::A, &rules).unwrap().chains;
         println!("{}", new_chains);
         assert_eq!(new_chains.to_fen(), Chains::new(size).to_fen());
 
@@ -208,7 +198,7 @@ fn fill_board() {
 
     {
         // ensure the other player can capture the rest too
-        let new_chains = chains.place_tile_full(last_tile, Player::B, &rules).unwrap().chains;
+        let new_chains = chains.place_tile(last_tile, Player::B, &rules).unwrap().chains;
         println!("{}", new_chains);
         assert_eq!(new_chains.to_fen(), "....w/...../...../...../.....");
 
@@ -222,10 +212,7 @@ fn capture_jagged() {
     let chains = Chains::from_fen("wbbb/wwbb/.bbw/wwww", &rules).unwrap();
     println!("{}", chains);
 
-    let new_chains = chains
-        .place_tile_full(Tile::new(0, 1), Player::B, &rules)
-        .unwrap()
-        .chains;
+    let new_chains = chains.place_tile(Tile::new(0, 1), Player::B, &rules).unwrap().chains;
     println!("{}", new_chains);
 
     assert_eq!(new_chains.to_fen(), "w.../ww../w..w/wwww");
@@ -302,9 +289,12 @@ fn fuzz_test() {
 fn build_chains(size: u8, rules: Rules, tiles: &[(u8, u8, Player)]) -> Chains {
     let mut chains = Chains::new(size);
     for &(x, y, player) in tiles {
-        chains = chains.place_tile_full(Tile::new(x, y), player, &rules).unwrap().chains;
-        // TODO remove print
-        println!("{}", chains);
+        let tile = Tile::new(x, y);
+
+        println!("Placing {:?} {:?}", tile, player);
+        chains = chains.place_tile(tile, player, &rules).unwrap().chains;
+
+        println!("Result:\n{}", chains);
         chains_test_main(&chains, &rules);
     }
     chains
