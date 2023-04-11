@@ -287,9 +287,23 @@ impl Chains {
         }
 
         // fixup per-tile-state
+        self.fix_tile_state(&merged_groups, curr_group_id, &cleared_groups);
+
+        Ok(Placement {
+            chains: self,
+            captured_self: suicide,
+            captured_other: cleared_enemy,
+            captured_any: suicide | cleared_enemy,
+        })
+    }
+
+    #[inline(never)]
+    fn fix_tile_state(&mut self, merged_groups: &[u16], curr_group_id: u16, cleared_groups: &[u16]) {
+        let size = self.size();
+
         // TODO use flat iterator and Tile::from_index instead?
         for tile in Tile::all(size) {
-            let content = &mut self.tiles[tile.index(size) as usize];
+            let content = &mut self.tiles[tile.index(size)];
 
             if let Some(mut id) = content.group_id {
                 // point merged groups to new id
@@ -318,13 +332,6 @@ impl Chains {
                 }
             }
         }
-
-        Ok(Placement {
-            chains: self,
-            captured_self: suicide,
-            captured_other: cleared_enemy,
-            captured_any: suicide | cleared_enemy,
-        })
     }
 
     pub fn assert_valid(&self) {
