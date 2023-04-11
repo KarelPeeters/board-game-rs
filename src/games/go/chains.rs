@@ -203,7 +203,6 @@ impl Chains {
     }
 
     // TODO store the current tile in the content too without the extra indirection?
-    // TODO add fast path for exactly one friendly neighbor, just modify the existing group
     /// We take `self` by value to ensure it never gets left in an invalid state
     /// if we return an error and bail out halfway.
     pub fn place_tile(
@@ -218,6 +217,7 @@ impl Chains {
             return Err(InvalidPlacement::Occupied);
         }
 
+        // TODO enable fast path
         // match self.place_tile_fast(placed_tile, placed_value) {
         //     Ok(p) => return Ok(p),
         //     Err(chains) => self = chains,
@@ -315,6 +315,7 @@ impl Chains {
     }
 
     /// Fast version of [place_tile_full] that only works in simple cases without any group merging or clearing.
+    #[allow(dead_code)]
     fn place_tile_fast(self, placed_tile: Tile, placed_value: Player) -> Result<Placement, Self> {
         let size = self.size();
         let all_adjacent = placed_tile.all_adjacent(size);
