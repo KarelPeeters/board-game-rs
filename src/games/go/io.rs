@@ -6,7 +6,7 @@ use itertools::Itertools;
 use crate::board::{Board, Player};
 use crate::games::go::chains::Chains;
 use crate::games::go::tile::Tile;
-use crate::games::go::{GoBoard, Move, Rules, State};
+use crate::games::go::{GoBoard, InvalidPlacement, Move, Rules, State};
 
 impl Display for Tile {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -225,8 +225,17 @@ impl Chains {
                     };
 
                     if let Some(player) = value {
-                        let removed_stones = chains.place_tile_full(tile, player, rules);
-                        check(!removed_stones, InvalidFen::HasDeadStones)?;
+                        let placement = chains.place_tile_full(tile, player, rules);
+                        match placement {
+                            Ok(placement) => {
+                                check(!placement.captured_any, InvalidFen::HasDeadStones)?;
+                                chains = placement.chains;
+                            }
+                            Err(InvalidPlacement::SuicideSingle | InvalidPlacement::SuicideMulti) => {
+                                return Err(InvalidFen::HasDeadStones)
+                            }
+                            Err(InvalidPlacement::Occupied) => unreachable!(),
+                        }
                     }
                 }
             }
