@@ -6,6 +6,9 @@ use crate::board::Player;
 use crate::games::go::tile::{Direction, Tile};
 use crate::games::go::{Rules, Score};
 
+// TODO add function to remove stones?
+//   could be tricky since groups would have to be split
+//   can be pretty slow
 #[derive(Debug, Clone, Eq)]
 pub struct Chains {
     size: u8,
@@ -149,6 +152,8 @@ impl Chains {
                     merged_groups.push(group_id);
 
                     curr_group.stone_count += other_group.stone_count;
+                    // TODO this is wrong, we might be double counting liberties is both groups had overlapping ones
+                    //   really? can't we just double count anyway but make sure to properly subtract twice as well?
                     curr_group.liberty_count += other_group.liberty_count - 1;
 
                     // mark other group as dead
@@ -176,10 +181,28 @@ impl Chains {
             }
         };
 
-        let mut dead_groups = vec![];
+        // TODO replace with small size-4 on-stack vec
+        let mut cleared_groups = vec![];
+
+        // subtract liberty from enemies and clear if necessary
+        let mut cleared_enemy = false;
+        for adj in all_adjacent {
+            if let Some(group_id) = self.tiles[adj.index(self.size)].group_id {
+                let group = &mut self.groups[group_id as usize];
+                if group.player == other {
+                    println!("  subtracting liberty from enemy group {}", group_id);
+                    group.liberty_count -= 1;
+                    if group.liberty_count == 0 {
+                        println!("  scheduling clearing of enemy group {}", group_id);
+                        cleared_enemy |= true;
+                        cleared_groups.push(group_id);
+                    }
+                }
+            }
+        }
 
         // check for suicide
-        let suicide = if curr_group.liberty_count == 0 {
+        if !cleared_enemy && curr_group.liberty_count == 0 {
             assert!(
                 curr_group.stone_count > 1,
                 "1-stone suicide would immediately repeat so is never allowed"
@@ -189,28 +212,16 @@ impl Chains {
                 "multi store suicide not allowed by current rules"
             );
 
-            dead_groups.push(curr_group_id);
+            println!("  scheduling suicide of curr group {}", curr_group_id);
+            cleared_groups.push(curr_group_id);
             true
         } else {
             false
         };
 
-        if !suicide {
-            // subtract liberty from enemies
-            for adj in all_adjacent {
-                if let Some(group_id) = self.tiles[adj.index(self.size)].group_id {
-                    let group = &mut self.groups[group_id as usize];
-                    if group.player == other {
-                        group.liberty_count -= 1;
-                        if group.liberty_count == 0 {
-                            dead_groups.push(group_id);
-                        }
-                    }
-                }
-            }
-        }
-
-        for &group in &dead_groups {
+        // mark cleared groups as dead
+        // TODO inline this with pushing them to vec?
+        for &group in &cleared_groups {
             self.groups[group as usize].stone_count = 0;
         }
 
@@ -225,12 +236,18 @@ impl Chains {
 
                 // remove dead stones
                 // TODO can we just skip this? allow tiles to keep pointing to dead groups?
-                if dead_groups.contains(&id) {
+                if cleared_groups.contains(&id) {
                     content.group_id = None;
                 }
+
+                // TODO if adjacent to dead group add liberty to curr group
+                //   careful about overlapping liberties again!
             }
         }
 
+        // update content of the current tile
+        // TODO if suicide don't do some of this
+        // TODO should we update "has_had" in case of suicide? no, right?
         let content = &mut self.tiles[tile.index(self.size)];
         content.group_id = Some(curr_group_id);
         content.has_had_a |= curr == Player::A;
@@ -238,7 +255,7 @@ impl Chains {
 
         println!();
 
-        !dead_groups.is_empty()
+        !cleared_groups.is_empty()
     }
 
     fn tile_for_eq_hash(&self, content: Content) -> EqHashTile {
@@ -320,6 +337,12 @@ impl Display for Chains {
             }
             writeln!(f)?;
         }
+
+        write!(f, "       ")?;
+        for x in 0..size {
+            write!(f, "   {}", Tile::x_to_char(x).unwrap())?;
+        }
+        writeln!(f)?;
 
         writeln!(f, "  groups:")?;
         for (i, group) in self.groups.iter().enumerate() {
