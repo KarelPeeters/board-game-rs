@@ -10,7 +10,7 @@ use crate::board::{
 };
 use crate::games::go::chains::Chains;
 use crate::games::go::tile::Tile;
-use crate::games::go::Rules;
+use crate::games::go::{Rules, Zobrist};
 use crate::impl_unit_symmetry_board;
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -98,6 +98,17 @@ impl GoBoard {
 
     pub fn current_score(&self) -> Score {
         self.chains().score()
+    }
+
+    /// Full zobrist, including:
+    /// * the tiles
+    /// * the next player
+    /// * the pass state
+    pub fn zobrist_full(&self) -> Zobrist {
+        let mut result = self.chains().zobrist();
+        result ^= Zobrist::for_player_turn(self.next_player);
+        result ^= Zobrist::for_pass_state(self.state);
+        result
     }
 }
 

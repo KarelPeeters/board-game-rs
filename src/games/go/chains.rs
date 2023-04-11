@@ -4,7 +4,7 @@ use std::iter::zip;
 
 use crate::board::Player;
 use crate::games::go::tile::{Direction, Tile};
-use crate::games::go::{Rules, Score, Zobrist, HASH_DATA};
+use crate::games::go::{Rules, Score, Zobrist};
 
 // TODO add function to remove stones?
 //   could be tricky since groups would have to be split
@@ -70,7 +70,7 @@ impl Chains {
             size,
             tiles: vec![Content::default(); size as usize * size as usize],
             groups: vec![],
-            zobrist: 0,
+            zobrist: Zobrist::default(),
         }
     }
 
@@ -203,7 +203,7 @@ impl Chains {
 
         let content = &mut self.tiles[tile.index(size)];
         content.group_id = Some(group_id);
-        self.zobrist ^= HASH_DATA.get_player_tile(value, tile, size);
+        self.zobrist ^= Zobrist::for_player_tile(value, tile, size);
 
         if !suicide {
             // TODO should we update "has_had" in case of suicide? no, right?
@@ -433,7 +433,7 @@ impl Chains {
                     // update hash
                     // TODO replace with per-group hash update?
                     let player = self.groups[id as usize].player;
-                    self.zobrist ^= HASH_DATA.get_player_tile(player, tile, size);
+                    self.zobrist ^= Zobrist::for_player_tile(player, tile, size);
 
                     // add liberties to adjacent groups
                     for adj in tile.all_adjacent(size) {
@@ -486,16 +486,13 @@ impl Chains {
         }
 
         // check hash validness
-        println!("Start new zobrist");
         let mut new_zobrist = Zobrist::default();
         for tile in Tile::all(self.size()) {
             if let Some(player) = self.stone_at(tile) {
-                let value = HASH_DATA.get_player_tile(player, tile, self.size);
-                println!("   adding {:?} {:?} => {}", tile, player, value);
+                let value = Zobrist::for_player_tile(player, tile, self.size);
                 new_zobrist ^= value;
             }
         }
-        println!("Zobrist result: {}", new_zobrist);
         assert_eq!(self.zobrist, new_zobrist, "Invalid zobrist hash");
     }
 
