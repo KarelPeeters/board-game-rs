@@ -225,7 +225,7 @@ impl Chains {
                     };
 
                     if let Some(player) = value {
-                        let placement = chains.place_tile_full(tile, player, rules);
+                        let placement = chains.place_tile(tile, player, rules);
                         match placement {
                             Ok(placement) => {
                                 check(!placement.captured_any, InvalidFen::HasDeadStones)?;
