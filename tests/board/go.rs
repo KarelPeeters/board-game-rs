@@ -1,7 +1,7 @@
 use board_game::board::{Board, Outcome, PlayError};
 use board_game::games::go::{GoBoard, Move, Rules, Tile};
 use board_game::util::board_gen::board_with_moves;
-use board_game::util::game_stats::perf_naive;
+use board_game::util::game_stats::perft_naive;
 
 use crate::board::go_chains::chains_test_main;
 use crate::board::{board_perft_main, print_board_with_moves};
@@ -210,7 +210,7 @@ fn go_perft_main(board: GoBoard, all_expected: &[u64]) {
     let mut all_correct = true;
 
     for (depth, &expected) in all_expected.iter().enumerate() {
-        let value = perf_naive(&board, depth as u32);
+        let value = perft_naive(&board, depth as u32);
 
         let suffix = if value == expected { "" } else { " -> wrong!" };
         println!("Perft depth {}: expected {} got {}{}", depth, value, expected, suffix);
