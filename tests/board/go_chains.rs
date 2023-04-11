@@ -230,7 +230,7 @@ fn capture_jagged() {
 #[test]
 #[ignore]
 fn fuzz_test() {
-    let sizes = 0..=9;
+    let sizes = 0..=19;
     let players = [Player::A, Player::B];
     let rules = [Rules::tromp_taylor(), Rules::cgos()];
 
@@ -240,13 +240,12 @@ fn fuzz_test() {
         let size = rng.gen_range(sizes.clone());
         let rules = rules.choose(&mut rng).unwrap();
 
-        println!("Starting game {} with size {} and rules {:?}", game_index, size, rules);
+        println!("Starting game {} with size {} and {:?}", game_index, size, rules);
 
         let mut chains = Chains::new(size);
 
         // move limit
-        for move_index in 0..1000 {
-            println!("  starting move {}", move_index);
+        for _move_index in 0..1000 {
             let prev_chains = chains.clone();
 
             // invalid move limit
@@ -262,21 +261,16 @@ fn fuzz_test() {
 
                 // try playing on that tile
                 let player = *players.choose(&mut rng).unwrap();
-
-                let r = chains.place_tile_full(tile, player, rules);
+                let r = chains.place_tile(tile, player, rules);
 
                 match r {
                     Ok(p) => {
+                        // success, test and continue to next move
                         chains = p.chains;
-                        println!("success:");
-                        println!("{}", chains);
-
-                        chains_test_main(&chains, &rules);
-
+                        chains_test_main(&chains, rules);
                         break 'tries;
                     }
                     Err(_) => {
-                        println!("failed, restoring previous chains");
                         // restore previous chains
                         chains = prev_chains.clone()
                     }
@@ -302,8 +296,8 @@ fn build_chains(size: u8, rules: Rules, tiles: &[(u8, u8, Player)]) -> Chains {
 
 pub fn chains_test_main(chains: &Chains, rules: &Rules) {
     chains.assert_valid();
-    check_fen(chains, rules);
     check_floodfill(chains);
+    check_fen(chains, rules);
 }
 
 fn check_fen(chains: &Chains, rules: &Rules) {
