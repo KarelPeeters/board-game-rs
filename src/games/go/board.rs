@@ -92,8 +92,8 @@ impl GoBoard {
         self.state
     }
 
-    pub fn tile(&self, tile: Tile) -> Option<Player> {
-        self.chains().tile(tile)
+    pub fn stone_at(&self, tile: Tile) -> Option<Player> {
+        self.chains().stone_at(tile)
     }
 
     pub fn current_score(&self) -> Score {
@@ -118,7 +118,7 @@ impl Board for GoBoard {
                 if !tile.exists(self.size()) {
                     Ok(false)
                 } else {
-                    Ok(self.tile(tile).is_none())
+                    Ok(self.stone_at(tile).is_none())
                 }
             }
         }
@@ -207,7 +207,7 @@ impl InternalIterator for AvailableMovesIterator<'_, GoBoard> {
         //  so we can just yield all empty tiles (and the pass move)
         f(Move::Pass)?;
         for tile in Tile::all(board.size()) {
-            if board.tile(tile).is_none() {
+            if board.stone_at(tile).is_none() {
                 f(Move::Place(tile))?;
             }
         }
@@ -220,7 +220,7 @@ impl InternalIterator for AvailableMovesIterator<'_, GoBoard> {
         // TODO remove repeating moves
         // TODO write faster function for this
         1 + Tile::all(board.size())
-            .filter(|&tile| board.tile(tile).is_none())
+            .filter(|&tile| board.stone_at(tile).is_none())
             .count()
     }
 }
