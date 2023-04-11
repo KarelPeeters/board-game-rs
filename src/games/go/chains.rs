@@ -184,7 +184,6 @@ impl Chains {
 
     // TODO store the current tile in the content too without the extra indirection?
     // TODO add fast path for exactly one friendly neighbor, just modify the existing group
-    // TODO remove prints
     /// We take `self` by value to ensure it never gets left in an invalid state
     /// if we return an error and bail out halfway.
     pub fn place_tile_full(
@@ -193,8 +192,6 @@ impl Chains {
         placed_value: Player,
         rules: &Rules,
     ) -> Result<Placement, InvalidPlacement> {
-        println!("placing tile {}, value {:?}", placed_tile, placed_value);
-
         let size = self.size;
         let content = self.tiles[placed_tile.index(size)];
         if content.group_id.is_some() {
@@ -210,7 +207,6 @@ impl Chains {
             stone_count: 1,
             liberty_edge_count: initial_liberties as u16,
         };
-        println!("  initial group: {:?}", curr_group);
 
         // merge with matching neighbors
         let mut merged_groups = vec![];
@@ -219,7 +215,6 @@ impl Chains {
                 let adj_group = &mut self.groups[adj_group_id as usize];
 
                 if adj_group.player == placed_value {
-                    println!("    merging with {}, id {}, {:?}", adj, adj_group_id, adj_group);
                     merged_groups.push(adj_group_id);
 
                     curr_group.stone_count += adj_group.stone_count;
@@ -233,20 +228,16 @@ impl Chains {
             }
         }
 
-        println!("  after merging: {:?}", curr_group);
-
         // push new group, reuse old id if possible
         // TODO speed up by keeping a free linked list of ids?
         // TODO only do all of this if there is no suicide
         let curr_group_id = match self.groups.iter().position(|g| g.stone_count == 0) {
             Some(id) => {
-                println!("  reusing group id {}", id);
                 self.groups[id] = curr_group;
                 id as u16
             }
             None => {
                 let id = self.groups.len() as u16;
-                println!("  creating new group id {}", id);
                 self.groups.push(curr_group);
                 id
             }
@@ -261,10 +252,8 @@ impl Chains {
             if let Some(group_id) = self.tiles[adj.index(size)].group_id {
                 let group = &mut self.groups[group_id as usize];
                 if group.player == placed_value.other() {
-                    println!("  subtracting liberty from enemy group {}", group_id);
                     group.liberty_edge_count -= 1;
                     if group.liberty_edge_count == 0 {
-                        println!("  scheduling clearing of enemy group {}", group_id);
                         cleared_enemy |= true;
                         cleared_groups.push(group_id);
                     }
@@ -281,7 +270,6 @@ impl Chains {
                 return Err(InvalidPlacement::SuicideMulti);
             }
 
-            println!("  scheduling suicide of curr group {}", curr_group_id);
             cleared_groups.push(curr_group_id);
             true
         } else {
@@ -291,7 +279,6 @@ impl Chains {
         // mark cleared groups as dead
         // TODO inline this with pushing them to vec?
         for &group in &cleared_groups {
-            println!("  marking group {} as dead", group);
             self.groups[group as usize].mark_dead();
         }
 
@@ -314,14 +301,12 @@ impl Chains {
             if let Some(mut id) = content.group_id {
                 // point merged groups to new id
                 if merged_groups.contains(&id) {
-                    println!("  updating tile {:?} group {} -> {}", tile, id, curr_group_id);
                     content.group_id = Some(curr_group_id);
                     id = curr_group_id;
                 }
 
                 // remove dead stones
                 if cleared_groups.contains(&id) {
-                    println!("  updating tile {:?} group {} -> None", tile, id);
                     content.group_id = None;
 
                     // add liberties to adjacent groups
@@ -333,10 +318,6 @@ impl Chains {
                         if let Some(adj_group_id) = adj_group_id {
                             let adj_group = &mut self.groups[adj_group_id as usize];
                             if !adj_group.is_dead() {
-                                println!(
-                                    "    adding liberty to group {} at {:?} because {:?} is dead",
-                                    adj_group_id, adj, tile
-                                );
                                 adj_group.liberty_edge_count += 1;
                             }
                         }
@@ -344,8 +325,6 @@ impl Chains {
                 }
             }
         }
-
-        println!();
 
         Ok(Placement {
             chains: self,
