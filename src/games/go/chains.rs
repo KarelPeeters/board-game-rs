@@ -14,12 +14,15 @@ pub struct Chains {
     size: u8,
     tiles: Vec<Content>,
     groups: Vec<Group>,
-    zobrist: Zobrist,
+    zobrist_tiles: Zobrist,
 }
 
 // TODO compact into single u8
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Content {
+    // TODO ideally history would not be part of Chains, only of GoBoard
+    //   but it's very cheap to keep in here instead :(
+    //   do we keep this? is it much of a gain in the first place?
     pub has_had_a: bool,
     pub has_had_b: bool,
     pub group_id: Option<u16>,
@@ -70,7 +73,7 @@ impl Chains {
             size,
             tiles: vec![Content::default(); size as usize * size as usize],
             groups: vec![],
-            zobrist: Zobrist::default(),
+            zobrist_tiles: Zobrist::default(),
         }
     }
 
@@ -94,8 +97,9 @@ impl Chains {
         self.group_at(tile).map(|group| group.player)
     }
 
-    pub fn zobrist(&self) -> Zobrist {
-        self.zobrist
+    pub fn zobrist_tiles(&self) -> Zobrist {
+        // TODO variant that includes the history bools?
+        self.zobrist_tiles
     }
 
     /// Iterator over all of the groups that currently exist.
@@ -203,7 +207,7 @@ impl Chains {
 
         let content = &mut self.tiles[tile.index(size)];
         content.group_id = Some(group_id);
-        self.zobrist ^= Zobrist::for_player_tile(value, tile, size);
+        self.zobrist_tiles ^= Zobrist::for_player_tile(value, tile, size);
 
         if !suicide {
             // TODO should we update "has_had" in case of suicide? no, right?
@@ -433,7 +437,7 @@ impl Chains {
                     // update hash
                     // TODO replace with per-group hash update?
                     let player = self.groups[id as usize].player;
-                    self.zobrist ^= Zobrist::for_player_tile(player, tile, size);
+                    self.zobrist_tiles ^= Zobrist::for_player_tile(player, tile, size);
 
                     // add liberties to adjacent groups
                     for adj in tile.all_adjacent(size) {
@@ -493,7 +497,7 @@ impl Chains {
                 new_zobrist ^= value;
             }
         }
-        assert_eq!(self.zobrist, new_zobrist, "Invalid zobrist hash");
+        assert_eq!(self.zobrist_tiles, new_zobrist, "Invalid zobrist hash");
     }
 
     fn tile_for_eq_hash(&self, content: Content) -> EqHashTile {
@@ -563,10 +567,8 @@ impl PartialEq for Chains {
 
 impl Hash for Chains {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        // TODO switch to proper Zobrist hashing, this is pretty slow
-        for content in &self.tiles {
-            self.tile_for_eq_hash(*content).hash(state);
-        }
+        // TODO include history here? we include it in eq...
+        self.zobrist_tiles().hash(state);
     }
 }
 

@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 use std::fmt::Debug;
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 use std::ops::ControlFlow;
 
 use internal_iterator::InternalIterator;
@@ -13,7 +13,7 @@ use crate::games::go::tile::Tile;
 use crate::games::go::{Rules, Zobrist};
 use crate::impl_unit_symmetry_board;
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct GoBoard {
     rules: Rules,
     chains: Option<Chains>,
@@ -105,7 +105,8 @@ impl GoBoard {
     /// * the next player
     /// * the pass state
     pub fn zobrist_full(&self) -> Zobrist {
-        let mut result = self.chains().zobrist();
+        // TODO include rules?
+        let mut result = self.chains().zobrist_tiles();
         result ^= Zobrist::for_player_turn(self.next_player);
         result ^= Zobrist::for_pass_state(self.state);
         result
@@ -238,3 +239,9 @@ impl InternalIterator for AvailableMovesIterator<'_, GoBoard> {
 
 // TODO implement proper symmetry
 impl_unit_symmetry_board!(GoBoard);
+
+impl Hash for GoBoard {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.zobrist_full().hash(state);
+    }
+}
