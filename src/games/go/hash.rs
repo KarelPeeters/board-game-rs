@@ -6,19 +6,47 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
 use crate::board::Player;
-use crate::games::go::{Chains, Tile};
+use crate::games::go::{Chains, State, Tile};
 
-lazy_static! {
-    pub static ref HASH_DATA: HashData = HashData::new();
-}
+type Inner = u128;
 
-pub type Zobrist = u128;
+#[derive(Default, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct Zobrist(Inner);
 
 const MAX_AREA: usize = Chains::MAX_AREA as usize;
 
 pub struct HashData {
-    pub player_tile: [[Zobrist; MAX_AREA]; 2],
-    pub player_turn: [Zobrist; 2],
+    player_tile: [[Zobrist; MAX_AREA]; 2],
+    player_turn: [Zobrist; 2],
+    pass_state: [Zobrist; 3],
+}
+
+impl Zobrist {
+    pub fn for_player_tile(player: Player, tile: Tile, size: u8) -> Zobrist {
+        // TODO use size? or should we always use the max size here?
+        let player_index = player.index() as usize;
+        let tile_index = tile.index(size);
+        HASH_DATA.player_tile[player_index][tile_index]
+    }
+
+    pub fn for_player_turn(player: Player) -> Zobrist {
+        let player_index = player.index() as usize;
+        HASH_DATA.player_turn[player_index]
+    }
+
+    pub fn for_pass_state(state: State) -> Zobrist {
+        let state_index = match state {
+            State::Normal => 0,
+            State::Passed => 1,
+            State::Done(_) => 2,
+        };
+        HASH_DATA.pass_state[state_index]
+    }
+}
+
+// TODO generate this at compile-time?
+lazy_static! {
+    static ref HASH_DATA: HashData = HashData::new();
 }
 
 impl HashData {
@@ -29,20 +57,20 @@ impl HashData {
         HashData {
             player_tile: [gen_array(&mut rng), gen_array(&mut rng)],
             player_turn: gen_array(&mut rng),
+            pass_state: gen_array(&mut rng),
         }
-    }
-
-    pub fn get_player_tile(&self, player: Player, tile: Tile, size: u8) -> Zobrist {
-        // TODO use size? or should we always use the max size here?
-        let player_index = player.index() as usize;
-        let tile_index = tile.index(size);
-        self.player_tile[player_index][tile_index]
     }
 }
 
 impl Debug for HashData {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HashData").finish_non_exhaustive()
+    }
+}
+
+impl Distribution<Zobrist> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Zobrist {
+        Zobrist(rng.gen())
     }
 }
 
@@ -55,4 +83,30 @@ where
         array[i] = rng.gen();
     }
     array
+}
+
+impl Debug for Zobrist {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        // print hex, full-width with leading 0x
+        write!(
+            f,
+            "Zobrist({:#0width$x})",
+            self.0,
+            width = (Inner::BITS / 8 + 2) as usize
+        )
+    }
+}
+
+impl std::ops::BitXor for Zobrist {
+    type Output = Self;
+
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        Zobrist(self.0 ^ rhs.0)
+    }
+}
+
+impl std::ops::BitXorAssign for Zobrist {
+    fn bitxor_assign(&mut self, rhs: Self) {
+        self.0 ^= rhs.0;
+    }
 }
