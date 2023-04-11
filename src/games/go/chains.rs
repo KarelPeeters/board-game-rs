@@ -322,11 +322,15 @@ impl Chains {
 
                     // add liberties to adjacent groups
                     for adj in tile.all_adjacent(size) {
-                        if let Some(adj_group_id) = self.tiles[adj.index(size)].group_id {
+                        let adj_group_id_old = self.tiles[adj.index(size)].group_id;
+                        let adj_group_id =
+                            adj_group_id_old.map(|id| if merged_groups.contains(&id) { curr_group_id } else { id });
+
+                        if let Some(adj_group_id) = adj_group_id {
                             let adj_group = &mut self.groups[adj_group_id as usize];
                             if !adj_group.is_dead() {
                                 println!(
-                                    "  adding liberty to group {} at {:?} because {:?} is dead",
+                                    "    adding liberty to group {} at {:?} because {:?} is dead",
                                     adj_group_id, adj, tile
                                 );
                                 adj_group.liberty_edge_count += 1;
@@ -377,6 +381,7 @@ impl Group {
         self.liberty_edge_count = 0;
     }
 
+    // TODO give this a better name and clarify the semantics
     fn is_dead(&self) -> bool {
         self.stone_count == 0
     }
@@ -431,8 +436,9 @@ impl Debug for Chains {
 impl Display for Chains {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Chains {{")?;
-        writeln!(f, "  tiles:")?;
+        writeln!(f, "  fen: {:?}", self.to_fen())?;
 
+        writeln!(f, "  tiles:")?;
         let size = self.size();
         for y in (0..size).rev() {
             write!(f, "    {:2} ", y + 1)?;
@@ -445,7 +451,6 @@ impl Display for Chains {
             }
             writeln!(f)?;
         }
-
         write!(f, "       ")?;
         for x in 0..size {
             write!(f, "   {}", Tile::x_to_char(x).unwrap())?;
@@ -458,7 +463,7 @@ impl Display for Chains {
             writeln!(f, "    group {}: {:?}", i, group)?;
         }
 
-        writeln!(f)?;
+        writeln!(f, "}}")?;
         Ok(())
     }
 }
