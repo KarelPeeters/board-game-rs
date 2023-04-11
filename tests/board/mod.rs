@@ -17,6 +17,7 @@ mod ataxx;
 mod chess;
 mod connect4;
 mod go;
+mod go_chains;
 mod max_moves;
 mod oware;
 mod sttt;
