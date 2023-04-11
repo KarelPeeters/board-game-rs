@@ -1,4 +1,5 @@
 pub use board::*;
+pub use chains::*;
 pub use io::*;
 pub use rules::*;
 pub use tile::*;

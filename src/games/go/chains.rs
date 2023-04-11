@@ -15,19 +15,19 @@ pub struct Chains {
 
 // TODO compact into single u8
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-struct Content {
-    has_had_a: bool,
-    has_had_b: bool,
-    group_id: Option<u16>,
+pub struct Content {
+    pub has_had_a: bool,
+    pub has_had_b: bool,
+    pub group_id: Option<u16>,
 }
 
 // TODO compact? we can at least force player into one of the other fields
 // TODO do even even need player here if we also store the player in the tile itself?
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-struct Group {
-    player: Player,
-    stone_count: u16,
-    liberty_count: u16,
+pub struct Group {
+    pub player: Player,
+    pub stone_count: u16,
+    pub liberty_count: u16,
 }
 
 impl Chains {
@@ -46,14 +46,20 @@ impl Chains {
         self.size
     }
 
-    pub fn tile(&self, tile: Tile) -> Option<Player> {
+    pub fn content(&self, tile: Tile) -> Content {
         self.tiles[tile.index(self.size)]
-            .group_id
-            .map(|id| self.groups[id as usize].player)
+    }
+
+    pub fn group(&self, tile: Tile) -> Option<Group> {
+        self.content(tile).group_id.map(|id| self.groups[id as usize])
+    }
+
+    pub fn tile(&self, tile: Tile) -> Option<Player> {
+        self.group(tile).map(|group| group.player)
     }
 
     /// Is there a path between `start` and another tile with value `target` over only `player` tiles?
-    pub(super) fn reaches(&self, start: Tile, target: Option<Player>) -> bool {
+    pub fn reaches(&self, start: Tile, target: Option<Player>) -> bool {
         // TODO implement more quickly with chains
         //   alternatively, keep this as a fallback for unit tests
         let through = self.tile(start);
@@ -136,11 +142,10 @@ impl Chains {
         let mut merged_groups = vec![];
         for adj in all_adjacent.clone() {
             if let Some(group_id) = self.tiles[adj.index(self.size)].group_id {
-                println!("  merging with existing group {} at {}", group_id, tile);
-
                 let other_group = &mut self.groups[group_id as usize];
 
                 if other_group.player == curr {
+                    println!("    merging with {}, id {}, {:?}", adj, group_id, other_group);
                     merged_groups.push(group_id);
 
                     curr_group.stone_count += other_group.stone_count;
@@ -152,8 +157,7 @@ impl Chains {
             }
         }
 
-        // check for suicide
-        // (and assert that the rules allow it if it happens)
+        println!("  after merging: {:?}", curr_group);
 
         // push new group, reuse old id if possible
         // TODO speed up by keeping a free linked list of ids?
@@ -176,8 +180,14 @@ impl Chains {
 
         // check for suicide
         let suicide = if curr_group.liberty_count == 0 {
-            assert!(curr_group.stone_count > 1);
-            assert!(rules.allow_multi_stone_suicide);
+            assert!(
+                curr_group.stone_count > 1,
+                "1-stone suicide would immediately repeat so is never allowed"
+            );
+            assert!(
+                rules.allow_multi_stone_suicide,
+                "multi store suicide not allowed by current rules"
+            );
 
             dead_groups.push(curr_group_id);
             true
