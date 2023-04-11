@@ -9,13 +9,6 @@ use crate::games::go::{Rules, Score};
 // TODO add function to remove stones?
 //   could be tricky since groups would have to be split
 //   can be pretty slow
-// TODO add self-consistency checker to use in unit tests or with debug_assert
-//   * each group has the right number of liberties
-//   * each group is connected
-//   * group stone counts are correct
-//   * dead groups have BOTH stones and liberties as 0
-// TODO rename group, tile, content... : stone_at, group_at, content_at
-//   same for GoBoard: stone_at
 #[derive(Clone, Eq)]
 pub struct Chains {
     size: u8,
@@ -84,16 +77,16 @@ impl Chains {
         self.size as u16 * self.size as u16
     }
 
-    pub fn content(&self, tile: Tile) -> Content {
+    pub fn content_at(&self, tile: Tile) -> Content {
         self.tiles[tile.index(self.size)]
     }
 
-    pub fn group(&self, tile: Tile) -> Option<Group> {
-        self.content(tile).group_id.map(|id| self.groups[id as usize])
+    pub fn group_at(&self, tile: Tile) -> Option<Group> {
+        self.content_at(tile).group_id.map(|id| self.groups[id as usize])
     }
 
-    pub fn tile(&self, tile: Tile) -> Option<Player> {
-        self.group(tile).map(|group| group.player)
+    pub fn stone_at(&self, tile: Tile) -> Option<Player> {
+        self.group_at(tile).map(|group| group.player)
     }
 
     /// Iterator over all of the groups that currently exist.
@@ -127,7 +120,7 @@ impl Chains {
     pub fn reaches(&self, start: Tile, target: Option<Player>) -> bool {
         // TODO implement more quickly with chains
         //   alternatively, keep this as a fallback for unit tests
-        let through = self.tile(start);
+        let through = self.stone_at(start);
         assert_ne!(through, target);
 
         let mut visited = vec![false; self.tiles.len()];
@@ -142,7 +135,7 @@ impl Chains {
 
             for dir in Direction::ALL {
                 if let Some(adj) = tile.adjacent_in(dir, self.size) {
-                    let value = self.tile(adj);
+                    let value = self.stone_at(adj);
                     if value == target {
                         return true;
                     }
@@ -164,7 +157,7 @@ impl Chains {
         let mut score_b = 0;
 
         for tile in Tile::all(self.size()) {
-            match self.tile(tile) {
+            match self.stone_at(tile) {
                 None => {
                     let reaches_a = self.reaches(tile, Some(Player::A));
                     let reaches_b = self.reaches(tile, Some(Player::B));
@@ -201,7 +194,7 @@ impl Chains {
         let all_adjacent = placed_tile.all_adjacent(size);
 
         // create a new pseudo group
-        let initial_liberties = all_adjacent.clone().filter(|&adj| self.tile(adj).is_none()).count();
+        let initial_liberties = all_adjacent.clone().filter(|&adj| self.stone_at(adj).is_none()).count();
         let mut curr_group = Group {
             player: placed_value,
             stone_count: 1,

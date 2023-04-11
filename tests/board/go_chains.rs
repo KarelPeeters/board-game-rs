@@ -21,7 +21,7 @@ fn corner_triangle_corner_first() {
         stone_count: 3,
         liberty_edge_count: 4,
     };
-    assert_eq!(chains.group(Tile::new(0, 0)), Some(expected));
+    assert_eq!(chains.group_at(Tile::new(0, 0)), Some(expected));
 }
 
 #[test]
@@ -37,7 +37,7 @@ fn corner_triangle_corner_last() {
         stone_count: 3,
         liberty_edge_count: 4,
     };
-    assert_eq!(chains.group(Tile::new(0, 0)), Some(expected));
+    assert_eq!(chains.group_at(Tile::new(0, 0)), Some(expected));
 }
 
 #[test]
@@ -58,7 +58,7 @@ fn merge_long_overlapping() {
         stone_count: 11,
         liberty_edge_count: 19,
     };
-    assert_eq!(chains.group(Tile::new(2, 0)), Some(expected));
+    assert_eq!(chains.group_at(Tile::new(2, 0)), Some(expected));
 }
 
 #[test]
@@ -79,7 +79,7 @@ fn cyclic_group() {
         stone_count: 4,
         liberty_edge_count: 4,
     };
-    assert_eq!(chains.group(Tile::new(0, 0)), Some(expected));
+    assert_eq!(chains.group_at(Tile::new(0, 0)), Some(expected));
 }
 
 #[test]
@@ -102,8 +102,8 @@ fn capture_corner() {
         stone_count: 1,
         liberty_edge_count: 3,
     };
-    assert_eq!(chains.group(Tile::new(1, 0)), Some(expected));
-    assert_eq!(chains.group(Tile::new(0, 1)), Some(expected));
+    assert_eq!(chains.group_at(Tile::new(1, 0)), Some(expected));
+    assert_eq!(chains.group_at(Tile::new(0, 1)), Some(expected));
 
     check_chains_valid(&chains, &rules);
 }
@@ -143,11 +143,11 @@ fn capture_cyclic_group() {
         stone_count: 8,
         liberty_edge_count: 4,
     };
-    assert_eq!(chains.group(Tile::new(0, 2)), Some(expected_edge));
-    assert_eq!(chains.group(Tile::new(4, 2)), Some(expected_edge));
-    assert_eq!(chains.group(Tile::new(2, 0)), Some(expected_edge));
-    assert_eq!(chains.group(Tile::new(2, 4)), Some(expected_edge));
-    assert_eq!(chains.group(Tile::new(1, 1)), Some(expected_core));
+    assert_eq!(chains.group_at(Tile::new(0, 2)), Some(expected_edge));
+    assert_eq!(chains.group_at(Tile::new(4, 2)), Some(expected_edge));
+    assert_eq!(chains.group_at(Tile::new(2, 0)), Some(expected_edge));
+    assert_eq!(chains.group_at(Tile::new(2, 4)), Some(expected_edge));
+    assert_eq!(chains.group_at(Tile::new(1, 1)), Some(expected_core));
 
     chains = chains
         .place_tile_full(Tile::new(2, 2), Player::A, &rules)
@@ -166,11 +166,11 @@ fn capture_cyclic_group() {
         stone_count: 1,
         liberty_edge_count: 4,
     };
-    assert_eq!(chains.group(Tile::new(0, 2)), Some(expected_edge_new));
-    assert_eq!(chains.group(Tile::new(4, 2)), Some(expected_edge_new));
-    assert_eq!(chains.group(Tile::new(2, 0)), Some(expected_edge_new));
-    assert_eq!(chains.group(Tile::new(2, 4)), Some(expected_edge_new));
-    assert_eq!(chains.group(Tile::new(2, 2)), Some(expected_center));
+    assert_eq!(chains.group_at(Tile::new(0, 2)), Some(expected_edge_new));
+    assert_eq!(chains.group_at(Tile::new(4, 2)), Some(expected_edge_new));
+    assert_eq!(chains.group_at(Tile::new(2, 0)), Some(expected_edge_new));
+    assert_eq!(chains.group_at(Tile::new(2, 4)), Some(expected_edge_new));
+    assert_eq!(chains.group_at(Tile::new(2, 2)), Some(expected_center));
 
     check_chains_valid(&chains, &rules);
 }
@@ -191,7 +191,7 @@ fn fill_board() {
         stone_count: size as u16 * size as u16 - 1,
         liberty_edge_count: 2,
     };
-    assert_eq!(chains.group(Tile::new(0, 0)), Some(expected));
+    assert_eq!(chains.group_at(Tile::new(0, 0)), Some(expected));
 
     {
         // ensure the full board gets suicide captured
@@ -235,7 +235,7 @@ fn capture_jagged() {
         stone_count: 9,
         liberty_edge_count: 9,
     };
-    assert_eq!(new_chains.group(Tile::new(0, 0)), Some(expected));
+    assert_eq!(new_chains.group_at(Tile::new(0, 0)), Some(expected));
 
     check_chains_valid(&new_chains, &rules);
 }
@@ -266,7 +266,7 @@ fn fuzz_test() {
             'tries: for _ in 0..10 {
                 // pick random empty tile
                 let tile = Tile::all(size)
-                    .filter(|&tile| chains.tile(tile).is_none())
+                    .filter(|&tile| chains.stone_at(tile).is_none())
                     .choose(&mut rng);
                 let tile = match tile {
                     None => break,
@@ -321,8 +321,8 @@ fn check_fen(chains: &Chains, rules: &Rules) {
     let new = Chains::from_fen(&fen, rules).unwrap();
     assert_eq!(chains.to_fen(), new.to_fen());
     for tile in Tile::all(chains.size()) {
-        let group = chains.group(tile);
-        let new_group = new.group(tile);
+        let group = chains.group_at(tile);
+        let new_group = new.group_at(tile);
         assert_eq!(group, new_group, "Group mismatch at {:?}", tile);
     }
 }
@@ -339,8 +339,8 @@ fn check_floodfill(chains: &Chains) {
         let expected_id = floodfill.tile_group[index];
         let expected_group = expected_id.map(|id| floodfill.groups[id]);
 
-        let actual_id = chains.content(tile).group_id;
-        let actual_group = chains.group(tile);
+        let actual_id = chains.content_at(tile).group_id;
+        let actual_group = chains.group_at(tile);
 
         assert_eq!(expected_group, actual_group, "Mismatched group at {:?}", tile);
 
@@ -371,7 +371,7 @@ fn compute_floodfill(chains: &Chains) -> FloodFill {
             // already part of another group
             continue;
         }
-        let player = match chains.tile(start) {
+        let player = match chains.stone_at(start) {
             // empty tile
             None => continue,
             Some(curr) => curr,
@@ -390,7 +390,7 @@ fn compute_floodfill(chains: &Chains) -> FloodFill {
         while let Some(curr) = todo.pop() {
             let curr_index = curr.index(size);
 
-            match chains.tile(curr) {
+            match chains.stone_at(curr) {
                 None => {
                     liberty_edge_count += 1;
                     if !visited[curr_index] {
@@ -420,7 +420,7 @@ fn compute_floodfill(chains: &Chains) -> FloodFill {
 
     // check that tiles are covered
     for tile in Tile::all(size) {
-        if chains.tile(tile).is_some() {
+        if chains.stone_at(tile).is_some() {
             assert!(tile_group[tile.index(size)].is_some());
         }
     }

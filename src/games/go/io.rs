@@ -73,7 +73,7 @@ impl Display for GoBoard {
 
             for x in 0..size {
                 let tile = Tile::new(x, y);
-                let player = self.tile(tile);
+                let player = self.stone_at(tile);
                 let c = match player {
                     None => {
                         let reaches_a = self.chains().reaches(tile, Some(Player::A));
@@ -182,7 +182,7 @@ impl Chains {
             for y in (0..size).rev() {
                 for x in 0..size {
                     let tile = Tile::new(x, y);
-                    let player = self.tile(tile);
+                    let player = self.stone_at(tile);
                     let c = match player {
                         None => '.',
                         Some(player) => player_symbol(player),
