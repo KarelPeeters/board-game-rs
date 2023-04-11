@@ -167,7 +167,7 @@ impl GoBoard {
             _ => return Err(InvalidFen::InvalidChar),
         };
 
-        Ok(GoBoard::from_parts(rules, chains, next_player, state))
+        Ok(GoBoard::from_parts(rules, chains, next_player, state, vec![]))
     }
 }
 
