@@ -201,6 +201,71 @@ fn capture_cyclic_group() {
 }
 
 #[test]
+fn fill_board() {
+    let size = 5;
+    let rules = Rules::tromp_taylor();
+
+    let mut tiles = Tile::all(size).map(|t| (t.x, t.y, Player::A)).collect_vec();
+    let last = tiles.pop().unwrap();
+    let last_tile = Tile::new(last.0, last.1);
+
+    let chains = build_chains(size, rules, &tiles);
+    println!("{}", chains);
+    let expected = Group {
+        player: Player::A,
+        stone_count: size as u16 * size as u16 - 1,
+        liberty_edge_count: 2,
+    };
+    assert_eq!(chains.group(Tile::new(0, 0)), Some(expected));
+
+    {
+        // ensure the full board gets suicide captured
+        let new_chains = chains
+            .clone()
+            .place_tile_full(last_tile, Player::A, &rules)
+            .unwrap()
+            .chains;
+        println!("{}", new_chains);
+        assert_eq!(new_chains.to_fen(), Chains::new(size).to_fen());
+
+        check_chains_valid(&new_chains, &rules);
+    }
+
+    {
+        // ensure the other player can capture the rest too
+        let new_chains = chains.place_tile_full(last_tile, Player::B, &rules).unwrap().chains;
+        println!("{}", new_chains);
+        assert_eq!(new_chains.to_fen(), "....w/...../...../...../.....");
+
+        check_chains_valid(&new_chains, &rules);
+    }
+}
+
+#[test]
+fn capture_jagged() {
+    let rules = Rules::tromp_taylor();
+    let chains = Chains::from_fen("wbbb/wwbb/.bbw/wwww", &rules).unwrap();
+    println!("{}", chains);
+
+    let new_chains = chains
+        .place_tile_full(Tile::new(0, 1), Player::B, &rules)
+        .unwrap()
+        .chains;
+    println!("{}", new_chains);
+
+    assert_eq!(new_chains.to_fen(), "w.../ww../w..w/wwww");
+
+    let expected = Group {
+        player: Player::B,
+        stone_count: 9,
+        liberty_edge_count: 9,
+    };
+    assert_eq!(new_chains.group(Tile::new(0, 0)), Some(expected));
+
+    check_chains_valid(&new_chains, &rules);
+}
+
+#[test]
 #[ignore]
 fn fuzz_test() {
     let sizes = 0..=9;
@@ -243,6 +308,9 @@ fn fuzz_test() {
                         chains = p.chains;
                         println!("success:");
                         println!("{}", chains);
+
+                        check_chains_valid(&chains, &rules);
+
                         break 'tries;
                     }
                     Err(_) => {
