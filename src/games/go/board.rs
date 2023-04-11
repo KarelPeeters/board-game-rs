@@ -75,7 +75,7 @@ impl GoBoard {
     }
 
     pub fn area(&self) -> u16 {
-        self.size() as u16 * self.size() as u16
+        self.chains().area()
     }
 
     pub fn rules(&self) -> Rules {
