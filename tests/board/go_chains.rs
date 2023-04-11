@@ -1,4 +1,7 @@
 use itertools::Itertools;
+use rand::rngs::SmallRng;
+use rand::seq::{IteratorRandom, SliceRandom};
+use rand::{Rng, SeedableRng};
 
 use board_game::board::Player;
 use board_game::games::go::{Chains, Group, Rules, Tile};
@@ -6,7 +9,7 @@ use board_game::games::go::{Chains, Group, Rules, Tile};
 fn build_chains(size: u8, rules: Rules, tiles: &[(u8, u8, Player)]) -> Chains {
     let mut chains = Chains::new(size);
     for &(x, y, player) in tiles {
-        chains.place_tile_full(Tile::new(x, y), player, &rules);
+        chains = chains.place_tile_full(Tile::new(x, y), player, &rules).unwrap().chains;
         // TODO remove print
         println!("{}", chains);
         check_chains_valid(&chains, &rules);
@@ -112,7 +115,10 @@ fn capture_corner() {
     println!("{}", chains);
     assert_eq!(chains.to_fen(), "...../...../...../w..../b....");
 
-    chains.place_tile_full(Tile::new(1, 0), Player::B, &rules);
+    chains = chains
+        .place_tile_full(Tile::new(1, 0), Player::B, &rules)
+        .unwrap()
+        .chains;
     println!("{}", chains);
     assert_eq!(chains.to_fen(), "...../...../...../w..../.w...");
 
@@ -168,7 +174,10 @@ fn capture_cyclic_group() {
     assert_eq!(chains.group(Tile::new(2, 4)), Some(expected_edge));
     assert_eq!(chains.group(Tile::new(1, 1)), Some(expected_core));
 
-    chains.place_tile_full(Tile::new(2, 2), Player::A, &rules);
+    chains = chains
+        .place_tile_full(Tile::new(2, 2), Player::A, &rules)
+        .unwrap()
+        .chains;
     println!("{}", chains);
     assert_eq!(chains.to_fen(), ".bbb./b...b/b.b.b/b...b/.bbb.");
 
@@ -189,4 +198,60 @@ fn capture_cyclic_group() {
     assert_eq!(chains.group(Tile::new(2, 2)), Some(expected_center));
 
     check_chains_valid(&chains, &rules);
+}
+
+#[test]
+#[ignore]
+fn fuzz_test() {
+    let sizes = 0..=9;
+    let players = [Player::A, Player::B];
+    let rules = [Rules::tromp_taylor(), Rules::cgos()];
+
+    let mut rng = SmallRng::seed_from_u64(0);
+
+    for game_index in 0..1000 {
+        let size = rng.gen_range(sizes.clone());
+        let rules = rules.choose(&mut rng).unwrap();
+
+        println!("Starting game {} with size {} and rules {:?}", game_index, size, rules);
+
+        let mut chains = Chains::new(size);
+
+        // move limit
+        for move_index in 0..1000 {
+            println!("  starting move {}", move_index);
+            let prev_chains = chains.clone();
+
+            // invalid move limit
+            'tries: for _ in 0..10 {
+                // pick random empty tile
+                let tile = Tile::all(size)
+                    .filter(|&tile| chains.tile(tile).is_none())
+                    .choose(&mut rng);
+                let tile = match tile {
+                    None => break,
+                    Some(tile) => tile,
+                };
+
+                // try playing on that tile
+                let player = *players.choose(&mut rng).unwrap();
+
+                let r = chains.place_tile_full(tile, player, rules);
+
+                match r {
+                    Ok(p) => {
+                        chains = p.chains;
+                        println!("success:");
+                        println!("{}", chains);
+                        break 'tries;
+                    }
+                    Err(_) => {
+                        println!("failed, restoring previous chains");
+                        // restore previous chains
+                        chains = prev_chains.clone()
+                    }
+                }
+            }
+        }
+    }
 }
