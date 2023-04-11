@@ -145,6 +145,7 @@ fn capture_cyclic_group() {
     assert_eq!(chains.group_at(Tile::new(2, 0)), Some(expected_edge));
     assert_eq!(chains.group_at(Tile::new(2, 4)), Some(expected_edge));
     assert_eq!(chains.group_at(Tile::new(1, 1)), Some(expected_core));
+    chains_test_main(&chains, &rules);
 
     chains = chains.place_tile(Tile::new(2, 2), Player::A, &rules).unwrap().chains;
     println!("{}", chains);
@@ -314,6 +315,8 @@ fn check_fen(chains: &Chains, rules: &Rules) {
 fn check_floodfill(chains: &Chains) {
     let size = chains.size();
     let floodfill = compute_floodfill(chains);
+
+    assert_eq!(floodfill.groups.len(), chains.groups().count());
 
     let mut map_id = HashMap::new();
 
