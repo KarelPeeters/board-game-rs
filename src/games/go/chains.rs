@@ -44,6 +44,26 @@ pub struct Group {
     //   not necessary for correctness, just for heuristics and convenience
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum InvalidPlacement {
+    // This tile was already occupied by a different stone.
+    Occupied,
+    // 1-stone suicide would immediately repeat so is never allowed.
+    SuicideSingle,
+    // Multi store suicide that is not allowed by current rules.
+    SuicideMulti,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct Placement {
+    pub chains: Chains,
+
+    /// suicide
+    pub captured_self: bool,
+    pub captured_other: bool,
+    pub captured_any: bool,
+}
+
 impl Chains {
     pub const MAX_SIZE: u8 = 19;
 
@@ -161,19 +181,28 @@ impl Chains {
     // TODO store the current tile in the content too without the extra indirection?
     // TODO add fast path for exactly one friendly neighbor, just modify the existing group
     // TODO remove prints
-    pub fn place_tile_full(&mut self, tile: Tile, curr: Player, rules: &Rules) -> bool {
-        println!("placing tile {}, value {:?}", tile, curr);
+    /// We take `self` by value to ensure it never gets left in an invalid state
+    /// if we return an error and bail out halfway.
+    pub fn place_tile_full(
+        mut self,
+        placed_tile: Tile,
+        placed_value: Player,
+        rules: &Rules,
+    ) -> Result<Placement, InvalidPlacement> {
+        println!("placing tile {}, value {:?}", placed_tile, placed_value);
 
-        let content = self.tiles[tile.index(self.size)];
-        assert!(content.group_id.is_none());
+        let size = self.size;
+        let content = self.tiles[placed_tile.index(size)];
+        if content.group_id.is_some() {
+            return Err(InvalidPlacement::Occupied);
+        }
 
-        let other = curr.other();
-        let all_adjacent = tile.all_adjacent(self.size);
+        let all_adjacent = placed_tile.all_adjacent(size);
 
         // create a new pseudo group
         let initial_liberties = all_adjacent.clone().filter(|&adj| self.tile(adj).is_none()).count();
         let mut curr_group = Group {
-            player: curr,
+            player: placed_value,
             stone_count: 1,
             liberty_edge_count: initial_liberties as u16,
         };
@@ -182,10 +211,10 @@ impl Chains {
         // merge with matching neighbors
         let mut merged_groups = vec![];
         for adj in all_adjacent.clone() {
-            if let Some(adj_group_id) = self.tiles[adj.index(self.size)].group_id {
+            if let Some(adj_group_id) = self.tiles[adj.index(size)].group_id {
                 let adj_group = &mut self.groups[adj_group_id as usize];
 
-                if adj_group.player == curr {
+                if adj_group.player == placed_value {
                     println!("    merging with {}, id {}, {:?}", adj, adj_group_id, adj_group);
                     merged_groups.push(adj_group_id);
 
@@ -225,9 +254,9 @@ impl Chains {
         // subtract liberty from enemies and clear if necessary
         let mut cleared_enemy = false;
         for adj in all_adjacent {
-            if let Some(group_id) = self.tiles[adj.index(self.size)].group_id {
+            if let Some(group_id) = self.tiles[adj.index(size)].group_id {
                 let group = &mut self.groups[group_id as usize];
-                if group.player == other {
+                if group.player == placed_value.other() {
                     println!("  subtracting liberty from enemy group {}", group_id);
                     group.liberty_edge_count -= 1;
                     if group.liberty_edge_count == 0 {
@@ -241,14 +270,12 @@ impl Chains {
 
         // check for suicide
         let suicide = if !cleared_enemy && curr_group.liberty_edge_count == 0 {
-            assert!(
-                curr_group.stone_count > 1,
-                "1-stone suicide would immediately repeat so is never allowed"
-            );
-            assert!(
-                rules.allow_multi_stone_suicide,
-                "multi store suicide not allowed by current rules"
-            );
+            if curr_group.stone_count == 0 {
+                return Err(InvalidPlacement::SuicideSingle);
+            }
+            if !rules.allow_multi_stone_suicide {
+                return Err(InvalidPlacement::SuicideMulti);
+            }
 
             println!("  scheduling suicide of curr group {}", curr_group_id);
             cleared_groups.push(curr_group_id);
@@ -260,41 +287,64 @@ impl Chains {
         // mark cleared groups as dead
         // TODO inline this with pushing them to vec?
         for &group in &cleared_groups {
+            println!("  marking group {} as dead", group);
             self.groups[group as usize].mark_dead();
         }
 
+        // place new tile
+        //   important for proper liberty updating
+        //   if suicide the tile-updating logic will remove it anyway
+        let content = &mut self.tiles[placed_tile.index(size)];
+        content.group_id = Some(curr_group_id);
+        if !suicide {
+            // TODO should we update "has_had" in case of suicide? no, right?
+            content.has_had_a |= placed_value == Player::A;
+            content.has_had_b |= placed_value == Player::B;
+        }
+
         // fixup per-tile-state
-        for content in &mut self.tiles {
+        // TODO use flat iterator and Tile::from_index instead?
+        for tile in Tile::all(size) {
+            let content = &mut self.tiles[tile.index(size) as usize];
+
             if let Some(mut id) = content.group_id {
                 // point merged groups to new id
                 if merged_groups.contains(&id) {
+                    println!("  updating tile {:?} group {} -> {}", tile, id, curr_group_id);
                     content.group_id = Some(curr_group_id);
                     id = curr_group_id;
                 }
 
                 // remove dead stones
-                // TODO can we just skip this? allow tiles to keep pointing to dead groups?
                 if cleared_groups.contains(&id) {
+                    println!("  updating tile {:?} group {} -> None", tile, id);
                     content.group_id = None;
+
+                    // add liberties to adjacent groups
+                    for adj in tile.all_adjacent(size) {
+                        if let Some(adj_group_id) = self.tiles[adj.index(size)].group_id {
+                            let adj_group = &mut self.groups[adj_group_id as usize];
+                            if !adj_group.is_dead() {
+                                println!(
+                                    "  adding liberty to group {} at {:?} because {:?} is dead",
+                                    adj_group_id, adj, tile
+                                );
+                                adj_group.liberty_edge_count += 1;
+                            }
+                        }
+                    }
                 }
-
-                // TODO if adjacent to dead group add liberty to curr group
-                //   careful about overlapping liberties again!
             }
-        }
-
-        // update content of the current tile
-        // TODO should we update "has_had" in case of suicide? no, right?
-        if !suicide {
-            let content = &mut self.tiles[tile.index(self.size)];
-            content.group_id = Some(curr_group_id);
-            content.has_had_a |= curr == Player::A;
-            content.has_had_b |= curr == Player::B;
         }
 
         println!();
 
-        !cleared_groups.is_empty()
+        Ok(Placement {
+            chains: self,
+            captured_self: suicide,
+            captured_other: cleared_enemy,
+            captured_any: suicide | cleared_enemy,
+        })
     }
 
     fn tile_for_eq_hash(&self, content: Content) -> EqHashTile {
@@ -325,6 +375,10 @@ impl Group {
     fn mark_dead(&mut self) {
         self.stone_count = 0;
         self.liberty_edge_count = 0;
+    }
+
+    fn is_dead(&self) -> bool {
+        self.stone_count == 0
     }
 }
 

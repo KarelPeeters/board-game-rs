@@ -16,7 +16,7 @@ use crate::impl_unit_symmetry_board;
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct GoBoard {
     rules: Rules,
-    chains: Chains,
+    chains: Option<Chains>,
     next_player: Player,
     state: State,
 }
@@ -55,7 +55,7 @@ impl GoBoard {
     pub fn new(size: u8, rules: Rules) -> GoBoard {
         GoBoard {
             rules,
-            chains: Chains::new(size),
+            chains: Some(Chains::new(size)),
             next_player: Player::A,
             state: State::Normal,
         }
@@ -64,14 +64,14 @@ impl GoBoard {
     pub(super) fn from_parts(rules: Rules, chains: Chains, next_player: Player, state: State) -> GoBoard {
         GoBoard {
             rules,
-            chains,
+            chains: Some(chains),
             next_player,
             state,
         }
     }
 
     pub fn size(&self) -> u8 {
-        self.chains.size()
+        self.chains().size()
     }
 
     pub fn area(&self) -> u16 {
@@ -83,7 +83,9 @@ impl GoBoard {
     }
 
     pub fn chains(&self) -> &Chains {
-        &self.chains
+        self.chains
+            .as_ref()
+            .expect("Board is in invalid state after failed play")
     }
 
     pub fn state(&self) -> State {
@@ -91,11 +93,11 @@ impl GoBoard {
     }
 
     pub fn tile(&self, tile: Tile) -> Option<Player> {
-        self.chains.tile(tile)
+        self.chains().tile(tile)
     }
 
     pub fn current_score(&self) -> Score {
-        self.chains.score()
+        self.chains().score()
     }
 }
 
@@ -137,7 +139,11 @@ impl Board for GoBoard {
                 };
             }
             Move::Place(tile) => {
-                self.chains.place_tile_full(tile, curr, &self.rules);
+                let chains = self.chains.take().expect("Board is in invalid state after failed play");
+                // TODO handle this error properly, eg. "unavailable move"
+                let new_chains = chains.place_tile_full(tile, curr, &self.rules).unwrap().chains;
+                self.chains = Some(new_chains);
+
                 self.next_player = other;
                 self.state = State::Normal;
             }
