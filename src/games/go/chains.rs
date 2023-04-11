@@ -279,7 +279,7 @@ impl Chains {
 
         // check for suicide
         let suicide = if !cleared_enemy && curr_group.liberty_edge_count == 0 {
-            if curr_group.stone_count == 0 {
+            if curr_group.stone_count == 1 {
                 return Err(InvalidPlacement::SuicideSingle);
             }
             if !rules.allow_multi_stone_suicide {
