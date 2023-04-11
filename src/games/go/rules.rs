@@ -4,7 +4,6 @@
 pub struct Rules {
     pub allow_multi_stone_suicide: bool,
     // implicit: game end after two passes, always allowed to pass
-    // implicit: positional SuperKo: don't allow moves that repeat the previous stone arrangement
     // implicit: scoring: area scoring
 }
 
@@ -22,5 +21,13 @@ impl Rules {
         Rules {
             allow_multi_stone_suicide: false,
         }
+    }
+
+    pub fn needs_history(&self) -> bool {
+        true
+    }
+
+    pub fn allow_repeating_tiles(&self) -> bool {
+        true
     }
 }

@@ -19,6 +19,10 @@ pub struct GoBoard {
     chains: Option<Chains>,
     next_player: Player,
     state: State,
+
+    // TODO use a hashset instead? or some even better structure?
+    //   maybe this can be (partially) shared between board clones?
+    history: Vec<Zobrist>,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -58,15 +62,23 @@ impl GoBoard {
             chains: Some(Chains::new(size)),
             next_player: Player::A,
             state: State::Normal,
+            history: Vec::new(),
         }
     }
 
-    pub(super) fn from_parts(rules: Rules, chains: Chains, next_player: Player, state: State) -> GoBoard {
+    pub(super) fn from_parts(
+        rules: Rules,
+        chains: Chains,
+        next_player: Player,
+        state: State,
+        history: Vec<Zobrist>,
+    ) -> GoBoard {
         GoBoard {
             rules,
             chains: Some(chains),
             next_player,
             state,
+            history,
         }
     }
 
@@ -136,6 +148,7 @@ impl Board for GoBoard {
         }
     }
 
+    // TODO add pseudo-legal variant of available moves and a version of play that accepts them?
     fn play(&mut self, mv: Self::Move) -> Result<(), PlayError> {
         self.check_can_play(mv)?;
         let curr = self.next_player;
@@ -152,10 +165,26 @@ impl Board for GoBoard {
             }
             Move::Place(tile) => {
                 let chains = self.chains.take().expect("Board is in invalid state after failed play");
-                // TODO handle this error properly, eg. "unavailable move"
-                let new_chains = chains.place_tile(tile, curr, &self.rules).unwrap().chains;
-                self.chains = Some(new_chains);
 
+                // update history
+                if self.rules.needs_history() {
+                    self.history.push(chains.zobrist_tiles());
+                }
+
+                // actually place the tile and check for errors
+                let placement = chains
+                    .place_tile(tile, curr, &self.rules)
+                    .expect("Placement error, should have been stopped earlier");
+                if placement.captured_self && !self.rules.allow_multi_stone_suicide {
+                    panic!("Multi-stone suicide is not allowed by the current rules");
+                }
+                let new_chains = placement.chains;
+                if !self.rules.allow_repeating_tiles() && self.history.contains(&new_chains.zobrist_tiles()) {
+                    panic!("Repeating tiles is not allowed")
+                }
+
+                // update state
+                self.chains = Some(new_chains);
                 self.next_player = other;
                 self.state = State::Normal;
             }
