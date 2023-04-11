@@ -2,36 +2,11 @@ use itertools::Itertools;
 use rand::rngs::SmallRng;
 use rand::seq::{IteratorRandom, SliceRandom};
 use rand::{Rng, SeedableRng};
+use std::collections::HashMap;
+use std::convert::TryInto;
 
 use board_game::board::Player;
 use board_game::games::go::{Chains, Group, Rules, Tile};
-
-fn build_chains(size: u8, rules: Rules, tiles: &[(u8, u8, Player)]) -> Chains {
-    let mut chains = Chains::new(size);
-    for &(x, y, player) in tiles {
-        chains = chains.place_tile_full(Tile::new(x, y), player, &rules).unwrap().chains;
-        // TODO remove print
-        println!("{}", chains);
-        check_chains_valid(&chains, &rules);
-    }
-    chains
-}
-
-fn check_chains_valid(chains: &Chains, rules: &Rules) {
-    // TODO try reconstructing the board in different orders?
-    // TODO try fully computing liberties from scratch using floodfill
-
-    let fen = chains.to_fen();
-    let new = Chains::from_fen(&fen, rules).unwrap();
-
-    assert_eq!(chains.to_fen(), new.to_fen());
-
-    for tile in Tile::all(chains.size()) {
-        let group = chains.group(tile);
-        let new_group = new.group(tile);
-        assert_eq!(group, new_group, "Group mismatch at {:?}", tile);
-    }
-}
 
 #[test]
 fn corner_triangle_corner_first() {
@@ -322,4 +297,133 @@ fn fuzz_test() {
             }
         }
     }
+}
+
+fn build_chains(size: u8, rules: Rules, tiles: &[(u8, u8, Player)]) -> Chains {
+    let mut chains = Chains::new(size);
+    for &(x, y, player) in tiles {
+        chains = chains.place_tile_full(Tile::new(x, y), player, &rules).unwrap().chains;
+        // TODO remove print
+        println!("{}", chains);
+        check_chains_valid(&chains, &rules);
+    }
+    chains
+}
+
+fn check_chains_valid(chains: &Chains, rules: &Rules) {
+    chains.assert_valid();
+    check_fen(chains, rules);
+    check_floodfill(chains);
+}
+
+fn check_fen(chains: &Chains, rules: &Rules) {
+    let fen = chains.to_fen();
+    let new = Chains::from_fen(&fen, rules).unwrap();
+    assert_eq!(chains.to_fen(), new.to_fen());
+    for tile in Tile::all(chains.size()) {
+        let group = chains.group(tile);
+        let new_group = new.group(tile);
+        assert_eq!(group, new_group, "Group mismatch at {:?}", tile);
+    }
+}
+
+fn check_floodfill(chains: &Chains) {
+    let size = chains.size();
+    let floodfill = compute_floodfill(chains);
+
+    let mut map_id = HashMap::new();
+
+    for tile in Tile::all(size) {
+        let index = tile.index(size);
+
+        let expected_id = floodfill.tile_group[index];
+        let expected_group = expected_id.map(|id| floodfill.groups[id]);
+
+        let actual_id = chains.content(tile).group_id;
+        let actual_group = chains.group(tile);
+
+        assert_eq!(expected_group, actual_group, "Mismatched group at {:?}", tile);
+
+        let prev = map_id.insert(expected_id, actual_id);
+        if let Some(prev) = prev {
+            assert_eq!(prev, actual_id, "Mismatched group id mapping at {:?}", tile);
+        }
+    }
+}
+
+#[derive(Debug)]
+struct FloodFill {
+    groups: Vec<Group>,
+    tile_group: Vec<Option<usize>>,
+}
+
+fn compute_floodfill(chains: &Chains) -> FloodFill {
+    let size = chains.size();
+    let area = chains.area() as usize;
+
+    let mut groups = vec![];
+    let mut tile_group = vec![None; area];
+
+    // figure out the group for each tile
+    for start in Tile::all(size) {
+        let start_index = start.index(size);
+        if tile_group[start_index].is_some() {
+            // already part of another group
+            continue;
+        }
+        let player = match chains.tile(start) {
+            // empty tile
+            None => continue,
+            Some(curr) => curr,
+        };
+
+        // start floodfill from tile through curr, counting stones and liberty edges
+        let new_group_id = groups.len();
+
+        let mut todo = vec![start];
+        let mut visited = vec![false; area];
+
+        let mut stone_count: u64 = 0;
+        let mut liberty_edge_count: u64 = 0;
+        let mut liberties: u64 = 0;
+
+        while let Some(curr) = todo.pop() {
+            let curr_index = curr.index(size);
+
+            match chains.tile(curr) {
+                None => {
+                    liberty_edge_count += 1;
+                    if !visited[curr_index] {
+                        liberties += 1;
+                    }
+                }
+                Some(p) if p == player => {
+                    if !visited[curr_index] {
+                        stone_count += 1;
+                        tile_group[curr_index] = Some(new_group_id);
+                        todo.extend(curr.all_adjacent(size));
+                    }
+                }
+                Some(_) => {}
+            }
+
+            visited[curr_index] = true;
+        }
+
+        let _ = liberties;
+        groups.push(Group {
+            player,
+            stone_count: stone_count.try_into().unwrap(),
+            liberty_edge_count: liberty_edge_count.try_into().unwrap(),
+        });
+    }
+
+    // check that tiles are covered
+    for tile in Tile::all(size) {
+        if chains.tile(tile).is_some() {
+            assert!(tile_group[tile.index(size)].is_some());
+        }
+    }
+
+    FloodFill { groups, tile_group }
 }
