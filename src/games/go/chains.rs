@@ -4,7 +4,7 @@ use std::iter::zip;
 
 use crate::board::Player;
 use crate::games::go::tile::{Direction, Tile};
-use crate::games::go::{Rules, Score};
+use crate::games::go::{Rules, Score, Zobrist, HASH_DATA};
 
 // TODO add function to remove stones?
 //   could be tricky since groups would have to be split
@@ -14,6 +14,7 @@ pub struct Chains {
     size: u8,
     tiles: Vec<Content>,
     groups: Vec<Group>,
+    zobrist: Zobrist,
 }
 
 // TODO compact into single u8
@@ -35,6 +36,8 @@ pub struct Group {
     pub liberty_edge_count: u16,
     // TODO also track the real liberty count?
     //   not necessary for correctness, just for heuristics and convenience
+
+    // TODO add hash to group so we can quickly remove the entire group
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -59,6 +62,7 @@ pub struct Placement {
 
 impl Chains {
     pub const MAX_SIZE: u8 = 19;
+    pub const MAX_AREA: u16 = Self::MAX_SIZE as u16 * Self::MAX_SIZE as u16;
 
     pub fn new(size: u8) -> Self {
         assert!(size <= Self::MAX_SIZE);
@@ -66,6 +70,7 @@ impl Chains {
             size,
             tiles: vec![Content::default(); size as usize * size as usize],
             groups: vec![],
+            zobrist: 0,
         }
     }
 
@@ -87,6 +92,10 @@ impl Chains {
 
     pub fn stone_at(&self, tile: Tile) -> Option<Player> {
         self.group_at(tile).map(|group| group.player)
+    }
+
+    pub fn zobrist(&self) -> Zobrist {
+        self.zobrist
     }
 
     /// Iterator over all of the groups that currently exist.
@@ -194,6 +203,7 @@ impl Chains {
 
         let content = &mut self.tiles[tile.index(size)];
         content.group_id = Some(group_id);
+        self.zobrist ^= HASH_DATA.get_player_tile(value, tile, size);
 
         if !suicide {
             // TODO should we update "has_had" in case of suicide? no, right?
@@ -420,6 +430,11 @@ impl Chains {
                 if cleared_groups.contains(&id) {
                     content.group_id = None;
 
+                    // update hash
+                    // TODO replace with per-group hash update?
+                    let player = self.groups[id as usize].player;
+                    self.zobrist ^= HASH_DATA.get_player_tile(player, tile, size);
+
                     // add liberties to adjacent groups
                     for adj in tile.all_adjacent(size) {
                         let adj_group_id_old = self.tiles[adj.index(size)].group_id;
@@ -439,25 +454,49 @@ impl Chains {
     }
 
     pub fn assert_valid(&self) {
+        let mut used_groups = vec![];
+
         for tile in &self.tiles {
             if let Some(id) = tile.group_id {
+                // group must must exist
                 assert!((id as usize) < self.groups.len());
                 let group = self.groups[id as usize];
+
+                // group must be alive
                 assert!(group.liberty_edge_count > 0 && group.stone_count > 0);
 
+                // history must at least contain current state
                 if group.player == Player::A {
                     assert!(tile.has_had_a);
                 }
                 if group.player == Player::B {
                     assert!(tile.has_had_b);
                 }
+
+                used_groups.push(id);
             }
         }
 
-        for group in &self.groups {
+        for (id, group) in self.groups.iter().enumerate() {
             // stone_count and liberty_edge_count must agree on whether the group is dead
             assert_eq!((group.stone_count == 0), (group.liberty_edge_count == 0));
+
+            // groups must be used xor dead
+            assert!(used_groups.contains(&(id as u16)) ^ group.is_dead());
         }
+
+        // check hash validness
+        println!("Start new zobrist");
+        let mut new_zobrist = Zobrist::default();
+        for tile in Tile::all(self.size()) {
+            if let Some(player) = self.stone_at(tile) {
+                let value = HASH_DATA.get_player_tile(player, tile, self.size);
+                println!("   adding {:?} {:?} => {}", tile, player, value);
+                new_zobrist ^= value;
+            }
+        }
+        println!("Zobrist result: {}", new_zobrist);
+        assert_eq!(self.zobrist, new_zobrist, "Invalid zobrist hash");
     }
 
     fn tile_for_eq_hash(&self, content: Content) -> EqHashTile {
