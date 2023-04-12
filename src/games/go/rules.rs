@@ -5,6 +5,7 @@ use std::fmt::{Debug, Formatter};
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Rules {
     pub allow_multi_stone_suicide: bool,
+    // implicit: repeating tiles not allowed
     // implicit: game end after two passes, always allowed to pass
     // implicit: scoring: area scoring
 }
@@ -32,7 +33,7 @@ impl Rules {
     }
 
     pub fn allow_repeating_tiles(&self) -> bool {
-        true
+        false
     }
 }
 

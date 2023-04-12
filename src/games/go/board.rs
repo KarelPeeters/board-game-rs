@@ -4,13 +4,14 @@ use std::hash::{Hash, Hasher};
 use std::ops::ControlFlow;
 
 use internal_iterator::InternalIterator;
+use itertools::Itertools;
 
 use crate::board::{
     AllMovesIterator, AvailableMovesIterator, Board, BoardDone, BoardMoves, Outcome, PlayError, Player,
 };
 use crate::games::go::chains::Chains;
 use crate::games::go::tile::Tile;
-use crate::games::go::{PlacementKind, Rules, Zobrist};
+use crate::games::go::{PlacementKind, Rules, SimulatedPlacement, TileOccupied, Zobrist};
 use crate::impl_unit_symmetry_board;
 
 #[derive(Clone, Eq, PartialEq)]
@@ -122,6 +123,28 @@ impl GoBoard {
         Self::from_parts(self.rules, self.chains.clone(), self.next_player, self.state, vec![])
     }
 
+    fn is_available_move_sim(&self, sim: SimulatedPlacement) -> bool {
+        // check placement kind
+        match sim.kind {
+            PlacementKind::Normal => {}
+            PlacementKind::Capture => {}
+            PlacementKind::SuicideSingle => return false,
+            PlacementKind::SuicideMulti => {
+                if !self.rules.allow_multi_stone_suicide {
+                    return false;
+                }
+            }
+        }
+
+        // check history
+        //   scan in reverse to hopefully find quicker matches
+        if !self.rules.allow_repeating_tiles() && self.history.iter().rev().contains(&sim.zobrist_next) {
+            return false;
+        }
+
+        true
+    }
+
     /// Full zobrist, including:
     /// * the tiles
     /// * the next player
@@ -145,22 +168,28 @@ impl Board for GoBoard {
     fn is_available_move(&self, mv: Self::Move) -> Result<bool, BoardDone> {
         self.check_done()?;
 
-        match mv {
-            Move::Pass => Ok(true),
-            // TODO ensure the board would not repeat by playing at `tile`
+        let result = match mv {
+            Move::Pass => true,
             Move::Place(tile) => {
                 if !tile.exists(self.size()) {
-                    Ok(false)
+                    false
                 } else {
-                    Ok(self.stone_at(tile).is_none())
+                    match self.chains.simulate_place_stone(tile, self.next_player) {
+                        Ok(sim) => self.is_available_move_sim(sim),
+                        Err(TileOccupied) => false,
+                    }
                 }
             }
-        }
+        };
+
+        Ok(result)
     }
 
-    // TODO add pseudo-legal variant of available moves and a version of play that accepts them?
     fn play(&mut self, mv: Self::Move) -> Result<(), PlayError> {
+        // TODO this is wasteful, we're preparing the chains move twice!
+        //   can we save some more state and reuse it?
         self.check_can_play(mv)?;
+
         let curr = self.next_player;
         let other = curr.other();
 
@@ -259,30 +288,23 @@ impl InternalIterator for AvailableMovesIterator<'_, GoBoard> {
     where
         F: FnMut(Self::Item) -> ControlFlow<R>,
     {
+        // TODO can this be optimized in any way?
+        // this impl is still better than using `BruteforceMoveIterator`,
+        //   we only check tiles that are actually in the board
+
         let board = self.board();
 
-        // TODO remove repeating moves
-
-        // we already know the board is not done at this point
-        //  so we can just yield all empty tiles (and the pass move)
         f(Move::Pass)?;
         for tile in Tile::all(board.size()) {
-            if board.stone_at(tile).is_none() {
+            if board.is_available_move(Move::Place(tile)).unwrap() {
                 f(Move::Place(tile))?;
             }
         }
+
         ControlFlow::Continue(())
     }
 
-    fn count(self) -> usize {
-        let board = self.board();
-
-        // TODO remove repeating moves
-        // TODO write faster function for this
-        1 + Tile::all(board.size())
-            .filter(|&tile| board.stone_at(tile).is_none())
-            .count()
-    }
+    // TODO add optimized count implementation?
 }
 
 // TODO implement proper symmetry
