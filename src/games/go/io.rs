@@ -6,7 +6,7 @@ use itertools::Itertools;
 use crate::board::{Board, Player};
 use crate::games::go::chains::Chains;
 use crate::games::go::tile::Tile;
-use crate::games::go::{GoBoard, InvalidPlacement, Move, Rules, State};
+use crate::games::go::{GoBoard, Move, PlacementKind, Rules, State, TileOccupied};
 
 impl Display for Tile {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -59,7 +59,13 @@ impl FromStr for Tile {
 
 impl Debug for GoBoard {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "GoBoard({:?})", self.to_fen())
+        write!(
+            f,
+            "GoBoard(fen={:?}, rules={:?}, history_len={})",
+            self.to_fen(),
+            self.rules(),
+            self.history().len()
+        )
     }
 }
 
@@ -152,7 +158,7 @@ impl GoBoard {
     pub fn from_fen(fen: &str, rules: Rules) -> Result<GoBoard, InvalidFen> {
         let (tiles, next, pass) = fen.split(' ').collect_tuple().ok_or(InvalidFen::Syntax)?;
 
-        let chains = Chains::from_fen(tiles, &rules)?;
+        let chains = Chains::from_fen(tiles)?;
 
         let next_player = match next {
             "b" => Player::A,
@@ -198,7 +204,7 @@ impl Chains {
         fen
     }
 
-    pub fn from_fen(fen: &str, rules: &Rules) -> Result<Chains, InvalidFen> {
+    pub fn from_fen(fen: &str) -> Result<Chains, InvalidFen> {
         check(fen.chars().all(|c| "/wb.".contains(c)), InvalidFen::InvalidChar)?;
 
         if fen == "/" {
@@ -225,16 +231,10 @@ impl Chains {
                     };
 
                     if let Some(player) = value {
-                        let placement = chains.place_tile(tile, player, rules);
-                        match placement {
-                            Ok(placement) => {
-                                check(!placement.captured_any, InvalidFen::HasDeadStones)?;
-                                chains = placement.chains;
-                            }
-                            Err(InvalidPlacement::SuicideSingle | InvalidPlacement::SuicideMulti) => {
-                                return Err(InvalidFen::HasDeadStones)
-                            }
-                            Err(InvalidPlacement::Occupied) => unreachable!(),
+                        let result = chains.place_tile(tile, player);
+                        match result {
+                            Ok(kind) => check(kind == PlacementKind::Normal, InvalidFen::HasDeadStones)?,
+                            Err(TileOccupied) => unreachable!(),
                         }
                     }
                 }
