@@ -231,7 +231,7 @@ impl Chains {
                     };
 
                     if let Some(player) = value {
-                        let result = chains.place_tile(tile, player);
+                        let result = chains.place_stone(tile, player);
                         match result {
                             Ok(kind) => check(kind == PlacementKind::Normal, InvalidFen::HasDeadStones)?,
                             Err(TileOccupied) => unreachable!(),

@@ -27,14 +27,14 @@ pub struct Content {
 // TODO do even even need player here if we also store the player in the tile itself?
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Group {
-    pub player: Player,
+    pub color: Player,
     pub stone_count: u16,
-    /// Similar to the liberty count, except that liberties may be counted multiple times.
-    /// This is easier to compute incrementally but still enough to know if a group has `0` liberties left.
+    /// The number of edges adjacent to to liberties.
+    /// This forms an upper bound on the true number of liberties.
+    /// This is easier to compute incrementally but still enough to know if a group is dead.
     pub liberty_edge_count: u16,
     // TODO also track the real liberty count?
     //   not necessary for correctness, just for heuristics and convenience
-
     // TODO add hash to group so we can quickly remove the entire group
 }
 
@@ -96,7 +96,7 @@ impl Chains {
     }
 
     pub fn stone_at(&self, tile: Tile) -> Option<Player> {
-        self.group_at(tile).map(|group| group.player)
+        self.group_at(tile).map(|group| group.color)
     }
 
     pub fn zobrist(&self) -> Zobrist {
@@ -187,9 +187,8 @@ impl Chains {
         }
     }
 
-    // TODO rename to place_stone
-    pub fn place_tile(&mut self, place_tile: Tile, place_stone: Player) -> Result<PlacementKind, TileOccupied> {
-        let prepared = self.prepare_place_tile(place_tile, place_stone)?;
+    pub fn place_stone(&mut self, tile: Tile, color: Player) -> Result<PlacementKind, TileOccupied> {
+        let prepared = self.prepare_place_stone(tile, color)?;
         let PreparedPlacement {
             kind,
             new_group,
@@ -204,17 +203,17 @@ impl Chains {
                     // TODO consider removing this once update_tile_groups is optimized properly
                     if let Some(&group_id) = merge_friendly.first() {
                         // reuse existing friendly group
-                        self.set_stone_at(place_tile, place_stone, group_id);
+                        self.set_stone_at(tile, color, group_id);
                         self.groups[group_id as usize] = new_group;
                     } else {
                         // allocate new friendly group
                         let new_group_id = self.allocate_group(new_group);
-                        self.set_stone_at(place_tile, place_stone, new_group_id);
+                        self.set_stone_at(tile, color, new_group_id);
                     }
                 } else {
                     let new_group_id = self.allocate_group(new_group);
-                    self.set_stone_at(place_tile, place_stone, new_group_id);
-                    self.update_tile_groups(&clear_enemy, place_stone.other(), &merge_friendly, new_group_id);
+                    self.set_stone_at(tile, color, new_group_id);
+                    self.update_tile_groups(&clear_enemy, color.other(), &merge_friendly, new_group_id);
                 }
             }
             PlacementKind::SuicideSingle => {
@@ -223,93 +222,17 @@ impl Chains {
             PlacementKind::SuicideMulti => {
                 // we don't need to actually place the stone
                 //   clear the merged friendly groups, don't merge anything
-                self.update_tile_groups(&merge_friendly, place_stone, &[], u16::MAX);
+                self.update_tile_groups(&merge_friendly, color, &[], u16::MAX);
             }
         }
 
         Ok(kind)
     }
 
-    fn set_stone_at(&mut self, tile: Tile, stone: Player, group: u16) {
-        let size = self.size();
-
-        // update tile itself
-        debug_assert!(self.stone_at(tile).is_none());
-        self.tiles[tile.index(size)].group_id = Some(group);
-
-        // update hash
-        self.zobrist ^= Zobrist::for_player_tile(stone, tile, size);
-
-        // decrease liberty of adjacent
-        for adj in Tile::all_adjacent(tile, size) {
-            if let Some(adj_group_id) = self.content_at(adj).group_id {
-                self.groups[adj_group_id as usize].liberty_edge_count -= 1;
-            }
-        }
-    }
-
-    fn clear_stone_at(&mut self, tile: Tile, stone: Player, clear: &[u16], merge: &[u16], into: u16) {
-        let size = self.size();
-
-        // update tile itself
-        debug_assert!(self.stone_at(tile) == Some(stone));
-        self.tiles[tile.index(size)].group_id = None;
-
-        // update hash
-        self.zobrist ^= Zobrist::for_player_tile(stone, tile, size);
-
-        // increase liberty of adjacent
-        for adj in Tile::all_adjacent(tile, size) {
-            if let Some(old_id) = self.content_at(adj).group_id {
-                let id = if merge.contains(&old_id) { into } else { old_id };
-                if clear.contains(&id) {
-                    continue;
-                }
-
-                self.groups[id as usize].liberty_edge_count += 1;
-            }
-        }
-    }
-
-    // TODO optimize this with some linked-list type thing through tiles
-    fn update_tile_groups(&mut self, clear: &[u16], clear_player: Player, merge: &[u16], into: u16) {
-        // update the tiles
-        for tile in Tile::all(self.size()) {
-            let size = self.size();
-
-            let content = &mut self.tiles[tile.index(size)];
-            if let Some(group_id) = content.group_id {
-                if clear.contains(&group_id) {
-                    self.clear_stone_at(tile, clear_player, clear, merge, into);
-                } else if merge.contains(&group_id) {
-                    content.group_id = Some(into);
-                }
-            }
-        }
-
-        // mark the cleared groups as dead
-        for &clear_group_id in clear {
-            let clear_group = &mut self.groups[clear_group_id as usize];
-            // we can't assert the liberty count here, we never actually decrement groups adjacent to the suicide stone
-            clear_group.mark_dead();
-        }
-
-        // mark the now-absolute merged groups as dead
-        for &merge_group_id in merge {
-            let merge_group = &mut self.groups[merge_group_id as usize];
-            merge_group.mark_dead();
-        }
-    }
-
-    // TODO rename to simulate_place_stone
     #[allow(dead_code)]
     #[allow(unused_variables)]
-    pub fn simulate_place_tile(
-        &self,
-        place_tile: Tile,
-        place_stone: Player,
-    ) -> Result<SimulatedPlacement, TileOccupied> {
-        let prepared = self.prepare_place_tile(place_tile, place_stone)?;
+    pub fn simulate_place_stone(&self, tile: Tile, color: Player) -> Result<SimulatedPlacement, TileOccupied> {
+        let prepared = self.prepare_place_stone(tile, color)?;
         todo!("simulate_place_tile")
     }
 
@@ -317,18 +240,18 @@ impl Chains {
     //    collected inputs: type/group_id/liberties for each size
     //    outputs: what groups to merge and what groups to kill
     //    => simple function with 4 inputs, 4 outputs
-    pub fn prepare_place_tile(&self, place_tile: Tile, place_stone: Player) -> Result<PreparedPlacement, TileOccupied> {
+    pub fn prepare_place_stone(&self, tile: Tile, color: Player) -> Result<PreparedPlacement, TileOccupied> {
         let size = self.size;
-        let content = self.tiles[place_tile.index(size)];
+        let content = self.tiles[tile.index(size)];
         if content.group_id.is_some() {
             return Err(TileOccupied);
         }
 
-        let all_adjacent = place_tile.all_adjacent(size);
+        let all_adjacent = tile.all_adjacent(size);
 
         // investigate adjacent tiles
         let mut new_group = Group {
-            player: place_stone,
+            color: color,
             stone_count: 1,
             liberty_edge_count: 0,
         };
@@ -348,7 +271,7 @@ impl Chains {
                     adjacent_groups.push(group_id);
                     let group_factor = adjacent_groups.iter().filter(|&&c| c == group_id).count() as u16;
 
-                    if group.player == place_stone {
+                    if group.color == color {
                         if group_factor == 1 {
                             new_group.stone_count += group.stone_count;
                             new_group.liberty_edge_count += group.liberty_edge_count;
@@ -385,6 +308,77 @@ impl Chains {
             clear_enemy,
             kind,
         })
+    }
+
+    fn set_stone_at(&mut self, tile: Tile, color: Player, group: u16) {
+        let size = self.size();
+
+        // update tile itself
+        debug_assert!(self.stone_at(tile).is_none());
+        self.tiles[tile.index(size)].group_id = Some(group);
+
+        // update hash
+        self.zobrist ^= Zobrist::for_player_tile(color, tile, size);
+
+        // decrease liberty of adjacent
+        for adj in Tile::all_adjacent(tile, size) {
+            if let Some(adj_group_id) = self.content_at(adj).group_id {
+                self.groups[adj_group_id as usize].liberty_edge_count -= 1;
+            }
+        }
+    }
+
+    fn clear_stone_at(&mut self, tile: Tile, color: Player, clear: &[u16], merge: &[u16], into: u16) {
+        let size = self.size();
+
+        // update tile itself
+        debug_assert!(self.stone_at(tile) == Some(color));
+        self.tiles[tile.index(size)].group_id = None;
+
+        // update hash
+        self.zobrist ^= Zobrist::for_player_tile(color, tile, size);
+
+        // increase liberty of adjacent
+        for adj in Tile::all_adjacent(tile, size) {
+            if let Some(old_id) = self.content_at(adj).group_id {
+                let id = if merge.contains(&old_id) { into } else { old_id };
+                if clear.contains(&id) {
+                    continue;
+                }
+
+                self.groups[id as usize].liberty_edge_count += 1;
+            }
+        }
+    }
+
+    // TODO optimize this with some linked-list type thing through tiles
+    fn update_tile_groups(&mut self, clear: &[u16], color: Player, merge: &[u16], into: u16) {
+        // update the tiles
+        for tile in Tile::all(self.size()) {
+            let size = self.size();
+
+            let content = &mut self.tiles[tile.index(size)];
+            if let Some(group_id) = content.group_id {
+                if clear.contains(&group_id) {
+                    self.clear_stone_at(tile, color, clear, merge, into);
+                } else if merge.contains(&group_id) {
+                    content.group_id = Some(into);
+                }
+            }
+        }
+
+        // mark the cleared groups as dead
+        for &clear_group_id in clear {
+            let clear_group = &mut self.groups[clear_group_id as usize];
+            // we can't assert the liberty count here, we never actually decrement groups adjacent to the suicide stone
+            clear_group.mark_dead();
+        }
+
+        // mark the now-absolute merged groups as dead
+        for &merge_group_id in merge {
+            let merge_group = &mut self.groups[merge_group_id as usize];
+            merge_group.mark_dead();
+        }
     }
 
     pub fn assert_valid(&self) {
