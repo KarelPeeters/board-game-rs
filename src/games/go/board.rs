@@ -182,7 +182,7 @@ impl Board for GoBoard {
                 // actually place the tile and check for errors
                 let kind = self
                     .chains
-                    .place_tile(tile, curr)
+                    .place_stone(tile, curr)
                     .expect("Move was not available: tile already occupied");
 
                 // ensure the move was actually valid
