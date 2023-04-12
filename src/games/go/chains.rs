@@ -197,15 +197,25 @@ impl Chains {
             clear_enemy,
         } = prepared;
 
-        // TODO reintroduce fast case if
-        // * at most one merged group
-        // * no cleared enemy groups
-
         match kind {
             PlacementKind::Normal | PlacementKind::Capture => {
-                let new_group_id = self.allocate_group(new_group);
-                self.set_stone_at(place_tile, place_stone, new_group_id);
-                self.update_tile_groups(&clear_enemy, place_stone.other(), &merge_friendly, new_group_id);
+                if merge_friendly.len() <= 1 && clear_enemy.is_empty() {
+                    // fast case: no actual merging or clearing necessary
+                    // TODO consider removing this once update_tile_groups is optimized properly
+                    if let Some(&group_id) = merge_friendly.first() {
+                        // reuse existing friendly group
+                        self.set_stone_at(place_tile, place_stone, group_id);
+                        self.groups[group_id as usize] = new_group;
+                    } else {
+                        // allocate new friendly group
+                        let new_group_id = self.allocate_group(new_group);
+                        self.set_stone_at(place_tile, place_stone, new_group_id);
+                    }
+                } else {
+                    let new_group_id = self.allocate_group(new_group);
+                    self.set_stone_at(place_tile, place_stone, new_group_id);
+                    self.update_tile_groups(&clear_enemy, place_stone.other(), &merge_friendly, new_group_id);
+                }
             }
             PlacementKind::SuicideSingle => {
                 // don't do anything, we don't even need to place the stone
