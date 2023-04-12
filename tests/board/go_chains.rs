@@ -1,17 +1,18 @@
+use std::collections::HashMap;
+use std::convert::TryInto;
+
 use itertools::Itertools;
 use rand::rngs::SmallRng;
 use rand::seq::{IteratorRandom, SliceRandom};
 use rand::{Rng, SeedableRng};
-use std::collections::HashMap;
-use std::convert::TryInto;
 
 use board_game::board::Player;
-use board_game::games::go::{Chains, Group, Rules, Tile};
+use board_game::games::go::{Chains, Group, PlacementKind, Tile};
 
 #[test]
 fn corner_triangle_corner_first() {
     let tiles = [(0, 0, Player::A), (0, 1, Player::A), (1, 0, Player::A)];
-    let chains = build_chains(5, Rules::tromp_taylor(), &tiles);
+    let chains = build_chains(5, &tiles);
 
     println!("{}", chains);
     assert_eq!(chains.to_fen(), "...../...../...../b..../bb...");
@@ -27,7 +28,7 @@ fn corner_triangle_corner_first() {
 #[test]
 fn corner_triangle_corner_last() {
     let tiles = [(0, 1, Player::A), (1, 0, Player::A), (0, 0, Player::A)];
-    let chains = build_chains(5, Rules::tromp_taylor(), &tiles);
+    let chains = build_chains(5, &tiles);
 
     println!("{}", chains);
     assert_eq!(chains.to_fen(), "...../...../...../b..../bb...");
@@ -49,7 +50,7 @@ fn merge_long_overlapping() {
     }
     tiles.push((2, 0, Player::A));
 
-    let chains = build_chains(5, Rules::tromp_taylor(), &tiles);
+    let chains = build_chains(5, &tiles);
 
     println!("{}", chains);
 
@@ -70,7 +71,7 @@ fn cyclic_group() {
         (1, 0, Player::A),
         (1, 1, Player::A),
     ];
-    let chains = build_chains(5, Rules::tromp_taylor(), &tiles);
+    let chains = build_chains(5, &tiles);
 
     println!("{}", chains);
 
@@ -84,15 +85,15 @@ fn cyclic_group() {
 
 #[test]
 fn capture_corner() {
-    let rules = Rules::tromp_taylor();
-    let mut chains = build_chains(5, rules, &[(0, 0, Player::A), (0, 1, Player::B)]);
+    let mut chains = build_chains(5, &[(0, 0, Player::A), (0, 1, Player::B)]);
 
     println!("{}", chains);
     assert_eq!(chains.to_fen(), "...../...../...../w..../b....");
 
-    chains = chains.place_tile(Tile::new(1, 0), Player::B, &rules).unwrap().chains;
+    let kind = chains.place_tile(Tile::new(1, 0), Player::B).unwrap();
     println!("{}", chains);
     assert_eq!(chains.to_fen(), "...../...../...../w..../.w...");
+    assert_eq!(kind, PlacementKind::Capture);
 
     let expected = Group {
         player: Player::B,
@@ -102,13 +103,12 @@ fn capture_corner() {
     assert_eq!(chains.group_at(Tile::new(1, 0)), Some(expected));
     assert_eq!(chains.group_at(Tile::new(0, 1)), Some(expected));
 
-    chains_test_main(&chains, &rules);
+    chains_test_main(&chains);
 }
 
 #[test]
 fn capture_cyclic_group() {
     let size = 5;
-    let rules = Rules::tromp_taylor();
 
     let tiles = Tile::all(size)
         .filter_map(|tile| {
@@ -126,7 +126,7 @@ fn capture_cyclic_group() {
         })
         .collect_vec();
 
-    let mut chains = build_chains(size, rules, &tiles);
+    let mut chains = build_chains(size, &tiles);
     println!("{}", chains);
     assert_eq!(chains.to_fen(), ".bbb./bwwwb/bw.wb/bwwwb/.bbb.");
 
@@ -145,11 +145,12 @@ fn capture_cyclic_group() {
     assert_eq!(chains.group_at(Tile::new(2, 0)), Some(expected_edge));
     assert_eq!(chains.group_at(Tile::new(2, 4)), Some(expected_edge));
     assert_eq!(chains.group_at(Tile::new(1, 1)), Some(expected_core));
-    chains_test_main(&chains, &rules);
+    chains_test_main(&chains);
 
-    chains = chains.place_tile(Tile::new(2, 2), Player::A, &rules).unwrap().chains;
+    let kind = chains.place_tile(Tile::new(2, 2), Player::A).unwrap();
     println!("{}", chains);
     assert_eq!(chains.to_fen(), ".bbb./b...b/b.b.b/b...b/.bbb.");
+    assert_eq!(kind, PlacementKind::Capture);
 
     let expected_edge_new = Group {
         player: Player::A,
@@ -167,19 +168,18 @@ fn capture_cyclic_group() {
     assert_eq!(chains.group_at(Tile::new(2, 4)), Some(expected_edge_new));
     assert_eq!(chains.group_at(Tile::new(2, 2)), Some(expected_center));
 
-    chains_test_main(&chains, &rules);
+    chains_test_main(&chains);
 }
 
 #[test]
 fn fill_board() {
     let size = 5;
-    let rules = Rules::tromp_taylor();
 
     let mut tiles = Tile::all(size).map(|t| (t.x, t.y, Player::A)).collect_vec();
     let last = tiles.pop().unwrap();
     let last_tile = Tile::new(last.0, last.1);
 
-    let chains = build_chains(size, rules, &tiles);
+    let chains = build_chains(size, &tiles);
     println!("{}", chains);
     let expected = Group {
         player: Player::A,
@@ -190,42 +190,45 @@ fn fill_board() {
 
     {
         // ensure the full board gets suicide captured
-        let new_chains = chains.clone().place_tile(last_tile, Player::A, &rules).unwrap().chains;
+        let mut new_chains = chains.clone();
+        let kind = new_chains.place_tile(last_tile, Player::A).unwrap();
         println!("{}", new_chains);
         assert_eq!(new_chains.to_fen(), Chains::new(size).to_fen());
+        assert_eq!(kind, PlacementKind::SuicideMulti);
 
-        chains_test_main(&new_chains, &rules);
+        chains_test_main(&new_chains);
     }
 
     {
         // ensure the other player can capture the rest too
-        let new_chains = chains.place_tile(last_tile, Player::B, &rules).unwrap().chains;
+        let mut new_chains = chains.clone();
+        let kind = new_chains.place_tile(last_tile, Player::B).unwrap();
         println!("{}", new_chains);
         assert_eq!(new_chains.to_fen(), "....w/...../...../...../.....");
+        assert_eq!(kind, PlacementKind::Capture);
 
-        chains_test_main(&new_chains, &rules);
+        chains_test_main(&new_chains);
     }
 }
 
 #[test]
 fn capture_jagged() {
-    let rules = Rules::tromp_taylor();
-    let chains = Chains::from_fen("wbbb/wwbb/.bbw/wwww", &rules).unwrap();
+    let mut chains = Chains::from_fen("wbbb/wwbb/.bbw/wwww").unwrap();
     println!("{}", chains);
 
-    let new_chains = chains.place_tile(Tile::new(0, 1), Player::B, &rules).unwrap().chains;
-    println!("{}", new_chains);
-
-    assert_eq!(new_chains.to_fen(), "w.../ww../w..w/wwww");
+    let kind = chains.place_tile(Tile::new(0, 1), Player::B).unwrap();
+    println!("{}", chains);
+    assert_eq!(chains.to_fen(), "w.../ww../w..w/wwww");
+    assert_eq!(kind, PlacementKind::Capture);
 
     let expected = Group {
         player: Player::B,
         stone_count: 9,
         liberty_edge_count: 9,
     };
-    assert_eq!(new_chains.group_at(Tile::new(0, 0)), Some(expected));
+    assert_eq!(chains.group_at(Tile::new(0, 0)), Some(expected));
 
-    chains_test_main(&new_chains, &rules);
+    chains_test_main(&chains);
 }
 
 #[test]
@@ -233,77 +236,56 @@ fn capture_jagged() {
 fn fuzz_test() {
     let sizes = 0..=19;
     let players = [Player::A, Player::B];
-    let rules = [Rules::tromp_taylor(), Rules::cgos()];
 
     let mut rng = SmallRng::seed_from_u64(0);
 
     for game_index in 0..1000 {
         let size = rng.gen_range(sizes.clone());
-        let rules = rules.choose(&mut rng).unwrap();
-
-        println!("Starting game {} with size {} and {:?}", game_index, size, rules);
-
         let mut chains = Chains::new(size);
+        println!("Starting game {} with size {}", game_index, size);
 
         // move limit
         for _move_index in 0..1000 {
-            let prev_chains = chains.clone();
+            // pick random empty tile
+            let tile = Tile::all(size)
+                .filter(|&tile| chains.stone_at(tile).is_none())
+                .choose(&mut rng);
+            let tile = match tile {
+                None => break,
+                Some(tile) => tile,
+            };
 
-            // invalid move limit
-            'tries: for _ in 0..10 {
-                // pick random empty tile
-                let tile = Tile::all(size)
-                    .filter(|&tile| chains.stone_at(tile).is_none())
-                    .choose(&mut rng);
-                let tile = match tile {
-                    None => break,
-                    Some(tile) => tile,
-                };
-
-                // try playing on that tile
-                let player = *players.choose(&mut rng).unwrap();
-                let r = chains.place_tile(tile, player, rules);
-
-                match r {
-                    Ok(p) => {
-                        // success, test and continue to next move
-                        chains = p.chains;
-                        chains_test_main(&chains, rules);
-                        break 'tries;
-                    }
-                    Err(_) => {
-                        // restore previous chains
-                        chains = prev_chains.clone()
-                    }
-                }
-            }
+            // place stone on that tile
+            let player = *players.choose(&mut rng).unwrap();
+            chains.place_tile(tile, player).expect("Tile must be empty");
         }
     }
 }
 
-fn build_chains(size: u8, rules: Rules, tiles: &[(u8, u8, Player)]) -> Chains {
+fn build_chains(size: u8, tiles: &[(u8, u8, Player)]) -> Chains {
     let mut chains = Chains::new(size);
     for &(x, y, player) in tiles {
         let tile = Tile::new(x, y);
 
         println!("Placing {:?} {:?}", tile, player);
-        chains = chains.place_tile(tile, player, &rules).unwrap().chains;
+        let kind = chains.place_tile(tile, player).unwrap();
+        println!("Kind: {:?}", kind);
 
         println!("Result:\n{}", chains);
-        chains_test_main(&chains, &rules);
+        chains_test_main(&chains);
     }
     chains
 }
 
-pub fn chains_test_main(chains: &Chains, rules: &Rules) {
+pub fn chains_test_main(chains: &Chains) {
     chains.assert_valid();
     check_floodfill(chains);
-    check_fen(chains, rules);
+    check_fen(chains);
 }
 
-fn check_fen(chains: &Chains, rules: &Rules) {
+fn check_fen(chains: &Chains) {
     let fen = chains.to_fen();
-    let new = Chains::from_fen(&fen, rules).unwrap();
+    let new = Chains::from_fen(&fen).unwrap();
     assert_eq!(chains.to_fen(), new.to_fen());
     for tile in Tile::all(chains.size()) {
         let group = chains.group_at(tile);

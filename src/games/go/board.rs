@@ -10,13 +10,13 @@ use crate::board::{
 };
 use crate::games::go::chains::Chains;
 use crate::games::go::tile::Tile;
-use crate::games::go::{Rules, Zobrist};
+use crate::games::go::{PlacementKind, Rules, Zobrist};
 use crate::impl_unit_symmetry_board;
 
 #[derive(Clone, Eq, PartialEq)]
 pub struct GoBoard {
     rules: Rules,
-    chains: Option<Chains>,
+    chains: Chains,
     next_player: Player,
     state: State,
 
@@ -59,7 +59,7 @@ impl GoBoard {
     pub fn new(size: u8, rules: Rules) -> GoBoard {
         GoBoard {
             rules,
-            chains: Some(Chains::new(size)),
+            chains: Chains::new(size),
             next_player: Player::A,
             state: State::Normal,
             history: Vec::new(),
@@ -75,7 +75,7 @@ impl GoBoard {
     ) -> GoBoard {
         GoBoard {
             rules,
-            chains: Some(chains),
+            chains,
             next_player,
             state,
             history,
@@ -95,13 +95,15 @@ impl GoBoard {
     }
 
     pub fn chains(&self) -> &Chains {
-        self.chains
-            .as_ref()
-            .expect("Board is in invalid state after failed play")
+        &self.chains
     }
 
     pub fn state(&self) -> State {
         self.state
+    }
+
+    pub fn history(&self) -> &[Zobrist] {
+        &self.history
     }
 
     pub fn stone_at(&self, tile: Tile) -> Option<Player> {
@@ -164,27 +166,36 @@ impl Board for GoBoard {
                 };
             }
             Move::Place(tile) => {
-                let chains = self.chains.take().expect("Board is in invalid state after failed play");
-
                 // update history
                 if self.rules.needs_history() {
-                    self.history.push(chains.zobrist());
+                    self.history.push(self.chains.zobrist());
                 }
 
                 // actually place the tile and check for errors
-                let placement = chains
-                    .place_tile(tile, curr, &self.rules)
-                    .expect("Placement error, should have been stopped earlier");
-                if placement.captured_self && !self.rules.allow_multi_stone_suicide {
-                    panic!("Multi-stone suicide is not allowed by the current rules");
+                let kind = self
+                    .chains
+                    .place_tile(tile, curr)
+                    .expect("Move was not available: tile already occupied");
+
+                // ensure the move was actually valid
+                match kind {
+                    PlacementKind::Normal => {}
+                    PlacementKind::Capture => {}
+                    PlacementKind::SuicideSingle => {
+                        panic!("Move was not available: single-stone suicide is never allowed")
+                    }
+                    PlacementKind::SuicideMulti => {
+                        if !self.rules.allow_multi_stone_suicide {
+                            panic!("Move was not available: multi-stone suicide is not allowed by the current rules")
+                        }
+                    }
                 }
-                let new_chains = placement.chains;
-                if !self.rules.allow_repeating_tiles() && self.history.contains(&new_chains.zobrist()) {
-                    panic!("Repeating tiles is not allowed")
+                // TODO check backwards, repetitions are typically close in time
+                if !self.rules.allow_repeating_tiles() && self.history.contains(&self.chains.zobrist()) {
+                    panic!("Move was not available: repeating tiles is not allowed by the current rules")
                 }
 
-                // update state
-                self.chains = Some(new_chains);
+                // update auxiliary state
                 self.next_player = other;
                 self.state = State::Normal;
             }

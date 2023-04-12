@@ -269,6 +269,6 @@ fn go_perft_fast() {
 }
 
 fn go_board_test_main(board: &GoBoard) {
-    chains_test_main(board.chains(), &board.rules());
+    chains_test_main(board.chains());
     crate::board::board_test_main(board);
 }
