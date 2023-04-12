@@ -76,6 +76,8 @@ fn parse_fen() {
     assert_eq!("b...w/...bw/...b./w..../.b... w 2", board_done.to_fen());
 
     for board in [board, board_white, board_pass, board_done] {
+        let board = board.without_history();
+
         println!("Checking loopback for\n{}", board);
         let parsed = GoBoard::from_fen(&board.to_fen(), rules);
 
@@ -117,9 +119,7 @@ fn simulate_moves(start: &str, moves: &[Move], result: &str) {
 
     let result = GoBoard::from_fen(result, rules).unwrap();
     println!("Expected:\n{}", result);
-
-    // TODO find a better way to compare without considering history
-    assert_eq!(board.to_fen(), result.to_fen());
+    assert_eq!(board.without_history(), result);
 
     go_board_test_main(&board);
 }
