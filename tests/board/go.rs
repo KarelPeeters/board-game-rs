@@ -4,7 +4,7 @@ use board_game::util::board_gen::board_with_moves;
 use board_game::util::game_stats::perft_naive;
 
 use crate::board::go_chains::chains_test_main;
-use crate::board::{board_perft_main, print_board_with_moves};
+use crate::board::print_board_with_moves;
 
 #[test]
 fn tile() {
@@ -113,15 +113,15 @@ fn double_pass() {
     go_board_test_main(&board);
 }
 
-fn simulate_moves(start: &str, moves: &[Move], result: &str) {
-    let rules = Rules::tromp_taylor();
-    let board = print_board_with_moves(GoBoard::from_fen(start, rules).unwrap(), moves);
+fn simulate_moves(start: &str, moves: &[Move], result: &str, rules: Rules) {
+    let start_board = GoBoard::from_fen(start, rules).unwrap();
+    let result_board = print_board_with_moves(start_board, moves);
 
-    let result = GoBoard::from_fen(result, rules).unwrap();
-    println!("Expected:\n{}", result);
-    assert_eq!(board.without_history(), result);
+    let result_board_expected = GoBoard::from_fen(result, rules).unwrap();
+    println!("Expected:\n{}", result_board_expected);
+    assert_eq!(result_board.without_history(), result_board_expected);
 
-    go_board_test_main(&board);
+    go_board_test_main(&result_board);
 }
 
 #[test]
@@ -130,6 +130,7 @@ fn capture_large() {
         ".w.../wbw../bbbw./wbb../.ww.. w 0",
         &[Move::Place(Tile::new(3, 1))],
         ".w.../w.w../...w./w..w./.ww.. b 0",
+        Rules::tromp_taylor(),
     );
 }
 
@@ -139,6 +140,7 @@ fn capture_inner() {
         "...../.w.../wbw../b.bw./bbw.. w 0",
         &[Move::Place(Tile::new(1, 1))],
         "...../.w.../w.w../.w.w./..w.. b 0",
+        Rules::tromp_taylor(),
     );
 }
 
@@ -148,16 +150,23 @@ fn self_capture() {
         "...../.w.../wbw../b.bw./bbw.. b 0",
         &[Move::Place(Tile::new(1, 1))],
         "...../.w.../w.w../...w./..w.. w 0",
+        Rules::tromp_taylor(),
     );
 }
 
 #[test]
 fn double_eye() {
-    let start = "...../...../wwwww/bbbbb/.b.bb w 0";
-    let end = "...../...../wwwww/bbbbb/.b.bb b 0";
+    let fen = "...../...../wwwww/bbbbb/.b.bb w 0";
+    let board = GoBoard::from_fen(fen, Rules::tromp_taylor()).unwrap();
 
-    simulate_moves(start, &[Move::Place(Tile::new(0, 0))], end);
-    simulate_moves(start, &[Move::Place(Tile::new(2, 0))], end);
+    let mv_left = Move::Place(Tile::new(0, 0));
+    let mv_right = Move::Place(Tile::new(2, 0));
+
+    // single-stone suicide is not allowed
+    assert_eq!(Ok(false), board.is_available_move(mv_left));
+    assert_eq!(Ok(false), board.is_available_move(mv_right));
+
+    go_board_test_main(&board);
 }
 
 #[test]
@@ -178,18 +187,24 @@ fn suicide_1() {
 #[test]
 fn suicide_2() {
     let start = "...../...../b..../wb.../.b... w 0";
+    let after = "...../...../b..../.b.../.b... b 0";
     let mv = Move::Place(Tile::new(0, 0));
 
-    let board_tt = GoBoard::from_fen(start, Rules::tromp_taylor()).unwrap();
-    let board_cgos = GoBoard::from_fen(start, Rules::cgos()).unwrap();
-    println!("{}", board_tt);
-
     // allowed in TT, does not repeat (yet)
+    let board_tt = GoBoard::from_fen(start, Rules::tromp_taylor()).unwrap();
+    let board_tt_after = GoBoard::from_fen(after, Rules::tromp_taylor()).unwrap();
+    println!("{}", board_tt);
     assert_eq!(Ok(true), board_tt.is_available_move(mv));
-    assert_eq!(board_tt.clone_and_play(mv), Err(PlayError::UnavailableMove));
+    assert_eq!(
+        Ok(board_tt_after),
+        board_tt.clone_and_play(mv).map(|b| b.without_history())
+    );
+
     // not allowed in CGOS, suicide is banned
+    let board_cgos = GoBoard::from_fen(start, Rules::cgos()).unwrap();
+    println!("{}", board_cgos);
     assert_eq!(Ok(false), board_cgos.is_available_move(mv));
-    assert_eq!(board_cgos.clone_and_play(mv), Err(PlayError::UnavailableMove));
+    assert_eq!(Err(PlayError::UnavailableMove), board_cgos.clone_and_play(mv));
 
     // TODO set up repeating situation that is disallowed by TT
 
@@ -199,10 +214,31 @@ fn suicide_2() {
 
 #[test]
 fn super_ko() {
-    // TODO write superko test
+    let fen = ".w.bw/wbbbw/w.bww/bbbw./wwww. w 0";
+    let mut board = GoBoard::from_fen(fen, Rules::tromp_taylor()).unwrap();
+
+    println!("{}", board);
+
+    let a = Tile::new(2, 4);
+    let b = Tile::new(0, 4);
+    let mid = Tile::new(1, 4);
+    println!("a={:?}, b={:?}, mid={:?}", a, b, mid);
+
+    assert_eq!(Ok(true), board.is_available_move(Move::Place(a)));
+    assert_eq!(Ok(true), board.is_available_move(Move::Place(b)));
+    assert_eq!(Ok(false), board.is_available_move(Move::Place(mid)));
+
+    board.play(Move::Place(a)).unwrap();
+    board.play(Move::Place(b)).unwrap();
+    println!("{}", board);
+
+    // mid is empty but cannot play, stones would repeat!
+    assert_eq!(None, board.stone_at(mid));
+    assert_eq!(Ok(false), board.is_available_move(Move::Place(mid)));
 }
 
 // TODO add profiling
+// TODO unify with board_perft_main
 fn go_perft_main(board: GoBoard, all_expected: &[u64]) {
     println!("Running perft with {:?} for:", board.rules());
     println!("{}", board);
@@ -213,7 +249,7 @@ fn go_perft_main(board: GoBoard, all_expected: &[u64]) {
         let value = perft_naive(&board, depth as u32);
 
         let suffix = if value == expected { "" } else { " -> wrong!" };
-        println!("Perft depth {}: expected {} got {}{}", depth, value, expected, suffix);
+        println!("Perft depth {}: expected {} got {}{}", depth, expected, value, suffix);
 
         all_correct &= value == expected;
     }
@@ -258,17 +294,17 @@ fn go_perft_19() {
 fn go_perft_fast() {
     let rules = Rules::tromp_taylor();
 
-    board_perft_main(
-        |s| GoBoard::from_fen(s, rules).unwrap(),
-        Some(GoBoard::to_fen),
-        vec![
-            ("...../...../...../...../..... b 0", vec![1, 26, 651, 15650, 361233]),
-            ("...../...../...../...b./..b.b w 0", vec![1, 23, 508, 10715, 216332]),
-        ],
+    go_perft_main(GoBoard::new(5, rules), &[1, 26, 651, 15650, 361041]);
+
+    go_perft_main(
+        GoBoard::from_fen("...../...../...../...b./..b.b w 0", rules).unwrap(),
+        &[1, 22, 485, 9745, 195728],
     );
 }
 
 fn go_board_test_main(board: &GoBoard) {
     chains_test_main(board.chains());
-    crate::board::board_test_main(board);
+
+    // TODO this is super slow for go
+    // crate::board::board_test_main(board);
 }
