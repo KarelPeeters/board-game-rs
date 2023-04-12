@@ -248,6 +248,7 @@ fn fill_board_simulation() {
     real.assert_valid();
 
     assert_eq!(real.zobrist(), sim.zobrist_next);
+    assert_eq!(real.stone_count(), sim.stone_count_next);
 }
 
 #[test]
@@ -294,6 +295,7 @@ fn build_chains(size: u8, tiles: &[(u8, u8, Player)]) -> Chains {
 
         assert_eq!(kind, simulated.kind);
         assert_eq!(chains.zobrist(), simulated.zobrist_next);
+        assert_eq!(chains.stone_count(), simulated.stone_count_next);
 
         println!("Result:\n{}", chains);
         chains_test_main(&chains);
@@ -356,8 +358,9 @@ fn check_simulate(chains: &Chains) {
                 (Err(e_sim), Err(e_result)) => assert_eq!(e_sim, e_result),
                 (Ok(sim), Ok(real_kind)) => {
                     real.assert_valid();
-                    assert_eq!(sim.kind, real_kind);
-                    assert_eq!(sim.zobrist_next, real.zobrist());
+                    assert_eq!(real_kind, sim.kind);
+                    assert_eq!(real.zobrist(), sim.zobrist_next);
+                    assert_eq!(real.stone_count(), sim.stone_count_next);
                 }
                 _ => panic!("Mismatched simulation result at {:?} {:?}", tile, color),
             }
