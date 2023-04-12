@@ -8,6 +8,8 @@ use rand::Rng;
 
 use crate::symmetry::Symmetry;
 
+// TODO consider adding pseudo-legal movegen and a play variant that can reject non-available moves
+
 /// One of the two players.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Player {
