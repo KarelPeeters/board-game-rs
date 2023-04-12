@@ -296,43 +296,65 @@ fn go_perft_main(board: GoBoard, all_expected: &[u64]) {
 fn go_perft_3() {
     go_perft_main(
         GoBoard::new(3, Rules::tromp_taylor()),
-        &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        &[1, 10, 91, 738, 5281, 33384, 180768, 857576, 3474312, 12912040, 44019568],
     );
     go_perft_main(
         GoBoard::new(3, Rules::cgos()),
-        &[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        &[
+            1, 10, 91, 738, 5281, 33384, 179712, 842696, 3271208, 11279096, 33786208, 98049080, 276391080, 783708048,
+        ],
     );
 }
 
 #[test]
 #[ignore]
 fn go_perft_5() {
-    go_perft_main(GoBoard::new(5, Rules::tromp_taylor()), &[1, 1, 1, 1, 1, 1, 1, 1]);
-    go_perft_main(GoBoard::new(5, Rules::cgos()), &[1, 1, 1, 1, 1, 1, 1, 1]);
+    go_perft_main(
+        GoBoard::new(5, Rules::tromp_taylor()),
+        &[1, 26, 651, 15650, 361041, 7984104, 168759376, 3407616216],
+    );
+    go_perft_main(
+        GoBoard::new(5, Rules::cgos()),
+        &[1, 26, 651, 15650, 361041, 7984104, 168755200, 3407394696],
+    );
 }
 
 #[test]
 #[ignore]
 fn go_perft_19() {
     go_perft_main(
-        GoBoard::new(19, Rules::cgos()),
+        GoBoard::new(19, Rules::tromp_taylor()),
         &[1, 362, 130683, 47046242, 16889859009],
     );
     go_perft_main(
-        GoBoard::new(19, Rules::tromp_taylor()),
+        GoBoard::new(19, Rules::cgos()),
         &[1, 362, 130683, 47046242, 16889859009],
     );
 }
 
 #[test]
 fn go_perft_fast() {
-    let rules = Rules::tromp_taylor();
+    // 5x5 empty
+    go_perft_main(GoBoard::new(5, Rules::tromp_taylor()), &[1, 26, 651, 15650, 361041]);
 
-    go_perft_main(GoBoard::new(5, rules), &[1, 26, 651, 15650, 361041]);
-
+    // 5x5 pocket
     go_perft_main(
-        GoBoard::from_fen("...../...../...../...b./..b.b w 0", rules).unwrap(),
+        GoBoard::from_fen("...../...../...../...b./..b.b w 0", Rules::tromp_taylor()).unwrap(),
         &[1, 22, 485, 9745, 195728],
+    );
+    go_perft_main(
+        GoBoard::from_fen("...../...../...../...b./..b.b w 0", Rules::cgos()).unwrap(),
+        &[1, 22, 485, 9745, 195728],
+    );
+
+    // 5x5 triple ko
+    go_perft_main(
+        GoBoard::from_fen(".w.bw/wbbbw/w.bww/bbbw./wwww. b 0", Rules::tromp_taylor()).unwrap(),
+        &[1, 5, 26, 121, 925, 8451, 87647],
+    );
+    go_perft_main(
+        GoBoard::from_fen(".w.bw/wbbbw/w.bww/bbbw./wwww. b 0", Rules::cgos()).unwrap(),
+        &[1, 5, 26, 109, 739, 6347, 62970],
     );
 }
 
