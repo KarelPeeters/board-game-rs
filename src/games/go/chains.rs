@@ -229,11 +229,40 @@ impl Chains {
         Ok(kind)
     }
 
-    #[allow(dead_code)]
-    #[allow(unused_variables)]
     pub fn simulate_place_stone(&self, tile: Tile, color: Player) -> Result<SimulatedPlacement, TileOccupied> {
         let prepared = self.prepare_place_stone(tile, color)?;
-        todo!("simulate_place_tile")
+        let PreparedPlacement {
+            kind,
+            new_group: _,
+            merge_friendly,
+            clear_enemy,
+        } = prepared;
+        let size = self.size;
+
+        let (tile_survives, removed_groups) = match kind {
+            PlacementKind::Normal => (true, None),
+            PlacementKind::Capture => (true, Some(clear_enemy)),
+            PlacementKind::SuicideSingle => (false, None),
+            PlacementKind::SuicideMulti => (false, Some(merge_friendly)),
+        };
+
+        let mut zobrist_next = self.zobrist;
+
+        if tile_survives {
+            zobrist_next ^= Zobrist::for_player_tile(color, tile, size);
+        }
+        if let Some(removed_groups) = removed_groups {
+            // TODO use per-group cached zobrist instead
+            for tile in Tile::all(size) {
+                if let Some(group_id) = self.tiles[tile.index(size)].group_id {
+                    if removed_groups.contains(&group_id) {
+                        zobrist_next ^= Zobrist::for_player_tile(color.other(), tile, size);
+                    }
+                }
+            }
+        }
+
+        Ok(SimulatedPlacement { kind, zobrist_next })
     }
 
     // TODO unroll this whole thing into the 4 directions?
@@ -490,5 +519,21 @@ impl Display for Chains {
 
         writeln!(f, "}}")?;
         Ok(())
+    }
+}
+
+impl PlacementKind {
+    pub fn is_suicide(&self) -> bool {
+        match self {
+            PlacementKind::Normal | PlacementKind::Capture => false,
+            PlacementKind::SuicideSingle | PlacementKind::SuicideMulti => true,
+        }
+    }
+
+    pub fn removes_existing_stones(&self) -> bool {
+        match self {
+            PlacementKind::Normal | PlacementKind::SuicideSingle => false,
+            PlacementKind::Capture | PlacementKind::SuicideMulti => true,
+        }
     }
 }
