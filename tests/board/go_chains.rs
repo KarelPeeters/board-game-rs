@@ -267,9 +267,14 @@ fn build_chains(size: u8, tiles: &[(u8, u8, Player)]) -> Chains {
     for &(x, y, player) in tiles {
         let tile = Tile::new(x, y);
 
+        let simulated = chains.simulate_place_stone(tile, player).unwrap();
+
         println!("Placing {:?} {:?}", tile, player);
         let kind = chains.place_stone(tile, player).unwrap();
         println!("Kind: {:?}", kind);
+
+        assert_eq!(kind, simulated.kind);
+        assert_eq!(chains.zobrist(), simulated.zobrist_next);
 
         println!("Result:\n{}", chains);
         chains_test_main(&chains);
