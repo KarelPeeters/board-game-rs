@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 
 use crate::board::Player;
 use crate::games::go::tile::{Direction, Tile};
-use crate::games::go::{Rules, Score, Zobrist};
+use crate::games::go::{Score, Zobrist};
 
 // TODO add function to remove stones?
 //   could be tricky since groups would have to be split
@@ -17,6 +17,7 @@ pub struct Chains {
 }
 
 // TODO compact into single u8
+// TODO store the current tile in the content too without the extra indirection?
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Content {
     pub group_id: Option<u16>,
@@ -38,24 +39,21 @@ pub struct Group {
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum InvalidPlacement {
-    // This tile was already occupied by a different stone.
-    Occupied,
-    // 1-stone suicide would immediately repeat so is never allowed.
+pub struct SimulatedPlacement {
+    pub zobrist_next: Zobrist,
+    pub kind: PlacementKind,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum PlacementKind {
+    Normal,
+    Capture,
     SuicideSingle,
-    // Multi store suicide that is not allowed by current rules.
     SuicideMulti,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct Placement {
-    pub chains: Chains,
-
-    /// suicide
-    pub captured_self: bool,
-    pub captured_other: bool,
-    pub captured_any: bool,
-}
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct TileOccupied;
 
 impl Chains {
     pub const MAX_SIZE: u8 = 19;
@@ -187,33 +185,37 @@ impl Chains {
         self.zobrist_tiles ^= Zobrist::for_player_tile(value, tile, size);
     }
 
-    // TODO store the current tile in the content too without the extra indirection?
-    /// We take `self` by value to ensure it never gets left in an invalid state
-    /// if we return an error and bail out halfway.
-    pub fn place_tile(
-        mut self,
-        placed_tile: Tile,
-        placed_value: Player,
-        rules: &Rules,
-    ) -> Result<Placement, InvalidPlacement> {
+    #[allow(dead_code)]
+    #[allow(unused_variables)]
+    pub fn simulate_place_tile(
+        &self,
+        place_tile: Tile,
+        place_stone: Player,
+    ) -> Result<SimulatedPlacement, TileOccupied> {
+        todo!()
+    }
+
+    pub fn place_tile(&mut self, place_tile: Tile, place_stone: Player) -> Result<PlacementKind, TileOccupied> {
         let size = self.size;
-        let content = self.tiles[placed_tile.index(size)];
+        let content = self.tiles[place_tile.index(size)];
         if content.group_id.is_some() {
-            return Err(InvalidPlacement::Occupied);
+            return Err(TileOccupied);
         }
 
+        // at point we commit to fully placing the tile, so we're allowed to mutate self
+        //   we won't generate any more errors, ensuring self stays in a valid state
+
         // TODO enable fast path
-        // match self.place_tile_fast(placed_tile, placed_value) {
-        //     Ok(p) => return Ok(p),
-        //     Err(chains) => self = chains,
+        // if let Some(kind) = self.place_tile_fast(place_tile, place_stone) {
+        //     return Ok(kind)
         // }
 
-        let all_adjacent = placed_tile.all_adjacent(size);
+        let all_adjacent = place_tile.all_adjacent(size);
 
         // create a new pseudo group
         let initial_liberties = all_adjacent.clone().filter(|&adj| self.stone_at(adj).is_none()).count();
         let mut curr_group = Group {
-            player: placed_value,
+            player: place_stone,
             stone_count: 1,
             liberty_edge_count: initial_liberties as u16,
         };
@@ -224,7 +226,7 @@ impl Chains {
             if let Some(adj_group_id) = self.tiles[adj.index(size)].group_id {
                 let adj_group = &mut self.groups[adj_group_id as usize];
 
-                if adj_group.player == placed_value {
+                if adj_group.player == place_stone {
                     merged_groups.push(adj_group_id);
 
                     curr_group.stone_count += adj_group.stone_count;
@@ -242,6 +244,7 @@ impl Chains {
         // TODO speed up by keeping a free linked list of ids?
         // TODO only do all of this if there is no suicide
         // TODO try immediately reusing existing friendly group without even checking the list?
+        // TODO move this to after suicide checks?
         let curr_group_id = self.allocate_group(curr_group);
 
         // TODO replace with small size-4 on-stack vec
@@ -252,7 +255,7 @@ impl Chains {
         for adj in all_adjacent {
             if let Some(group_id) = self.tiles[adj.index(size)].group_id {
                 let group = &mut self.groups[group_id as usize];
-                if group.player == placed_value.other() {
+                if group.player == place_stone.other() {
                     group.liberty_edge_count -= 1;
                     if group.liberty_edge_count == 0 {
                         cleared_enemy |= true;
@@ -265,12 +268,9 @@ impl Chains {
         // check for suicide
         let suicide = if !cleared_enemy && curr_group.liberty_edge_count == 0 {
             if curr_group.stone_count == 1 {
-                return Err(InvalidPlacement::SuicideSingle);
+                // TODO fast path: just don't place the stone?
+                //   don't forget to undo group allocation
             }
-            if !rules.allow_multi_stone_suicide {
-                return Err(InvalidPlacement::SuicideMulti);
-            }
-
             cleared_groups.push(curr_group_id);
             true
         } else {
@@ -285,24 +285,33 @@ impl Chains {
 
         // place new tile, it's important that we do this before tile state fixing
         //   suicide stones will be removed there
-        self.set_tile(placed_tile, placed_value, curr_group_id);
+        self.set_tile(place_tile, place_stone, curr_group_id);
 
         // fixup per-tile-state
         self.fix_tile_state(&merged_groups, curr_group_id, &cleared_groups);
 
-        Ok(Placement {
-            chains: self,
-            captured_self: suicide,
-            captured_other: cleared_enemy,
-            captured_any: suicide | cleared_enemy,
-        })
+        // construct result
+        let kind = if cleared_enemy {
+            PlacementKind::Capture
+        } else if suicide {
+            if curr_group.stone_count == 1 {
+                PlacementKind::SuicideSingle
+            } else {
+                PlacementKind::SuicideMulti
+            }
+        } else {
+            PlacementKind::Normal
+        };
+        Ok(kind)
     }
 
     /// Fast version of [place_tile_full] that only works in simple cases without any group merging or clearing.
     #[allow(dead_code)]
-    fn place_tile_fast(self, placed_tile: Tile, placed_value: Player) -> Result<Placement, Self> {
+    fn place_tile_fast(&mut self, placed_tile: Tile, placed_value: Player) -> Option<PlacementKind> {
         let size = self.size();
         let all_adjacent = placed_tile.all_adjacent(size);
+
+        // TODO also add single stone suicide fast path somewhere?
 
         // check if the following conditions hold:
         // * at most one distinct friendly adjacent group
@@ -341,48 +350,40 @@ impl Chains {
 
         matches &= liberties > 0;
 
-        if matches {
-            let mut result = self;
-
-            // remove liberties from adjacent groups
-            for adj in all_adjacent {
-                if let Some(id) = result.content_at(adj).group_id {
-                    result.groups[id as usize].liberty_edge_count -= 1;
-                }
-            }
-
-            // get the right group for this tile
-            let group_id = match friendly_group {
-                None => {
-                    // create new group
-                    result.allocate_group(Group {
-                        player: placed_value,
-                        stone_count: 1,
-                        liberty_edge_count: liberties,
-                    })
-                }
-                Some(group_id) => {
-                    // increment liberties of existing group
-                    let group = &mut result.groups[group_id as usize];
-                    group.stone_count += 1;
-                    group.liberty_edge_count += liberties;
-                    group_id
-                }
-            };
-
-            // set current tile
-            result.set_tile(placed_tile, placed_value, group_id);
-
-            Ok(Placement {
-                chains: result,
-                captured_self: false,
-                captured_other: false,
-                captured_any: false,
-            })
-        } else {
-            // return self unmodified
-            Err(self)
+        if !matches {
+            return None;
         }
+
+        // remove liberties from adjacent groups
+        for adj in all_adjacent {
+            if let Some(id) = self.content_at(adj).group_id {
+                self.groups[id as usize].liberty_edge_count -= 1;
+            }
+        }
+
+        // get the right group for this tile
+        let group_id = match friendly_group {
+            None => {
+                // create new group
+                self.allocate_group(Group {
+                    player: placed_value,
+                    stone_count: 1,
+                    liberty_edge_count: liberties,
+                })
+            }
+            Some(group_id) => {
+                // increment liberties of existing group
+                let group = &mut self.groups[group_id as usize];
+                group.stone_count += 1;
+                group.liberty_edge_count += liberties;
+                group_id
+            }
+        };
+
+        // set current tile
+        self.set_tile(placed_tile, placed_value, group_id);
+
+        Some(PlacementKind::Normal)
     }
 
     #[inline(never)]
