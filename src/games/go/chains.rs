@@ -1,6 +1,5 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
-use std::iter::zip;
 
 use crate::board::Player;
 use crate::games::go::tile::{Direction, Tile};
@@ -20,11 +19,6 @@ pub struct Chains {
 // TODO compact into single u8
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Content {
-    // TODO ideally history would not be part of Chains, only of GoBoard
-    //   but it's very cheap to keep in here instead :(
-    //   do we keep this? is it much of a gain in the first place?
-    pub has_had_a: bool,
-    pub has_had_b: bool,
     pub group_id: Option<u16>,
 }
 
@@ -97,8 +91,7 @@ impl Chains {
         self.group_at(tile).map(|group| group.player)
     }
 
-    pub fn zobrist_tiles(&self) -> Zobrist {
-        // TODO variant that includes the history bools?
+    pub fn zobrist(&self) -> Zobrist {
         self.zobrist_tiles
     }
 
@@ -111,22 +104,6 @@ impl Chains {
             .enumerate()
             .filter(|(_, group)| group.stone_count != 0)
             .map(|(id, group)| (id as u16, group))
-    }
-
-    pub fn clear_history(&mut self) {
-        // reset ownership history to only the stones that currently exist
-        let groups = &self.groups;
-        for content in &mut self.tiles {
-            let curr_owner = content.group_id.map(|id| groups[id as usize].player);
-            content.has_had_a = curr_owner == Some(Player::A);
-            content.has_had_b = curr_owner == Some(Player::B);
-        }
-    }
-
-    pub fn without_history(&self) -> Self {
-        let mut result = self.clone();
-        result.clear_history();
-        result
     }
 
     /// Is there a path between `start` and another tile with value `target` over only `player` tiles?
@@ -202,18 +179,12 @@ impl Chains {
         }
     }
 
-    fn set_tile_group_and_hist(&mut self, tile: Tile, value: Player, group_id: u16, suicide: bool) {
+    fn set_tile(&mut self, tile: Tile, value: Player, group_id: u16) {
         let size = self.size();
 
         let content = &mut self.tiles[tile.index(size)];
         content.group_id = Some(group_id);
         self.zobrist_tiles ^= Zobrist::for_player_tile(value, tile, size);
-
-        if !suicide {
-            // TODO should we update "has_had" in case of suicide? no, right?
-            content.has_had_a |= value == Player::A;
-            content.has_had_b |= value == Player::B;
-        }
     }
 
     // TODO store the current tile in the content too without the extra indirection?
@@ -312,10 +283,9 @@ impl Chains {
             self.groups[group as usize].mark_dead();
         }
 
-        // place new tile
-        //   it's important that we do this before tile state fixing
-        //   if suicide the tile-updating logic will remove it anyway
-        self.set_tile_group_and_hist(placed_tile, placed_value, curr_group_id, suicide);
+        // place new tile, it's important that we do this before tile state fixing
+        //   suicide stones will be removed there
+        self.set_tile(placed_tile, placed_value, curr_group_id);
 
         // fixup per-tile-state
         self.fix_tile_state(&merged_groups, curr_group_id, &cleared_groups);
@@ -401,7 +371,7 @@ impl Chains {
             };
 
             // set current tile
-            result.set_tile_group_and_hist(placed_tile, placed_value, group_id, false);
+            result.set_tile(placed_tile, placed_value, group_id);
 
             Ok(Placement {
                 chains: result,
@@ -469,14 +439,6 @@ impl Chains {
                 // group must be alive
                 assert!(group.liberty_edge_count > 0 && group.stone_count > 0);
 
-                // history must at least contain current state
-                if group.player == Player::A {
-                    assert!(tile.has_had_a);
-                }
-                if group.player == Player::B {
-                    assert!(tile.has_had_b);
-                }
-
                 used_groups.push(id);
             }
         }
@@ -499,29 +461,6 @@ impl Chains {
         }
         assert_eq!(self.zobrist_tiles, new_zobrist, "Invalid zobrist hash");
     }
-
-    fn tile_for_eq_hash(&self, content: Content) -> EqHashTile {
-        let Content {
-            has_had_a,
-            has_had_b,
-            group_id,
-        } = content;
-
-        let player = group_id.map(|id| {
-            let Group {
-                player,
-                stone_count: _,
-                liberty_edge_count: _,
-            } = self.groups[id as usize];
-            player
-        });
-
-        EqHashTile {
-            has_had_a,
-            has_had_b,
-            player,
-        }
-    }
 }
 
 impl Group {
@@ -536,39 +475,24 @@ impl Group {
     }
 }
 
-#[derive(Eq, PartialEq, Hash)]
-struct EqHashTile {
-    has_had_a: bool,
-    has_had_b: bool,
-    player: Option<Player>,
-}
-
 #[allow(clippy::derivable_impls)]
 impl Default for Content {
     fn default() -> Self {
-        Content {
-            has_had_a: false,
-            has_had_b: false,
-            group_id: None,
-        }
+        Content { group_id: None }
     }
 }
 
 impl PartialEq for Chains {
     fn eq(&self, other: &Self) -> bool {
-        if self.tiles.len() != other.tiles.len() {
-            return false;
-        }
-        zip(&self.tiles, &other.tiles).all(|(&self_content, &other_content)| {
-            self.tile_for_eq_hash(self_content) == other.tile_for_eq_hash(other_content)
-        })
+        self.tiles.len() == other.tiles.len()
+            && self.zobrist() == other.zobrist()
+            && Tile::all(self.size).all(|tile| self.stone_at(tile) == other.stone_at(tile))
     }
 }
 
 impl Hash for Chains {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        // TODO include history here? we include it in eq...
-        self.zobrist_tiles().hash(state);
+        self.zobrist().hash(state);
     }
 }
 
