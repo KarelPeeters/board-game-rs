@@ -11,8 +11,11 @@ use crate::games::go::{Score, Zobrist};
 #[derive(Clone, Eq)]
 pub struct Chains {
     size: u8,
+    // core storage
     tiles: Vec<Content>,
     groups: Vec<Group>,
+    // derived data
+    stone_count: u16,
     zobrist: Zobrist,
 }
 
@@ -50,7 +53,9 @@ pub struct PreparedPlacement {
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct SimulatedPlacement {
     pub kind: PlacementKind,
+    // TODO remove next from names?
     pub zobrist_next: Zobrist,
+    pub stone_count_next: u16,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -75,6 +80,7 @@ impl Chains {
             size,
             tiles: vec![Content::default(); size as usize * size as usize],
             groups: vec![],
+            stone_count: 0,
             zobrist: Zobrist::default(),
         }
     }
@@ -85,6 +91,10 @@ impl Chains {
 
     pub fn area(&self) -> u16 {
         self.size as u16 * self.size as u16
+    }
+
+    pub fn stone_count(&self) -> u16 {
+        self.stone_count
     }
 
     pub fn content_at(&self, tile: Tile) -> Content {
@@ -247,9 +257,11 @@ impl Chains {
         };
 
         let mut zobrist_next = self.zobrist;
+        let mut stone_count_next = self.stone_count;
 
         if tile_survives {
             zobrist_next ^= Zobrist::for_player_tile(color, tile, size);
+            stone_count_next += 1;
         }
         if let Some((removed_groups, removed_color)) = removed_groups_color {
             // TODO use per-group cached zobrist instead
@@ -257,12 +269,17 @@ impl Chains {
                 if let Some(group_id) = self.tiles[other.index(size)].group_id {
                     if removed_groups.contains(&group_id) {
                         zobrist_next ^= Zobrist::for_player_tile(removed_color, other, size);
+                        stone_count_next -= 1;
                     }
                 }
             }
         }
 
-        Ok(SimulatedPlacement { kind, zobrist_next })
+        Ok(SimulatedPlacement {
+            kind,
+            zobrist_next,
+            stone_count_next,
+        })
     }
 
     // TODO unroll this whole thing into the 4 directions?
@@ -346,8 +363,9 @@ impl Chains {
         debug_assert!(self.stone_at(tile).is_none());
         self.tiles[tile.index(size)].group_id = Some(group);
 
-        // update hash
+        // update hash and count
         self.zobrist ^= Zobrist::for_player_tile(color, tile, size);
+        self.stone_count += 1;
 
         // decrease liberty of adjacent
         for adj in Tile::all_adjacent(tile, size) {
@@ -364,8 +382,9 @@ impl Chains {
         debug_assert!(self.stone_at(tile) == Some(color));
         self.tiles[tile.index(size)].group_id = None;
 
-        // update hash
+        // update hash and count
         self.zobrist ^= Zobrist::for_player_tile(color, tile, size);
+        self.stone_count -= 1;
 
         // increase liberty of adjacent
         for adj in Tile::all_adjacent(tile, size) {
@@ -412,6 +431,7 @@ impl Chains {
 
     pub fn assert_valid(&self) {
         let mut used_groups = vec![];
+        let mut stone_count = 0;
 
         for tile in &self.tiles {
             if let Some(id) = tile.group_id {
@@ -423,8 +443,11 @@ impl Chains {
                 assert!(group.liberty_edge_count > 0 && group.stone_count > 0);
 
                 used_groups.push(id);
+                stone_count += 1;
             }
         }
+
+        assert_eq!(self.stone_count, stone_count);
 
         for (id, group) in self.groups.iter().enumerate() {
             // stone_count and liberty_edge_count must agree on whether the group is dead
