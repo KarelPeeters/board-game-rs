@@ -2,6 +2,7 @@ use board_game::board::{Board, Outcome, PlayError};
 use board_game::games::go::{GoBoard, Move, Rules, Tile};
 use board_game::util::board_gen::board_with_moves;
 use board_game::util::game_stats::perft_naive;
+use std::str::FromStr;
 
 use crate::board::go_chains::chains_test_main;
 use crate::board::print_board_with_moves;
@@ -214,9 +215,9 @@ fn suicide_2() {
 
 #[test]
 fn super_ko() {
-    let fen = ".w.bw/wbbbw/w.bww/bbbw./wwww. w 0";
+    // Based on Example from https://senseis.xmp.net/?SuperKo
+    let fen = "...bw/wbbbw/w.bww/bbbw./wwww. w 0";
     let mut board = GoBoard::from_fen(fen, Rules::tromp_taylor()).unwrap();
-
     println!("{}", board);
 
     let a = Tile::new(2, 4);
@@ -224,17 +225,50 @@ fn super_ko() {
     let mid = Tile::new(1, 4);
     println!("a={:?}, b={:?}, mid={:?}", a, b, mid);
 
+    // everything is available now
     assert_eq!(Ok(true), board.is_available_move(Move::Place(a)));
     assert_eq!(Ok(true), board.is_available_move(Move::Place(b)));
-    assert_eq!(Ok(false), board.is_available_move(Move::Place(mid)));
+    assert_eq!(Ok(true), board.is_available_move(Move::Place(mid)));
 
+    board.play(Move::Place(mid)).unwrap();
+    board.play(Move::Pass).unwrap();
     board.play(Move::Place(a)).unwrap();
     board.play(Move::Place(b)).unwrap();
     println!("{}", board);
 
     // mid is empty but cannot play, stones would repeat!
     assert_eq!(None, board.stone_at(mid));
+
+    assert_eq!(Ok(true), board.is_available_move(Move::Place(a)));
+    assert_eq!(Ok(false), board.is_available_move(Move::Place(b)));
     assert_eq!(Ok(false), board.is_available_move(Move::Place(mid)));
+}
+
+#[test]
+fn super_ko_repeat() {
+    // Example found while debugging 5x5 perft
+    let rules = Rules::tromp_taylor();
+    let moves = [
+        Move::Place(Tile::from_str("A1").unwrap()),
+        Move::Pass,
+        Move::Place(Tile::from_str("B2").unwrap()),
+        Move::Pass,
+        Move::Place(Tile::from_str("C2").unwrap()),
+        Move::Place(Tile::from_str("B1").unwrap()),
+        Move::Pass,
+    ];
+    let start = GoBoard::new(3, rules);
+    let board = print_board_with_moves(start, &moves);
+
+    let fen_before = ".../.bb/bw. w 1";
+    assert_eq!(GoBoard::from_fen(fen_before, rules).unwrap(), board.without_history());
+
+    // not available, would repeat earlier pos
+    let mv = Move::Place(Tile::from_str("C1").unwrap());
+    println!("Checking if {:?} is available", mv);
+
+    assert_eq!(Ok(false), board.is_available_move(mv));
+    assert_eq!(Err(PlayError::UnavailableMove), board.clone_and_play(mv));
 }
 
 // TODO add profiling

@@ -239,11 +239,11 @@ impl Chains {
         } = prepared;
         let size = self.size;
 
-        let (tile_survives, removed_groups) = match kind {
+        let (tile_survives, removed_groups_color) = match kind {
             PlacementKind::Normal => (true, None),
-            PlacementKind::Capture => (true, Some(clear_enemy)),
+            PlacementKind::Capture => (true, Some((clear_enemy, color.other()))),
             PlacementKind::SuicideSingle => (false, None),
-            PlacementKind::SuicideMulti => (false, Some(merge_friendly)),
+            PlacementKind::SuicideMulti => (false, Some((merge_friendly, color))),
         };
 
         let mut zobrist_next = self.zobrist;
@@ -251,12 +251,12 @@ impl Chains {
         if tile_survives {
             zobrist_next ^= Zobrist::for_player_tile(color, tile, size);
         }
-        if let Some(removed_groups) = removed_groups {
+        if let Some((removed_groups, removed_color)) = removed_groups_color {
             // TODO use per-group cached zobrist instead
-            for tile in Tile::all(size) {
-                if let Some(group_id) = self.tiles[tile.index(size)].group_id {
+            for other in Tile::all(size) {
+                if let Some(group_id) = self.tiles[other.index(size)].group_id {
                     if removed_groups.contains(&group_id) {
-                        zobrist_next ^= Zobrist::for_player_tile(color.other(), tile, size);
+                        zobrist_next ^= Zobrist::for_player_tile(removed_color, other, size);
                     }
                 }
             }
