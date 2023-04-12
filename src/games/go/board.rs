@@ -118,7 +118,7 @@ impl GoBoard {
     /// * the pass state
     pub fn zobrist_full(&self) -> Zobrist {
         // TODO include rules?
-        let mut result = self.chains().zobrist_tiles();
+        let mut result = self.chains().zobrist();
         result ^= Zobrist::for_player_turn(self.next_player);
         result ^= Zobrist::for_pass_state(self.state);
         result
@@ -168,7 +168,7 @@ impl Board for GoBoard {
 
                 // update history
                 if self.rules.needs_history() {
-                    self.history.push(chains.zobrist_tiles());
+                    self.history.push(chains.zobrist());
                 }
 
                 // actually place the tile and check for errors
@@ -179,7 +179,7 @@ impl Board for GoBoard {
                     panic!("Multi-stone suicide is not allowed by the current rules");
                 }
                 let new_chains = placement.chains;
-                if !self.rules.allow_repeating_tiles() && self.history.contains(&new_chains.zobrist_tiles()) {
+                if !self.rules.allow_repeating_tiles() && self.history.contains(&new_chains.zobrist()) {
                     panic!("Repeating tiles is not allowed")
                 }
 
