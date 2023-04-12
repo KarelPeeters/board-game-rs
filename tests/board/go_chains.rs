@@ -18,7 +18,7 @@ fn corner_triangle_corner_first() {
     assert_eq!(chains.to_fen(), "...../...../...../b..../bb...");
 
     let expected = Group {
-        player: Player::A,
+        color: Player::A,
         stone_count: 3,
         liberty_edge_count: 4,
     };
@@ -34,7 +34,7 @@ fn corner_triangle_corner_last() {
     assert_eq!(chains.to_fen(), "...../...../...../b..../bb...");
 
     let expected = Group {
-        player: Player::A,
+        color: Player::A,
         stone_count: 3,
         liberty_edge_count: 4,
     };
@@ -55,7 +55,7 @@ fn merge_long_overlapping() {
     println!("{}", chains);
 
     let expected = Group {
-        player: Player::A,
+        color: Player::A,
         stone_count: 11,
         liberty_edge_count: 19,
     };
@@ -76,7 +76,7 @@ fn cyclic_group() {
     println!("{}", chains);
 
     let expected = Group {
-        player: Player::A,
+        color: Player::A,
         stone_count: 4,
         liberty_edge_count: 4,
     };
@@ -90,13 +90,13 @@ fn capture_corner() {
     println!("{}", chains);
     assert_eq!(chains.to_fen(), "...../...../...../w..../b....");
 
-    let kind = chains.place_tile(Tile::new(1, 0), Player::B).unwrap();
+    let kind = chains.place_stone(Tile::new(1, 0), Player::B).unwrap();
     println!("{}", chains);
     assert_eq!(chains.to_fen(), "...../...../...../w..../.w...");
     assert_eq!(kind, PlacementKind::Capture);
 
     let expected = Group {
-        player: Player::B,
+        color: Player::B,
         stone_count: 1,
         liberty_edge_count: 3,
     };
@@ -131,12 +131,12 @@ fn capture_cyclic_group() {
     assert_eq!(chains.to_fen(), ".bbb./bwwwb/bw.wb/bwwwb/.bbb.");
 
     let expected_edge = Group {
-        player: Player::A,
+        color: Player::A,
         stone_count: 3,
         liberty_edge_count: 2,
     };
     let expected_core = Group {
-        player: Player::B,
+        color: Player::B,
         stone_count: 8,
         liberty_edge_count: 4,
     };
@@ -147,18 +147,18 @@ fn capture_cyclic_group() {
     assert_eq!(chains.group_at(Tile::new(1, 1)), Some(expected_core));
     chains_test_main(&chains);
 
-    let kind = chains.place_tile(Tile::new(2, 2), Player::A).unwrap();
+    let kind = chains.place_stone(Tile::new(2, 2), Player::A).unwrap();
     println!("{}", chains);
     assert_eq!(chains.to_fen(), ".bbb./b...b/b.b.b/b...b/.bbb.");
     assert_eq!(kind, PlacementKind::Capture);
 
     let expected_edge_new = Group {
-        player: Player::A,
+        color: Player::A,
         stone_count: 3,
         liberty_edge_count: 5,
     };
     let expected_center = Group {
-        player: Player::A,
+        color: Player::A,
         stone_count: 1,
         liberty_edge_count: 4,
     };
@@ -182,7 +182,7 @@ fn fill_board() {
     let chains = build_chains(size, &tiles);
     println!("{}", chains);
     let expected = Group {
-        player: Player::A,
+        color: Player::A,
         stone_count: size as u16 * size as u16 - 1,
         liberty_edge_count: 2,
     };
@@ -191,7 +191,7 @@ fn fill_board() {
     {
         // ensure the full board gets suicide captured
         let mut new_chains = chains.clone();
-        let kind = new_chains.place_tile(last_tile, Player::A).unwrap();
+        let kind = new_chains.place_stone(last_tile, Player::A).unwrap();
         println!("{}", new_chains);
         assert_eq!(new_chains.to_fen(), Chains::new(size).to_fen());
         assert_eq!(kind, PlacementKind::SuicideMulti);
@@ -202,7 +202,7 @@ fn fill_board() {
     {
         // ensure the other player can capture the rest too
         let mut new_chains = chains.clone();
-        let kind = new_chains.place_tile(last_tile, Player::B).unwrap();
+        let kind = new_chains.place_stone(last_tile, Player::B).unwrap();
         println!("{}", new_chains);
         assert_eq!(new_chains.to_fen(), "....w/...../...../...../.....");
         assert_eq!(kind, PlacementKind::Capture);
@@ -216,13 +216,13 @@ fn capture_jagged() {
     let mut chains = Chains::from_fen("wbbb/wwbb/.bbw/wwww").unwrap();
     println!("{}", chains);
 
-    let kind = chains.place_tile(Tile::new(0, 1), Player::B).unwrap();
+    let kind = chains.place_stone(Tile::new(0, 1), Player::B).unwrap();
     println!("{}", chains);
     assert_eq!(chains.to_fen(), "w.../ww../w..w/wwww");
     assert_eq!(kind, PlacementKind::Capture);
 
     let expected = Group {
-        player: Player::B,
+        color: Player::B,
         stone_count: 9,
         liberty_edge_count: 9,
     };
@@ -257,7 +257,7 @@ fn fuzz_test() {
 
             // place stone on that tile
             let player = *players.choose(&mut rng).unwrap();
-            chains.place_tile(tile, player).expect("Tile must be empty");
+            chains.place_stone(tile, player).expect("Tile must be empty");
         }
     }
 }
@@ -268,7 +268,7 @@ fn build_chains(size: u8, tiles: &[(u8, u8, Player)]) -> Chains {
         let tile = Tile::new(x, y);
 
         println!("Placing {:?} {:?}", tile, player);
-        let kind = chains.place_tile(tile, player).unwrap();
+        let kind = chains.place_stone(tile, player).unwrap();
         println!("Kind: {:?}", kind);
 
         println!("Result:\n{}", chains);
@@ -381,7 +381,7 @@ fn compute_floodfill(chains: &Chains) -> FloodFill {
 
         let _ = liberties;
         groups.push(Group {
-            player,
+            color: player,
             stone_count: stone_count.try_into().unwrap(),
             liberty_edge_count: liberty_edge_count.try_into().unwrap(),
         });
