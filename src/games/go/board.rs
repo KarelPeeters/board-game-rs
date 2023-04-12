@@ -23,6 +23,7 @@ pub struct GoBoard {
 
     // TODO use a hashset instead? or some even better structure?
     //   maybe this can be (partially) shared between board clones?
+    //   a hashset would be nicer for TTs
     history: Vec<Zobrist>,
 }
 
@@ -195,6 +196,8 @@ impl Board for GoBoard {
 
         match mv {
             Move::Pass => {
+                // pass doesn't create history values or care about them
+                // auxiliary state update
                 self.next_player = other;
                 self.state = match self.state {
                     State::Normal => State::Passed,
@@ -311,6 +314,7 @@ impl InternalIterator for AvailableMovesIterator<'_, GoBoard> {
 impl_unit_symmetry_board!(GoBoard);
 
 impl Hash for GoBoard {
+    // TODO include history (or just len?)
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.zobrist_full().hash(state);
     }

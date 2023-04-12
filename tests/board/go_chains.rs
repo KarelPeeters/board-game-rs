@@ -232,6 +232,25 @@ fn capture_jagged() {
 }
 
 #[test]
+fn fill_board_simulation() {
+    let chains = Chains::from_fen("bbbb./bbbbb/bbbbb/bbbbb/bbbbb").unwrap();
+    println!("{}", chains);
+    chains.assert_valid();
+
+    let tile = Tile::new(4, 4);
+    let color = Player::A;
+
+    let sim = chains.simulate_place_stone(tile, color).unwrap();
+    assert_eq!(sim.kind, PlacementKind::SuicideMulti);
+
+    let mut real = chains;
+    real.place_stone(tile, color).unwrap();
+    real.assert_valid();
+
+    assert_eq!(real.zobrist(), sim.zobrist_next);
+}
+
+#[test]
 #[ignore]
 fn fuzz_test() {
     let sizes = 0..=19;
@@ -286,6 +305,7 @@ pub fn chains_test_main(chains: &Chains) {
     chains.assert_valid();
     check_floodfill(chains);
     check_fen(chains);
+    check_simulate(chains);
 }
 
 fn check_fen(chains: &Chains) {
@@ -321,6 +341,26 @@ fn check_floodfill(chains: &Chains) {
         let prev = map_id.insert(expected_id, actual_id);
         if let Some(prev) = prev {
             assert_eq!(prev, actual_id, "Mismatched group id mapping at {:?}", tile);
+        }
+    }
+}
+
+fn check_simulate(chains: &Chains) {
+    for tile in Tile::all(chains.size()) {
+        for color in [Player::A, Player::B] {
+            let sim = chains.simulate_place_stone(tile, color);
+            let mut real = chains.clone();
+            let result = real.place_stone(tile, color);
+
+            match (sim, result) {
+                (Err(e_sim), Err(e_result)) => assert_eq!(e_sim, e_result),
+                (Ok(sim), Ok(real_kind)) => {
+                    real.assert_valid();
+                    assert_eq!(sim.kind, real_kind);
+                    assert_eq!(sim.zobrist_next, real.zobrist());
+                }
+                _ => panic!("Mismatched simulation result at {:?} {:?}", tile, color),
+            }
         }
     }
 }
