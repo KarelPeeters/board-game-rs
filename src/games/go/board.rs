@@ -114,6 +114,14 @@ impl GoBoard {
         self.chains().score()
     }
 
+    pub fn clear_history(&mut self) {
+        self.history.clear();
+    }
+
+    pub fn without_history(&self) -> Self {
+        Self::from_parts(self.rules, self.chains.clone(), self.next_player, self.state, vec![])
+    }
+
     /// Full zobrist, including:
     /// * the tiles
     /// * the next player
