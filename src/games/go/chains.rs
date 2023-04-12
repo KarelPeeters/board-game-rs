@@ -97,6 +97,10 @@ impl Chains {
         self.stone_count
     }
 
+    pub fn empty_count(&self) -> u16 {
+        self.area() - self.stone_count
+    }
+
     pub fn content_at(&self, tile: Tile) -> Content {
         self.tiles[tile.index(self.size)]
     }
@@ -122,6 +126,12 @@ impl Chains {
             .enumerate()
             .filter(|(_, group)| group.stone_count != 0)
             .map(|(id, group)| (id as u16, group))
+    }
+
+    pub fn empty_tiles(&self) -> impl Iterator<Item = Tile> + '_ {
+        // TODO optimize with empty-tile linked list
+        // TODO also override count with the cached count?
+        Tile::all(self.size()).filter(move |&tile| self.stone_at(tile).is_none())
     }
 
     /// Is there a path between `start` and another tile with value `target` over only `player` tiles?

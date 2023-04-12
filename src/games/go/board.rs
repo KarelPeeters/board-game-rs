@@ -5,6 +5,8 @@ use std::ops::ControlFlow;
 
 use internal_iterator::InternalIterator;
 use itertools::Itertools;
+use rand::seq::IteratorRandom;
+use rand::Rng;
 
 use crate::board::{
     AllMovesIterator, AvailableMovesIterator, Board, BoardDone, BoardMoves, Outcome, PlayError, Player,
@@ -156,6 +158,31 @@ impl GoBoard {
         result ^= Zobrist::for_player_turn(self.next_player);
         result ^= Zobrist::for_pass_state(self.state);
         result
+    }
+
+    pub fn random_available_place_move(&self, rng: &mut impl Rng) -> Result<Option<Move>, BoardDone> {
+        self.check_done()?;
+
+        // first try rejection sampling
+        let empty_tile_count = self.area() - self.chains().stone_count();
+        for _ in 0..32 {
+            let index = rng.gen_range(0..empty_tile_count);
+            let tile = self.chains().empty_tiles().nth(index as usize).unwrap();
+
+            let mv = Move::Place(tile);
+            if self.is_available_move(mv).unwrap() {
+                return Ok(Some(mv));
+            }
+        }
+
+        // fallback to exhaustively trying all empty tiles
+        let mv = self
+            .chains()
+            .empty_tiles()
+            .filter(|&tile| self.is_available_move(Move::Place(tile)).unwrap())
+            .choose(rng)
+            .map(Move::Place);
+        Ok(mv)
     }
 }
 
