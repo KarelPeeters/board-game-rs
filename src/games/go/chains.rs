@@ -283,11 +283,11 @@ impl Chains {
         } = prepared;
         let size = self.size;
 
-        let (tile_survives, removed_groups_color) = match kind {
-            PlacementKind::Normal => (true, None),
-            PlacementKind::Capture => (true, Some((clear_enemy, color.other()))),
-            PlacementKind::SuicideSingle => (false, None),
-            PlacementKind::SuicideMulti => (false, Some((merge_friendly, color))),
+        let (tile_survives, removed_groups): (bool, &[u16]) = match kind {
+            PlacementKind::Normal => (true, &[]),
+            PlacementKind::Capture => (true, &clear_enemy),
+            PlacementKind::SuicideSingle => (false, &[]),
+            PlacementKind::SuicideMulti => (false, &merge_friendly),
         };
 
         let mut zobrist_next = self.zobrist;
@@ -297,16 +297,10 @@ impl Chains {
             zobrist_next ^= Zobrist::for_color_tile(color, tile, size);
             stone_count_next += 1;
         }
-        if let Some((removed_groups, removed_color)) = removed_groups_color {
-            // TODO use per-group cached zobrist instead
-            for other in Tile::all(size) {
-                if let Some(group_id) = self.tiles[other.index(size)].group_id {
-                    if removed_groups.contains(&group_id) {
-                        zobrist_next ^= Zobrist::for_color_tile(removed_color, other, size);
-                        stone_count_next -= 1;
-                    }
-                }
-            }
+        for &group_id in removed_groups {
+            let group = self.groups[group_id as usize];
+            zobrist_next ^= group.zobrist;
+            stone_count_next -= group.stone_count;
         }
 
         Ok(SimulatedPlacement {
