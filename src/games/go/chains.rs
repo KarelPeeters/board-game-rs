@@ -1,5 +1,8 @@
+use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
+
+use itertools::Itertools;
 
 use crate::board::Player;
 use crate::games::go::tile::{Direction, Tile};
@@ -11,9 +14,14 @@ use crate::games::go::{Score, Zobrist};
 #[derive(Clone, Eq)]
 pub struct Chains {
     size: u8,
+
     // core storage
+    first_empty: Option<u16>,
+    last_empty: Option<u16>,
+
     tiles: Vec<Content>,
     groups: Vec<Group>,
+
     // derived data
     stone_count: u16,
     zobrist: Zobrist,
@@ -24,6 +32,8 @@ pub struct Chains {
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Content {
     pub group_id: Option<u16>,
+    pub next_empty: Option<u16>,
+    pub prev_empty: Option<u16>,
 }
 
 // TODO compact? we can at least force player into one of the other fields
@@ -76,9 +86,21 @@ impl Chains {
 
     pub fn new(size: u8) -> Self {
         assert!(size <= Self::MAX_SIZE);
+
+        let area = size as u16 * size as u16;
+        let tiles = (0..area)
+            .map(|i| Content {
+                group_id: None,
+                next_empty: if i + 1 < area { Some(i + 1) } else { None },
+                prev_empty: if i > 0 { Some(i - 1) } else { None },
+            })
+            .collect_vec();
+
         Chains {
             size,
-            tiles: vec![Content::default(); size as usize * size as usize],
+            first_empty: Some(0),
+            last_empty: Some(area - 1),
+            tiles,
             groups: vec![],
             stone_count: 0,
             zobrist: Zobrist::default(),
@@ -371,7 +393,23 @@ impl Chains {
 
         // update tile itself
         debug_assert!(self.stone_at(tile).is_none());
-        self.tiles[tile.index(size)].group_id = Some(group);
+        let content = &mut self.tiles[tile.index(size)];
+        content.group_id = Some(group);
+
+        // remove from empty linked list
+        {
+            let prev = content.prev_empty.take();
+            let next = content.next_empty.take();
+
+            match prev {
+                None => self.first_empty = next,
+                Some(prev) => self.tiles[prev as usize].next_empty = next,
+            }
+            match next {
+                None => self.last_empty = prev,
+                Some(next) => self.tiles[next as usize].prev_empty = prev,
+            }
+        }
 
         // update hash and count
         self.zobrist ^= Zobrist::for_player_tile(color, tile, size);
@@ -387,10 +425,26 @@ impl Chains {
 
     fn clear_stone_at(&mut self, tile: Tile, color: Player, clear: &[u16], merge: &[u16], into: u16) {
         let size = self.size();
+        let tile_index = tile.index(size);
 
         // update tile itself
         debug_assert!(self.stone_at(tile) == Some(color));
-        self.tiles[tile.index(size)].group_id = None;
+        let content = &mut self.tiles[tile_index];
+        content.group_id = None;
+
+        // insert into empty linked list at the front
+        {
+            let prev_first = self.first_empty;
+
+            assert_eq!(None, content.prev_empty);
+            self.first_empty = Some(tile_index as u16);
+
+            content.next_empty = prev_first;
+            match prev_first {
+                None => self.last_empty = Some(tile_index as u16),
+                Some(next_empty) => self.tiles[next_empty as usize].prev_empty = Some(tile_index as u16),
+            }
+        }
 
         // update hash and count
         self.zobrist ^= Zobrist::for_player_tile(color, tile, size);
@@ -440,11 +494,17 @@ impl Chains {
     }
 
     pub fn assert_valid(&self) {
-        let mut used_groups = vec![];
+        let size = self.size();
+
+        // check per-tile stuff and collect info
+        let mut used_groups = HashSet::new();
+        let mut empty_tiles = HashSet::new();
         let mut stone_count = 0;
 
-        for tile in &self.tiles {
-            if let Some(id) = tile.group_id {
+        for tile in Tile::all(size) {
+            let content = self.content_at(tile);
+
+            if let Some(id) = content.group_id {
                 // group must must exist
                 assert!((id as usize) < self.groups.len());
                 let group = self.groups[id as usize];
@@ -452,13 +512,21 @@ impl Chains {
                 // group must be alive
                 assert!(group.liberty_edge_count > 0 && group.stone_count > 0);
 
-                used_groups.push(id);
+                // non-empty tiles should not be part of the empty linked list
+                assert_eq!(None, content.prev_empty);
+                assert_eq!(None, content.next_empty);
+
+                // track info
+                used_groups.insert(id);
                 stone_count += 1;
+            } else {
+                empty_tiles.insert(tile.index(size));
             }
         }
 
         assert_eq!(self.stone_count, stone_count);
 
+        // check per-group stuff
         for (id, group) in self.groups.iter().enumerate() {
             // stone_count and liberty_edge_count must agree on whether the group is dead
             assert_eq!((group.stone_count == 0), (group.liberty_edge_count == 0));
@@ -469,13 +537,46 @@ impl Chains {
 
         // check hash validness
         let mut new_zobrist = Zobrist::default();
-        for tile in Tile::all(self.size()) {
+        for tile in Tile::all(size) {
             if let Some(player) = self.stone_at(tile) {
-                let value = Zobrist::for_player_tile(player, tile, self.size);
+                let value = Zobrist::for_player_tile(player, tile, size);
                 new_zobrist ^= value;
             }
         }
         assert_eq!(self.zobrist, new_zobrist, "Invalid zobrist hash");
+
+        // check empty tiles linkedlist
+        {
+            let mut linked_empty_tiles = HashSet::new();
+
+            // "A |-> B" is read as "A points to B but B does not point back"
+            // TODO are we testing everything properly? should we also walk backwards?
+            match self.first_empty {
+                None => assert_eq!(None, self.last_empty, "Wrong last: start |-> end"),
+                Some(first) => assert_eq!(
+                    None, self.tiles[first as usize].prev_empty,
+                    "Wrong prev: start |-> {first}"
+                ),
+            }
+            let mut next = self.first_empty;
+
+            while let Some(curr) = next {
+                if !linked_empty_tiles.insert(curr as usize) {
+                    panic!("Empty linked list contains loop!");
+                }
+                next = self.tiles[curr as usize].next_empty;
+                match next {
+                    None => assert_eq!(Some(curr), self.last_empty, "Wrong last: {curr} |-> end"),
+                    Some(next) => assert_eq!(
+                        Some(curr),
+                        self.tiles[next as usize].prev_empty,
+                        "Wrong prev: {curr} |-> {next}"
+                    ),
+                }
+            }
+
+            assert_eq!(empty_tiles, linked_empty_tiles);
+        }
     }
 }
 
@@ -488,13 +589,6 @@ impl Group {
     // TODO give this a better name and clarify the semantics
     fn is_dead(&self) -> bool {
         self.stone_count == 0
-    }
-}
-
-#[allow(clippy::derivable_impls)]
-impl Default for Content {
-    fn default() -> Self {
-        Content { group_id: None }
     }
 }
 
