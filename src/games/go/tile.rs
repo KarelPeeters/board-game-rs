@@ -30,6 +30,11 @@ impl Tile {
         self.y as usize * size as usize + self.x as usize
     }
 
+    pub fn from_index(index: usize, size: u8) -> Tile {
+        assert!(index < size as usize * size as usize);
+        Tile::new((index % size as usize) as u8, (index / size as usize) as u8)
+    }
+
     pub fn all_adjacent(self, size: u8) -> impl Iterator<Item = Tile> + Clone {
         Direction::ALL
             .iter()

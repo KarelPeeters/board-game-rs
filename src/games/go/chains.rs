@@ -8,10 +8,12 @@ use crate::board::Player;
 use crate::games::go::tile::{Direction, Tile};
 use crate::games::go::{Score, Zobrist};
 
+// TODO replace Option<u16> with NonMaxU16 everywhere
+
 // TODO add function to remove stones?
 //   could be tricky since groups would have to be split
 //   can be pretty slow
-#[derive(Clone, Eq)]
+#[derive(Clone)]
 pub struct Chains {
     size: u8,
 
@@ -29,7 +31,7 @@ pub struct Chains {
 
 // TODO compact into single u8
 // TODO store the current tile in the content too without the extra indirection?
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 pub struct Content {
     pub group_id: Option<u16>,
     pub next_empty: Option<u16>,
@@ -48,7 +50,9 @@ pub struct Group {
     pub liberty_edge_count: u16,
     // TODO also track the real liberty count?
     //   not necessary for correctness, just for heuristics and convenience
-    // TODO add hash to group so we can quickly remove the entire group
+
+    // TODO add hash to group so we can quickly un-hash the entire group
+    // TODO add linked list of nodes so we can quickly remove or map tiles
 }
 
 // TODO replace vecs with on-stack vecs
@@ -151,9 +155,11 @@ impl Chains {
     }
 
     pub fn empty_tiles(&self) -> impl Iterator<Item = Tile> + '_ {
-        // TODO optimize with empty-tile linked list
-        // TODO also override count with the cached count?
-        Tile::all(self.size()).filter(move |&tile| self.stone_at(tile).is_none())
+        EmptyTileIterator {
+            chains: self,
+            next: self.first_empty,
+            tiles_left: self.empty_count(),
+        }
     }
 
     /// Is there a path between `start` and another tile with value `target` over only `player` tiles?
@@ -329,7 +335,7 @@ impl Chains {
 
         // investigate adjacent tiles
         let mut new_group = Group {
-            color: color,
+            color,
             stone_count: 1,
             liberty_edge_count: 0,
         };
@@ -390,10 +396,11 @@ impl Chains {
 
     fn set_stone_at(&mut self, tile: Tile, color: Player, group: u16) {
         let size = self.size();
+        let tile_index = tile.index(size);
 
         // update tile itself
         debug_assert!(self.stone_at(tile).is_none());
-        let content = &mut self.tiles[tile.index(size)];
+        let content = &mut self.tiles[tile_index];
         content.group_id = Some(group);
 
         // remove from empty linked list
@@ -592,6 +599,8 @@ impl Group {
     }
 }
 
+impl Eq for Chains {}
+
 impl PartialEq for Chains {
     fn eq(&self, other: &Self) -> bool {
         self.tiles.len() == other.tiles.len()
@@ -662,5 +671,48 @@ impl PlacementKind {
             PlacementKind::Normal | PlacementKind::SuicideSingle => false,
             PlacementKind::Capture | PlacementKind::SuicideMulti => true,
         }
+    }
+}
+
+#[derive(Debug)]
+struct EmptyTileIterator<'a> {
+    chains: &'a Chains,
+    next: Option<u16>,
+    tiles_left: u16,
+}
+
+impl Iterator for EmptyTileIterator<'_> {
+    type Item = Tile;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.next {
+            None => {
+                debug_assert_eq!(self.tiles_left, 0);
+                None
+            }
+            Some(index) => {
+                let tile = Tile::from_index(index as usize, self.chains.size());
+                self.tiles_left -= 1;
+                self.next = self.chains.tiles[index as usize].next_empty;
+                Some(tile)
+            }
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.len(), Some(self.len()))
+    }
+
+    fn count(self) -> usize
+    where
+        Self: Sized,
+    {
+        self.len()
+    }
+}
+
+impl ExactSizeIterator for EmptyTileIterator<'_> {
+    fn len(&self) -> usize {
+        self.tiles_left as usize
     }
 }
