@@ -114,6 +114,10 @@ impl GoBoard {
         self.chains().stone_at(tile)
     }
 
+    pub fn empty_tiles(&self) -> impl Iterator<Item = Tile> + '_ {
+        self.chains().empty_tiles()
+    }
+
     pub fn current_score(&self) -> Score {
         self.chains().score()
     }
@@ -164,10 +168,8 @@ impl GoBoard {
         self.check_done()?;
 
         // first try rejection sampling
-        let empty_tile_count = self.area() - self.chains().stone_count();
         for _ in 0..32 {
-            let index = rng.gen_range(0..empty_tile_count);
-            let tile = self.chains().empty_tiles().nth(index as usize).unwrap();
+            let tile = self.empty_tiles().choose(rng).unwrap();
 
             let mv = Move::Place(tile);
             if self.is_available_move(mv).unwrap() {
@@ -177,7 +179,6 @@ impl GoBoard {
 
         // fallback to exhaustively trying all empty tiles
         let mv = self
-            .chains()
             .empty_tiles()
             .filter(|&tile| self.is_available_move(Move::Place(tile)).unwrap())
             .choose(rng)
