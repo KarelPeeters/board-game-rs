@@ -127,6 +127,24 @@ impl Display for Move {
     }
 }
 
+#[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
+pub struct InvalidMove;
+
+impl FromStr for Move {
+    type Err = InvalidMove;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s == "PASS" {
+            Ok(Move::Pass)
+        } else {
+            match Tile::from_str(s) {
+                Ok(tile) => Ok(Move::Place(tile)),
+                Err(InvalidTile) => Err(InvalidMove),
+            }
+        }
+    }
+}
+
 fn player_symbol(player: Player) -> char {
     match player {
         Player::A => 'b',
