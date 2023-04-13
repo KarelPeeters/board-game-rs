@@ -320,6 +320,7 @@ impl Chains {
     //    collected inputs: type/group_id/liberties for each size
     //    outputs: what groups to merge and what groups to kill
     //    => simple function with 4 inputs, 4 outputs
+    #[allow(clippy::collapsible_else_if)]
     pub fn prepare_place_stone(&self, tile: Tile, color: Player) -> Result<PreparedPlacement, TileOccupied> {
         let size = self.size;
         let content = self.tiles[tile.index(size)];
@@ -341,7 +342,7 @@ impl Chains {
         let mut clear_enemy = vec![];
         let mut merge_friendly = vec![];
 
-        for adj in all_adjacent.clone() {
+        for adj in all_adjacent {
             let content = self.content_at(adj);
 
             match content.group_id {
