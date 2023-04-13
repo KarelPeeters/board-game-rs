@@ -5,6 +5,7 @@ use std::hash::{Hash, Hasher};
 use itertools::Itertools;
 
 use crate::board::Player;
+use crate::games::go::link::{LinkHead, LinkNode, NodeStorage, NodeStorageMut};
 use crate::games::go::tile::{Direction, Tile};
 use crate::games::go::{Score, Zobrist};
 
@@ -17,14 +18,11 @@ use crate::games::go::{Score, Zobrist};
 pub struct Chains {
     size: u8,
 
-    // core storage
-    first_empty: Option<u16>,
-    last_empty: Option<u16>,
-
     tiles: Vec<Content>,
     groups: Vec<Group>,
 
     // derived data
+    empty_list: LinkHead,
     stone_count: u16,
     zobrist: Zobrist,
 }
@@ -34,8 +32,7 @@ pub struct Chains {
 #[derive(Debug, Copy, Clone)]
 pub struct Content {
     pub group_id: Option<u16>,
-    pub next_empty: Option<u16>,
-    pub prev_empty: Option<u16>,
+    pub link: LinkNode,
 }
 
 // TODO compact? we can at least force player into one of the other fields
@@ -95,15 +92,13 @@ impl Chains {
         let tiles = (0..area)
             .map(|i| Content {
                 group_id: None,
-                next_empty: if i + 1 < area { Some(i + 1) } else { None },
-                prev_empty: if i > 0 { Some(i - 1) } else { None },
+                link: LinkNode::full(area, i),
             })
             .collect_vec();
 
         Chains {
             size,
-            first_empty: Some(0),
-            last_empty: Some(area - 1),
+            empty_list: LinkHead::full(area),
             tiles,
             groups: vec![],
             stone_count: 0,
@@ -146,6 +141,7 @@ impl Chains {
     /// Iterator over all of the groups that currently exist.
     /// The items are `(group_id, group)`. `group_id` is not necessarily continuous.
     pub fn groups(&self) -> impl Iterator<Item = (u16, Group)> + '_ {
+        // TODO implement exact size iterator for this? we can cache the number of alive groups
         self.groups
             .iter()
             .copied()
@@ -154,12 +150,11 @@ impl Chains {
             .map(|(id, group)| (id as u16, group))
     }
 
-    pub fn empty_tiles(&self) -> impl Iterator<Item = Tile> + '_ {
-        EmptyTileIterator {
-            chains: self,
-            next: self.first_empty,
-            tiles_left: self.empty_count(),
-        }
+    pub fn empty_tiles(&self) -> impl ExactSizeIterator<Item = Tile> + '_ {
+        let size = self.size();
+        self.empty_list
+            .iter(TileNodeStorage(&self.tiles))
+            .map(move |index| Tile::from_index(index as usize, size))
     }
 
     /// Is there a path between `start` and another tile with value `target` over only `player` tiles?
@@ -404,19 +399,8 @@ impl Chains {
         content.group_id = Some(group);
 
         // remove from empty linked list
-        {
-            let prev = content.prev_empty.take();
-            let next = content.next_empty.take();
-
-            match prev {
-                None => self.first_empty = next,
-                Some(prev) => self.tiles[prev as usize].next_empty = next,
-            }
-            match next {
-                None => self.last_empty = prev,
-                Some(next) => self.tiles[next as usize].prev_empty = prev,
-            }
-        }
+        self.empty_list
+            .remove(tile_index as u16, &mut TileNodeStorageMut(&mut self.tiles));
 
         // update hash and count
         self.zobrist ^= Zobrist::for_player_tile(color, tile, size);
@@ -440,18 +424,8 @@ impl Chains {
         content.group_id = None;
 
         // insert into empty linked list at the front
-        {
-            let prev_first = self.first_empty;
-
-            assert_eq!(None, content.prev_empty);
-            self.first_empty = Some(tile_index as u16);
-
-            content.next_empty = prev_first;
-            match prev_first {
-                None => self.last_empty = Some(tile_index as u16),
-                Some(next_empty) => self.tiles[next_empty as usize].prev_empty = Some(tile_index as u16),
-            }
-        }
+        self.empty_list
+            .insert_front(tile_index as u16, &mut TileNodeStorageMut(&mut self.tiles));
 
         // update hash and count
         self.zobrist ^= Zobrist::for_player_tile(color, tile, size);
@@ -520,14 +494,15 @@ impl Chains {
                 assert!(group.liberty_edge_count > 0 && group.stone_count > 0);
 
                 // non-empty tiles should not be part of the empty linked list
-                assert_eq!(None, content.prev_empty);
-                assert_eq!(None, content.next_empty);
+                // TODO remove this once tiles with stones are part of group linked lists
+                assert_eq!(None, content.link.prev);
+                assert_eq!(None, content.link.next);
 
                 // track info
                 used_groups.insert(id);
                 stone_count += 1;
             } else {
-                empty_tiles.insert(tile.index(size));
+                empty_tiles.insert(tile.index(size) as u16);
             }
         }
 
@@ -553,37 +528,8 @@ impl Chains {
         assert_eq!(self.zobrist, new_zobrist, "Invalid zobrist hash");
 
         // check empty tiles linkedlist
-        {
-            let mut linked_empty_tiles = HashSet::new();
-
-            // "A |-> B" is read as "A points to B but B does not point back"
-            // TODO are we testing everything properly? should we also walk backwards?
-            match self.first_empty {
-                None => assert_eq!(None, self.last_empty, "Wrong last: start |-> end"),
-                Some(first) => assert_eq!(
-                    None, self.tiles[first as usize].prev_empty,
-                    "Wrong prev: start |-> {first}"
-                ),
-            }
-            let mut next = self.first_empty;
-
-            while let Some(curr) = next {
-                if !linked_empty_tiles.insert(curr as usize) {
-                    panic!("Empty linked list contains loop!");
-                }
-                next = self.tiles[curr as usize].next_empty;
-                match next {
-                    None => assert_eq!(Some(curr), self.last_empty, "Wrong last: {curr} |-> end"),
-                    Some(next) => assert_eq!(
-                        Some(curr),
-                        self.tiles[next as usize].prev_empty,
-                        "Wrong prev: {curr} |-> {next}"
-                    ),
-                }
-            }
-
-            assert_eq!(empty_tiles, linked_empty_tiles);
-        }
+        let linked_empty_tiles = self.empty_list.assert_valid_and_collect(TileNodeStorage(&self.tiles));
+        assert_eq!(empty_tiles, linked_empty_tiles);
     }
 }
 
@@ -674,45 +620,24 @@ impl PlacementKind {
     }
 }
 
-#[derive(Debug)]
-struct EmptyTileIterator<'a> {
-    chains: &'a Chains,
-    next: Option<u16>,
-    tiles_left: u16,
-}
+struct TileNodeStorage<'a>(&'a [Content]);
 
-impl Iterator for EmptyTileIterator<'_> {
-    type Item = Tile;
+struct TileNodeStorageMut<'a>(&'a mut [Content]);
 
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.next {
-            None => {
-                debug_assert_eq!(self.tiles_left, 0);
-                None
-            }
-            Some(index) => {
-                let tile = Tile::from_index(index as usize, self.chains.size());
-                self.tiles_left -= 1;
-                self.next = self.chains.tiles[index as usize].next_empty;
-                Some(tile)
-            }
-        }
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.len(), Some(self.len()))
-    }
-
-    fn count(self) -> usize
-    where
-        Self: Sized,
-    {
-        self.len()
+impl NodeStorage for TileNodeStorage<'_> {
+    fn get_link(&self, index: u16) -> &LinkNode {
+        &self.0[index as usize].link
     }
 }
 
-impl ExactSizeIterator for EmptyTileIterator<'_> {
-    fn len(&self) -> usize {
-        self.tiles_left as usize
+impl NodeStorage for TileNodeStorageMut<'_> {
+    fn get_link(&self, index: u16) -> &LinkNode {
+        &self.0[index as usize].link
+    }
+}
+
+impl NodeStorageMut for TileNodeStorageMut<'_> {
+    fn get_link_mut(&mut self, index: u16) -> &mut LinkNode {
+        &mut self.0[index as usize].link
     }
 }
