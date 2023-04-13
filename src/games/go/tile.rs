@@ -25,6 +25,7 @@ impl Tile {
         (0..size).flat_map(move |y| (0..size).map(move |x| Tile::new(x, y)))
     }
 
+    // TODO return u16 instead?
     pub fn index(&self, size: u8) -> usize {
         self.y as usize * size as usize + self.x as usize
     }
