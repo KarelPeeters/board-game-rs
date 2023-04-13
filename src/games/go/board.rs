@@ -159,7 +159,7 @@ impl GoBoard {
     pub fn zobrist_full(&self) -> Zobrist {
         // TODO include rules?
         let mut result = self.chains().zobrist();
-        result ^= Zobrist::for_player_turn(self.next_player);
+        result ^= Zobrist::for_color_turn(self.next_player);
         result ^= Zobrist::for_pass_state(self.state);
         result
     }
