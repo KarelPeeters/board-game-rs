@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 
@@ -47,8 +47,9 @@ pub struct Group {
     pub liberty_edge_count: u16,
     // TODO also track the real liberty count?
     //   not necessary for correctness, just for heuristics and convenience
-
-    // TODO add hash to group so we can quickly un-hash the entire group
+    /// The combined hash of all tiles in this group.
+    /// Used to quickly remove all tiles in a dead group from the hash.
+    pub zobrist: Zobrist,
     // TODO add linked list of nodes so we can quickly remove or map tiles
 }
 
@@ -293,7 +294,7 @@ impl Chains {
         let mut stone_count_next = self.stone_count;
 
         if tile_survives {
-            zobrist_next ^= Zobrist::for_player_tile(color, tile, size);
+            zobrist_next ^= Zobrist::for_color_tile(color, tile, size);
             stone_count_next += 1;
         }
         if let Some((removed_groups, removed_color)) = removed_groups_color {
@@ -301,7 +302,7 @@ impl Chains {
             for other in Tile::all(size) {
                 if let Some(group_id) = self.tiles[other.index(size)].group_id {
                     if removed_groups.contains(&group_id) {
-                        zobrist_next ^= Zobrist::for_player_tile(removed_color, other, size);
+                        zobrist_next ^= Zobrist::for_color_tile(removed_color, other, size);
                         stone_count_next -= 1;
                     }
                 }
@@ -333,6 +334,7 @@ impl Chains {
             color,
             stone_count: 1,
             liberty_edge_count: 0,
+            zobrist: Zobrist::for_color_tile(color, tile, size),
         };
 
         let mut adjacent_groups = vec![];
@@ -354,6 +356,7 @@ impl Chains {
                         if group_factor == 1 {
                             new_group.stone_count += group.stone_count;
                             new_group.liberty_edge_count += group.liberty_edge_count;
+                            new_group.zobrist ^= group.zobrist;
                         }
                         new_group.liberty_edge_count -= 1;
                         merge_friendly.push(group_id);
@@ -379,7 +382,9 @@ impl Chains {
             PlacementKind::Normal
         };
 
-        // TODO deduplicate merge_friendly and clear_enemy?
+        // deduplicate to avoid future weirdness
+        merge_friendly.dedup();
+        clear_enemy.dedup();
 
         Ok(PreparedPlacement {
             new_group,
@@ -389,6 +394,8 @@ impl Chains {
         })
     }
 
+    /// Set the stone at the given `tile` to `color` as part of `group`.
+    /// This updates the tile content, the empty list, zobrist, the stone count and the liberties of adjacent groups.
     fn set_stone_at(&mut self, tile: Tile, color: Player, group: u16) {
         let size = self.size();
         let tile_index = tile.index(size);
@@ -403,7 +410,7 @@ impl Chains {
             .remove(tile_index as u16, &mut TileNodeStorageMut(&mut self.tiles));
 
         // update hash and count
-        self.zobrist ^= Zobrist::for_player_tile(color, tile, size);
+        self.zobrist ^= Zobrist::for_color_tile(color, tile, size);
         self.stone_count += 1;
 
         // decrease liberty of adjacent
@@ -414,7 +421,15 @@ impl Chains {
         }
     }
 
-    fn clear_stone_at(&mut self, tile: Tile, color: Player, clear: &[u16], merge: &[u16], into: u16) {
+    /// Remove the stone at the given `tile` of color `color` from the board.
+    ///
+    /// This updates the tile content, the empty list, and the liberties of adjacent groups.
+    /// Contrary to [Self::set_stone_at] this does **not** update the hash and stone count, hence the name "partial".
+    ///
+    /// Assumes that:
+    /// * `clear` groups will be removed and don't need to have their liberties incremented.
+    /// * `merge` groups will be replaced by `into`, and the latter liberties need to be incremented.
+    fn clear_stone_at_partial(&mut self, tile: Tile, color: Player, clear: &[u16], merge: &[u16], into: u16) {
         let size = self.size();
         let tile_index = tile.index(size);
 
@@ -426,10 +441,6 @@ impl Chains {
         // insert into empty linked list at the front
         self.empty_list
             .insert_front(tile_index as u16, &mut TileNodeStorageMut(&mut self.tiles));
-
-        // update hash and count
-        self.zobrist ^= Zobrist::for_player_tile(color, tile, size);
-        self.stone_count -= 1;
 
         // increase liberty of adjacent
         for adj in Tile::all_adjacent(tile, size) {
@@ -444,16 +455,16 @@ impl Chains {
         }
     }
 
-    // TODO optimize this with some linked-list type thing through tiles
     fn update_tile_groups(&mut self, clear: &[u16], color: Player, merge: &[u16], into: u16) {
         // update the tiles
+        // TODO use group/tile linked list instead
         for tile in Tile::all(self.size()) {
             let size = self.size();
 
             let content = &mut self.tiles[tile.index(size)];
             if let Some(group_id) = content.group_id {
                 if clear.contains(&group_id) {
-                    self.clear_stone_at(tile, color, clear, merge, into);
+                    self.clear_stone_at_partial(tile, color, clear, merge, into);
                 } else if merge.contains(&group_id) {
                     content.group_id = Some(into);
                 }
@@ -463,6 +474,11 @@ impl Chains {
         // mark the cleared groups as dead
         for &clear_group_id in clear {
             let clear_group = &mut self.groups[clear_group_id as usize];
+
+            // clear_stone_at_partial does not update the hash or stone count, we do that here in bulk instead
+            self.zobrist ^= clear_group.zobrist;
+            self.stone_count -= clear_group.stone_count;
+
             // we can't assert the liberty count here, we never actually decrement groups adjacent to the suicide stone
             clear_group.mark_dead();
         }
@@ -478,7 +494,7 @@ impl Chains {
         let size = self.size();
 
         // check per-tile stuff and collect info
-        let mut used_groups = HashSet::new();
+        let mut used_groups = HashMap::new();
         let mut empty_tiles = HashSet::new();
         let mut stone_count = 0;
 
@@ -499,7 +515,9 @@ impl Chains {
                 assert_eq!(None, content.link.next);
 
                 // track info
-                used_groups.insert(id);
+                let group_zobrist = used_groups.entry(id).or_insert(Zobrist::default());
+                *group_zobrist ^= Zobrist::for_color_tile(group.color, tile, size);
+
                 stone_count += 1;
             } else {
                 empty_tiles.insert(tile.index(size) as u16);
@@ -514,14 +532,19 @@ impl Chains {
             assert_eq!((group.stone_count == 0), (group.liberty_edge_count == 0));
 
             // groups must be used xor dead
-            assert!(used_groups.contains(&(id as u16)) ^ group.is_dead());
+            assert!(used_groups.contains_key(&(id as u16)) ^ group.is_dead());
+
+            // group zobrist must be correct
+            if let Some(&zobrist) = used_groups.get(&(id as u16)) {
+                assert_eq!(zobrist, group.zobrist);
+            }
         }
 
         // check hash validness
         let mut new_zobrist = Zobrist::default();
         for tile in Tile::all(size) {
             if let Some(player) = self.stone_at(tile) {
-                let value = Zobrist::for_player_tile(player, tile, size);
+                let value = Zobrist::for_color_tile(player, tile, size);
                 new_zobrist ^= value;
             }
         }
@@ -537,6 +560,7 @@ impl Group {
     fn mark_dead(&mut self) {
         self.stone_count = 0;
         self.liberty_edge_count = 0;
+        self.zobrist = Zobrist::default();
     }
 
     // TODO give this a better name and clarify the semantics

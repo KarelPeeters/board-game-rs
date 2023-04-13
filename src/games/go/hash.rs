@@ -16,25 +16,26 @@ pub struct Zobrist(Inner);
 const MAX_AREA: usize = Chains::MAX_AREA as usize;
 
 pub struct HashData {
-    player_tile: [[Zobrist; MAX_AREA]; 2],
-    player_turn: [Zobrist; 2],
+    color_tile: [[Zobrist; MAX_AREA]; 2],
+    color_turn: [Zobrist; 2],
     pass_state: [Zobrist; 3],
 }
 
 impl Zobrist {
-    pub fn for_player_tile(player: Player, tile: Tile, size: u8) -> Zobrist {
+    pub fn for_color_tile(color: Player, tile: Tile, size: u8) -> Zobrist {
         // TODO use size? or should we always use the max size here?
-        let player_index = player.index() as usize;
+        let color_index = color.index() as usize;
         let tile_index = tile.index(size);
-        HASH_DATA.player_tile[player_index][tile_index]
+        HASH_DATA.color_tile[color_index][tile_index]
     }
 
-    pub fn for_player_turn(player: Player) -> Zobrist {
-        let player_index = player.index() as usize;
-        HASH_DATA.player_turn[player_index]
+    pub fn for_color_turn(color: Player) -> Zobrist {
+        let color_index = color.index() as usize;
+        HASH_DATA.color_turn[color_index]
     }
 
     pub fn for_pass_state(state: State) -> Zobrist {
+        // don't include outcome, that is implicit from the other tiles anyway
         let state_index = match state {
             State::Normal => 0,
             State::Passed => 1,
@@ -55,8 +56,8 @@ impl HashData {
         let mut rng = StdRng::seed_from_u64(0);
 
         HashData {
-            player_tile: [gen_array(&mut rng), gen_array(&mut rng)],
-            player_turn: gen_array(&mut rng),
+            color_tile: [gen_array(&mut rng), gen_array(&mut rng)],
+            color_turn: gen_array(&mut rng),
             pass_state: gen_array(&mut rng),
         }
     }
