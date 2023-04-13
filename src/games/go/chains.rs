@@ -357,9 +357,9 @@ impl Chains {
                             new_group.stone_count += group.stone_count;
                             new_group.liberty_edge_count += group.liberty_edge_count;
                             new_group.zobrist ^= group.zobrist;
+                            merge_friendly.push(group_id);
                         }
                         new_group.liberty_edge_count -= 1;
-                        merge_friendly.push(group_id);
                     } else {
                         if group.liberty_edge_count == group_factor {
                             clear_enemy.push(group_id);
@@ -368,6 +368,10 @@ impl Chains {
                 }
             }
         }
+
+        // check that things are unique
+        debug_assert!(merge_friendly.iter().dedup().count() == merge_friendly.len());
+        debug_assert!(clear_enemy.iter().dedup().count() == clear_enemy.len());
 
         // decide what kind of placement this is
         let kind = if !clear_enemy.is_empty() {
@@ -381,10 +385,6 @@ impl Chains {
         } else {
             PlacementKind::Normal
         };
-
-        // deduplicate to avoid future weirdness
-        merge_friendly.dedup();
-        clear_enemy.dedup();
 
         Ok(PreparedPlacement {
             new_group,
