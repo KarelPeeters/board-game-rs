@@ -10,6 +10,54 @@ use board_game::board::Player;
 use board_game::games::go::{Chains, Group, PlacementKind, Tile};
 
 #[test]
+fn empty() {
+    let chains = Chains::new(5);
+
+    println!("{}", chains);
+    chains_test_main(&chains);
+}
+
+#[test]
+fn single() {
+    let mut chains = Chains::new(5);
+    chains.place_stone(Tile::new(0, 0), Player::A).unwrap();
+
+    println!("{}", chains);
+    chains_test_main(&chains);
+}
+
+#[test]
+fn double_separate() {
+    let mut chains = Chains::new(5);
+    chains.place_stone(Tile::new(0, 0), Player::A).unwrap();
+    chains.place_stone(Tile::new(2, 0), Player::A).unwrap();
+
+    println!("{}", chains);
+    chains_test_main(&chains);
+}
+
+#[test]
+fn double_adjacent_same() {
+    let mut chains = Chains::new(5);
+    chains.place_stone(Tile::new(0, 0), Player::A).unwrap();
+
+    println!("{}", chains);
+    let placement = chains.prepare_place_stone(Tile::new(1, 0), Player::A).unwrap();
+    println!("{:?}", placement);
+
+    chains.place_stone(Tile::new(1, 0), Player::A).unwrap();
+    chains_test_main(&chains);
+}
+
+#[test]
+fn double_adjacent_diff() {
+    let mut chains = Chains::new(5);
+    chains.place_stone(Tile::new(0, 0), Player::A).unwrap();
+    chains.place_stone(Tile::new(1, 0), Player::B).unwrap();
+    chains_test_main(&chains);
+}
+
+#[test]
 fn corner_triangle_corner_first() {
     let tiles = [(0, 0, Player::A), (0, 1, Player::A), (1, 0, Player::A)];
     let chains = build_chains(5, &tiles);
@@ -188,6 +236,8 @@ fn fill_board() {
     };
     expected.assert_eq(chains.group_at(Tile::new(0, 0)));
 
+    chains_test_main(&chains);
+
     {
         // ensure the full board gets suicide captured
         let mut new_chains = chains.clone();
@@ -310,17 +360,37 @@ pub fn chains_test_main(chains: &Chains) {
     chains.assert_valid();
     check_floodfill(chains);
     check_fen(chains);
-    check_simulate(chains);
 }
 
 fn check_fen(chains: &Chains) {
     let fen = chains.to_fen();
     let new = Chains::from_fen(&fen).unwrap();
     assert_eq!(chains.to_fen(), new.to_fen());
+
     for tile in Tile::all(chains.size()) {
         let group = chains.group_at(tile);
         let new_group = new.group_at(tile);
-        assert_eq!(group, new_group, "Group mismatch at {:?}", tile);
+
+        match (group, new_group) {
+            (None, None) => {}
+            (Some(group), Some(new_group)) => {
+                let &Group {
+                    color,
+                    ref stones,
+                    liberty_edge_count,
+                    zobrist,
+                } = group;
+
+                assert_eq!(color, new_group.color);
+                assert_eq!(liberty_edge_count, new_group.liberty_edge_count);
+                assert_eq!(zobrist, new_group.zobrist);
+
+                let group_stones = stones.assert_valid_and_collect(chains.tile_storage());
+                let new_group_stones = new_group.stones.assert_valid_and_collect(new.tile_storage());
+                assert_eq!(group_stones, new_group_stones);
+            }
+            _ => panic!("Occupation does not match"),
+        }
     }
 }
 
@@ -353,7 +423,7 @@ fn check_floodfill(chains: &Chains) {
     }
 }
 
-fn check_simulate(chains: &Chains) {
+pub fn chains_test_simulate(chains: &Chains) {
     for tile in Tile::all(chains.size()) {
         for color in [Player::A, Player::B] {
             let sim = chains.simulate_place_stone(tile, color);
@@ -459,19 +529,19 @@ struct GroupExpect {
 }
 
 impl GroupExpect {
-    /// Assert that groups match, ignoring the hash.
-    fn assert_eq(self, actual: Option<Group>) {
+    /// Assert the given group matches the expected values.
+    fn assert_eq(self, actual: Option<&Group>) {
         let actual = actual.map(|actual| {
-            let Group {
+            let &Group {
                 color,
-                stone_count,
+                ref stones,
                 liberty_edge_count,
                 zobrist: _,
             } = actual;
 
             GroupExpect {
                 color,
-                stone_count,
+                stone_count: stones.len(),
                 liberty_edge_count,
             }
         });
