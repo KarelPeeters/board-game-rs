@@ -1,10 +1,10 @@
 use std::cmp::Ordering;
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::ops::ControlFlow;
 
 use internal_iterator::InternalIterator;
-use itertools::Itertools;
 use rand::seq::IteratorRandom;
 use rand::Rng;
 
@@ -26,7 +26,7 @@ pub struct GoBoard {
     // TODO use a hashset instead? or some even better structure?
     //   maybe this can be (partially) shared between board clones?
     //   a hashset would be nicer for TTs
-    history: Vec<Zobrist>,
+    history: HashSet<Zobrist>,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -66,7 +66,7 @@ impl GoBoard {
             chains: Chains::new(size),
             next_player: Player::A,
             state: State::Normal,
-            history: Vec::new(),
+            history: Default::default(),
         }
     }
 
@@ -75,7 +75,7 @@ impl GoBoard {
         chains: Chains,
         next_player: Player,
         state: State,
-        history: Vec<Zobrist>,
+        history: HashSet<Zobrist>,
     ) -> GoBoard {
         GoBoard {
             rules,
@@ -106,7 +106,7 @@ impl GoBoard {
         self.state
     }
 
-    pub fn history(&self) -> &[Zobrist] {
+    pub fn history(&self) -> &HashSet<Zobrist> {
         &self.history
     }
 
@@ -127,7 +127,13 @@ impl GoBoard {
     }
 
     pub fn without_history(&self) -> Self {
-        Self::from_parts(self.rules, self.chains.clone(), self.next_player, self.state, vec![])
+        Self::from_parts(
+            self.rules,
+            self.chains.clone(),
+            self.next_player,
+            self.state,
+            Default::default(),
+        )
     }
 
     fn is_available_move_sim(&self, sim: SimulatedPlacement) -> bool {
@@ -145,7 +151,7 @@ impl GoBoard {
 
         // check history
         //   scan in reverse to hopefully find quicker matches
-        if !self.rules.allow_repeating_tiles() && self.history.iter().rev().contains(&sim.zobrist_next) {
+        if !self.rules.allow_repeating_tiles() && self.history.contains(&sim.zobrist_next) {
             return false;
         }
 
@@ -237,7 +243,7 @@ impl Board for GoBoard {
             Move::Place(tile) => {
                 // update history
                 if self.rules.needs_history() {
-                    self.history.push(self.chains.zobrist());
+                    self.history.insert(self.chains.zobrist());
                 }
 
                 // actually place the tile and check for errors
