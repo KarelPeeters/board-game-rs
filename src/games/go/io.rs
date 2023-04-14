@@ -2,21 +2,16 @@ use std::fmt::{Debug, Display, Formatter};
 use std::str::FromStr;
 
 use itertools::Itertools;
+use static_assertions::const_assert;
 
 use crate::board::{Board, Player};
 use crate::games::go::chains::Chains;
 use crate::games::go::tile::Tile;
-use crate::games::go::{GoBoard, Move, PlacementKind, Rules, State, TileOccupied};
+use crate::games::go::{GoBoard, Move, PlacementKind, Rules, State, TileOccupied, GO_MAX_SIZE};
 
 impl Display for Tile {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}", Tile::x_to_char(self.x).unwrap(), self.y + 1)
-    }
-}
-
-impl Debug for Tile {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Tile(({}, {}), {})", self.x, self.y, self)
+        write!(f, "{}{}", Tile::x_to_char(self.x()).unwrap(), self.y() + 1)
     }
 }
 
@@ -25,6 +20,8 @@ pub struct InvalidTile;
 
 #[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
 pub struct InvalidX;
+
+const_assert!(GO_MAX_SIZE as usize <= Tile::TILE_X_NAMES.len());
 
 impl Tile {
     // By convention 'I' is skipped because it can be confused with "1".
@@ -79,11 +76,12 @@ impl Display for GoBoard {
 
             for x in 0..size {
                 let tile = Tile::new(x, y);
+                let tile_flat = tile.to_flat(size);
                 let player = self.stone_at(tile);
                 let c = match player {
                     None => {
-                        let reaches_a = self.chains().reaches(tile, Some(Player::A));
-                        let reaches_b = self.chains().reaches(tile, Some(Player::B));
+                        let reaches_a = self.chains().reaches(tile_flat, Some(Player::A));
+                        let reaches_b = self.chains().reaches(tile_flat, Some(Player::B));
                         if reaches_a ^ reaches_b {
                             '-'
                         } else {
@@ -205,7 +203,7 @@ impl Chains {
         } else {
             for y in (0..size).rev() {
                 for x in 0..size {
-                    let tile = Tile::new(x, y);
+                    let tile = Tile::new(x, y).to_flat(size);
                     let player = self.stone_at(tile);
                     let c = match player {
                         None => '.',
@@ -231,7 +229,7 @@ impl Chains {
             let lines: Vec<&str> = fen.split('/').collect_vec();
             let size = lines.len();
 
-            check(size <= Chains::MAX_SIZE as usize, InvalidFen::TooLarge)?;
+            check(size <= GO_MAX_SIZE as usize, InvalidFen::TooLarge)?;
             let size = size as u8;
 
             let mut chains = Chains::new(size);
@@ -240,7 +238,7 @@ impl Chains {
                 check(line.len() == size as usize, InvalidFen::InvalidShape)?;
 
                 for (x, value) in line.chars().enumerate() {
-                    let tile = Tile::new(x as u8, y as u8);
+                    let tile = Tile::new(x as u8, y as u8).to_flat(size);
                     let value = match value {
                         'b' => Some(Player::A),
                         'w' => Some(Player::B),
