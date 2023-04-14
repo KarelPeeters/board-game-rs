@@ -13,7 +13,7 @@ use crate::board::{
 };
 use crate::games::go::chains::Chains;
 use crate::games::go::tile::Tile;
-use crate::games::go::{PlacementKind, Rules, SimulatedPlacement, TileOccupied, Zobrist};
+use crate::games::go::{PlacementKind, Rules, SimulatedPlacement, TileOccupied, Zobrist, GO_MAX_SIZE};
 use crate::impl_unit_symmetry_board;
 
 #[derive(Clone, Eq, PartialEq)]
@@ -111,11 +111,11 @@ impl GoBoard {
     }
 
     pub fn stone_at(&self, tile: Tile) -> Option<Player> {
-        self.chains().stone_at(tile)
+        self.chains().stone_at(tile.to_flat(self.size()))
     }
 
-    pub fn empty_tiles(&self) -> impl Iterator<Item = Tile> + '_ {
-        self.chains().empty_tiles()
+    pub fn empty_tiles(&self) -> impl ExactSizeIterator<Item = Tile> + '_ {
+        self.chains().empty_tiles().map(move |tile| tile.to_tile(self.size()))
     }
 
     pub fn current_score(&self) -> Score {
@@ -203,6 +203,7 @@ impl Board for GoBoard {
                 if !tile.exists(self.size()) {
                     false
                 } else {
+                    let tile = tile.to_flat(self.size());
                     match self.chains.simulate_place_stone(tile, self.next_player) {
                         Ok(sim) => self.is_available_move_sim(sim),
                         Err(TileOccupied) => false,
@@ -240,6 +241,7 @@ impl Board for GoBoard {
                 }
 
                 // actually place the tile and check for errors
+                let tile = tile.to_flat(self.size());
                 let kind = self
                     .chains
                     .place_stone(tile, curr)
@@ -305,7 +307,7 @@ impl InternalIterator for AllMovesIterator<GoBoard> {
         F: FnMut(Self::Item) -> ControlFlow<R>,
     {
         f(Move::Pass)?;
-        for tile in Tile::all(Chains::MAX_SIZE) {
+        for tile in Tile::all(GO_MAX_SIZE) {
             f(Move::Place(tile))?;
         }
         ControlFlow::Continue(())

@@ -7,7 +7,7 @@ use rand::seq::{IteratorRandom, SliceRandom};
 use rand::{Rng, SeedableRng};
 
 use board_game::board::Player;
-use board_game::games::go::{Chains, Group, PlacementKind, Tile};
+use board_game::games::go::{Chains, FlatTile, Group, PlacementKind, Tile};
 
 #[test]
 fn empty() {
@@ -20,7 +20,9 @@ fn empty() {
 #[test]
 fn single() {
     let mut chains = Chains::new(5);
-    chains.place_stone(Tile::new(0, 0), Player::A).unwrap();
+    chains
+        .place_stone(Tile::new(0, 0).to_flat(chains.size()), Player::A)
+        .unwrap();
 
     println!("{}", chains);
     chains_test_main(&chains);
@@ -29,8 +31,12 @@ fn single() {
 #[test]
 fn double_separate() {
     let mut chains = Chains::new(5);
-    chains.place_stone(Tile::new(0, 0), Player::A).unwrap();
-    chains.place_stone(Tile::new(2, 0), Player::A).unwrap();
+    chains
+        .place_stone(Tile::new(0, 0).to_flat(chains.size()), Player::A)
+        .unwrap();
+    chains
+        .place_stone(Tile::new(2, 0).to_flat(chains.size()), Player::A)
+        .unwrap();
 
     println!("{}", chains);
     chains_test_main(&chains);
@@ -39,21 +45,35 @@ fn double_separate() {
 #[test]
 fn double_adjacent_same() {
     let mut chains = Chains::new(5);
-    chains.place_stone(Tile::new(0, 0), Player::A).unwrap();
+    chains
+        .place_stone(Tile::new(0, 0).to_flat(chains.size()), Player::A)
+        .unwrap();
 
     println!("{}", chains);
-    let placement = chains.prepare_place_stone(Tile::new(1, 0), Player::A).unwrap();
+    let placement = chains
+        .prepare_place_stone(Tile::new(1, 0).to_flat(chains.size()), Player::A)
+        .unwrap();
     println!("{:?}", placement);
 
-    chains.place_stone(Tile::new(1, 0), Player::A).unwrap();
+    chains
+        .place_stone(Tile::new(1, 0).to_flat(chains.size()), Player::A)
+        .unwrap();
+
+    println!("{}", chains);
     chains_test_main(&chains);
 }
 
 #[test]
 fn double_adjacent_diff() {
     let mut chains = Chains::new(5);
-    chains.place_stone(Tile::new(0, 0), Player::A).unwrap();
-    chains.place_stone(Tile::new(1, 0), Player::B).unwrap();
+    chains
+        .place_stone(Tile::new(0, 0).to_flat(chains.size()), Player::A)
+        .unwrap();
+    chains
+        .place_stone(Tile::new(1, 0).to_flat(chains.size()), Player::B)
+        .unwrap();
+
+    println!("{}", chains);
     chains_test_main(&chains);
 }
 
@@ -70,7 +90,7 @@ fn corner_triangle_corner_first() {
         stone_count: 3,
         liberty_edge_count: 4,
     };
-    expected.assert_eq(chains.group_at(Tile::new(0, 0)));
+    expected.assert_eq(chains.group_at(Tile::new(0, 0).to_flat(chains.size())));
 }
 
 #[test]
@@ -86,7 +106,7 @@ fn corner_triangle_corner_last() {
         stone_count: 3,
         liberty_edge_count: 4,
     };
-    expected.assert_eq(chains.group_at(Tile::new(0, 0)));
+    expected.assert_eq(chains.group_at(Tile::new(0, 0).to_flat(chains.size())));
 }
 
 #[test]
@@ -107,7 +127,7 @@ fn merge_long_overlapping() {
         stone_count: 11,
         liberty_edge_count: 19,
     };
-    expected.assert_eq(chains.group_at(Tile::new(2, 0)));
+    expected.assert_eq(chains.group_at(Tile::new(2, 0).to_flat(chains.size())));
 }
 
 #[test]
@@ -128,7 +148,7 @@ fn cyclic_group() {
         stone_count: 4,
         liberty_edge_count: 4,
     };
-    expected.assert_eq(chains.group_at(Tile::new(0, 0)));
+    expected.assert_eq(chains.group_at(Tile::new(0, 0).to_flat(chains.size())));
 }
 
 #[test]
@@ -138,7 +158,9 @@ fn capture_corner() {
     println!("{}", chains);
     assert_eq!(chains.to_fen(), "...../...../...../w..../b....");
 
-    let kind = chains.place_stone(Tile::new(1, 0), Player::B).unwrap();
+    let kind = chains
+        .place_stone(Tile::new(1, 0).to_flat(chains.size()), Player::B)
+        .unwrap();
     println!("{}", chains);
     assert_eq!(chains.to_fen(), "...../...../...../w..../.w...");
     assert_eq!(kind, PlacementKind::Capture);
@@ -148,8 +170,8 @@ fn capture_corner() {
         stone_count: 1,
         liberty_edge_count: 3,
     };
-    expected.assert_eq(chains.group_at(Tile::new(1, 0)));
-    expected.assert_eq(chains.group_at(Tile::new(0, 1)));
+    expected.assert_eq(chains.group_at(Tile::new(1, 0).to_flat(chains.size())));
+    expected.assert_eq(chains.group_at(Tile::new(0, 1).to_flat(chains.size())));
 
     chains_test_main(&chains);
 }
@@ -160,14 +182,14 @@ fn capture_cyclic_group() {
 
     let tiles = Tile::all(size)
         .filter_map(|tile| {
-            let edge_x = tile.x == 0 || tile.x == 4;
-            let edge_y = tile.y == 0 || tile.y == 4;
+            let edge_x = tile.x() == 0 || tile.x() == 4;
+            let edge_y = tile.y() == 0 || tile.y() == 4;
             if edge_x && edge_y {
                 None
             } else if edge_x || edge_y {
-                Some((tile.x, tile.y, Player::A))
+                Some((tile.x(), tile.y(), Player::A))
             } else if tile != Tile::new(2, 2) {
-                Some((tile.x, tile.y, Player::B))
+                Some((tile.x(), tile.y(), Player::B))
             } else {
                 None
             }
@@ -188,14 +210,16 @@ fn capture_cyclic_group() {
         stone_count: 8,
         liberty_edge_count: 4,
     };
-    expected_edge.assert_eq(chains.group_at(Tile::new(0, 2)));
-    expected_edge.assert_eq(chains.group_at(Tile::new(4, 2)));
-    expected_edge.assert_eq(chains.group_at(Tile::new(2, 0)));
-    expected_edge.assert_eq(chains.group_at(Tile::new(2, 4)));
-    expected_core.assert_eq(chains.group_at(Tile::new(1, 1)));
+    expected_edge.assert_eq(chains.group_at(Tile::new(0, 2).to_flat(chains.size())));
+    expected_edge.assert_eq(chains.group_at(Tile::new(4, 2).to_flat(chains.size())));
+    expected_edge.assert_eq(chains.group_at(Tile::new(2, 0).to_flat(chains.size())));
+    expected_edge.assert_eq(chains.group_at(Tile::new(2, 4).to_flat(chains.size())));
+    expected_core.assert_eq(chains.group_at(Tile::new(1, 1).to_flat(chains.size())));
     chains_test_main(&chains);
 
-    let kind = chains.place_stone(Tile::new(2, 2), Player::A).unwrap();
+    let kind = chains
+        .place_stone(Tile::new(2, 2).to_flat(chains.size()), Player::A)
+        .unwrap();
     println!("{}", chains);
     assert_eq!(chains.to_fen(), ".bbb./b...b/b.b.b/b...b/.bbb.");
     assert_eq!(kind, PlacementKind::Capture);
@@ -210,11 +234,11 @@ fn capture_cyclic_group() {
         stone_count: 1,
         liberty_edge_count: 4,
     };
-    expected_edge_new.assert_eq(chains.group_at(Tile::new(0, 2)));
-    expected_edge_new.assert_eq(chains.group_at(Tile::new(4, 2)));
-    expected_edge_new.assert_eq(chains.group_at(Tile::new(2, 0)));
-    expected_edge_new.assert_eq(chains.group_at(Tile::new(2, 4)));
-    expected_center.assert_eq(chains.group_at(Tile::new(2, 2)));
+    expected_edge_new.assert_eq(chains.group_at(Tile::new(0, 2).to_flat(chains.size())));
+    expected_edge_new.assert_eq(chains.group_at(Tile::new(4, 2).to_flat(chains.size())));
+    expected_edge_new.assert_eq(chains.group_at(Tile::new(2, 0).to_flat(chains.size())));
+    expected_edge_new.assert_eq(chains.group_at(Tile::new(2, 4).to_flat(chains.size())));
+    expected_center.assert_eq(chains.group_at(Tile::new(2, 2).to_flat(chains.size())));
 
     chains_test_main(&chains);
 }
@@ -223,9 +247,9 @@ fn capture_cyclic_group() {
 fn fill_board() {
     let size = 5;
 
-    let mut tiles = Tile::all(size).map(|t| (t.x, t.y, Player::A)).collect_vec();
+    let mut tiles = Tile::all(size).map(|t| (t.x(), t.y(), Player::A)).collect_vec();
     let last = tiles.pop().unwrap();
-    let last_tile = Tile::new(last.0, last.1);
+    let last_tile = Tile::new(last.0, last.1).to_flat(size);
 
     let chains = build_chains(size, &tiles);
     println!("{}", chains);
@@ -234,7 +258,7 @@ fn fill_board() {
         stone_count: size as u16 * size as u16 - 1,
         liberty_edge_count: 2,
     };
-    expected.assert_eq(chains.group_at(Tile::new(0, 0)));
+    expected.assert_eq(chains.group_at(Tile::new(0, 0).to_flat(chains.size())));
 
     chains_test_main(&chains);
 
@@ -266,7 +290,9 @@ fn capture_jagged() {
     let mut chains = Chains::from_fen("wbbb/wwbb/.bbw/wwww").unwrap();
     println!("{}", chains);
 
-    let kind = chains.place_stone(Tile::new(0, 1), Player::B).unwrap();
+    let kind = chains
+        .place_stone(Tile::new(0, 1).to_flat(chains.size()), Player::B)
+        .unwrap();
     println!("{}", chains);
     assert_eq!(chains.to_fen(), "w.../ww../w..w/wwww");
     assert_eq!(kind, PlacementKind::Capture);
@@ -276,7 +302,7 @@ fn capture_jagged() {
         stone_count: 9,
         liberty_edge_count: 9,
     };
-    expected.assert_eq(chains.group_at(Tile::new(0, 0)));
+    expected.assert_eq(chains.group_at(Tile::new(0, 0).to_flat(chains.size())));
 
     chains_test_main(&chains);
 }
@@ -287,7 +313,7 @@ fn fill_board_simulation() {
     println!("{}", chains);
     chains.assert_valid();
 
-    let tile = Tile::new(4, 4);
+    let tile = Tile::new(4, 4).to_flat(chains.size());
     let color = Player::A;
 
     let sim = chains.simulate_place_stone(tile, color).unwrap();
@@ -317,7 +343,7 @@ fn fuzz_test() {
         // move limit
         for _move_index in 0..1000 {
             // pick random empty tile
-            let tile = Tile::all(size)
+            let tile = FlatTile::all(size)
                 .filter(|&tile| chains.stone_at(tile).is_none())
                 .choose(&mut rng);
             let tile = match tile {
@@ -338,7 +364,7 @@ fn fuzz_test() {
 fn build_chains(size: u8, tiles: &[(u8, u8, Player)]) -> Chains {
     let mut chains = Chains::new(size);
     for &(x, y, player) in tiles {
-        let tile = Tile::new(x, y);
+        let tile = Tile::new(x, y).to_flat(chains.size());
 
         let simulated = chains.simulate_place_stone(tile, player).unwrap();
 
@@ -367,7 +393,7 @@ fn check_fen(chains: &Chains) {
     let new = Chains::from_fen(&fen).unwrap();
     assert_eq!(chains.to_fen(), new.to_fen());
 
-    for tile in Tile::all(chains.size()) {
+    for tile in FlatTile::all(chains.size()) {
         let group = chains.group_at(tile);
         let new_group = new.group_at(tile);
 
@@ -402,10 +428,8 @@ fn check_floodfill(chains: &Chains) {
 
     let mut map_id = HashMap::new();
 
-    for tile in Tile::all(size) {
-        let index = tile.index(size);
-
-        let expected_id = floodfill.tile_group[index];
+    for tile in FlatTile::all(size) {
+        let expected_id = floodfill.tile_group[tile.index() as usize];
         let expected_group = expected_id.map(|id| floodfill.groups[id]);
 
         let actual_id = chains.content_at(tile).group_id;
@@ -424,7 +448,7 @@ fn check_floodfill(chains: &Chains) {
 }
 
 pub fn chains_test_simulate(chains: &Chains) {
-    for tile in Tile::all(chains.size()) {
+    for tile in FlatTile::all(chains.size()) {
         for color in [Player::A, Player::B] {
             let sim = chains.simulate_place_stone(tile, color);
             let mut real = chains.clone();
@@ -458,9 +482,8 @@ fn compute_floodfill(chains: &Chains) -> FloodFill {
     let mut tile_group = vec![None; area];
 
     // figure out the group for each tile
-    for start in Tile::all(size) {
-        let start_index = start.index(size);
-        if tile_group[start_index].is_some() {
+    for start in FlatTile::all(size) {
+        if tile_group[start.index() as usize].is_some() {
             // already part of another group
             continue;
         }
@@ -481,7 +504,7 @@ fn compute_floodfill(chains: &Chains) -> FloodFill {
         let mut liberties: u64 = 0;
 
         while let Some(curr) = todo.pop() {
-            let curr_index = curr.index(size);
+            let curr_index = curr.index() as usize;
 
             match chains.stone_at(curr) {
                 None => {
@@ -512,9 +535,9 @@ fn compute_floodfill(chains: &Chains) -> FloodFill {
     }
 
     // check that tiles are covered
-    for tile in Tile::all(size) {
+    for tile in FlatTile::all(size) {
         if chains.stone_at(tile).is_some() {
-            assert!(tile_group[tile.index(size)].is_some());
+            assert!(tile_group[tile.index() as usize].is_some());
         }
     }
 

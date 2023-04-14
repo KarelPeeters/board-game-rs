@@ -6,32 +6,26 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
 use crate::board::Player;
-use crate::games::go::{Chains, State, Tile};
+use crate::games::go::{FlatTile, State, GO_MAX_AREA};
 
 type Inner = u128;
 
 #[derive(Default, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Zobrist(Inner);
 
-const MAX_AREA: usize = Chains::MAX_AREA as usize;
-
 pub struct HashData {
-    color_tile: [[Zobrist; MAX_AREA]; 2],
+    color_tile: [[Zobrist; GO_MAX_AREA as usize]; 2],
     color_turn: [Zobrist; 2],
     pass_state: [Zobrist; 3],
 }
 
 impl Zobrist {
-    pub fn for_color_tile(color: Player, tile: Tile, size: u8) -> Zobrist {
-        // TODO use size? or should we always use the max size here?
-        let color_index = color.index() as usize;
-        let tile_index = tile.index(size);
-        HASH_DATA.color_tile[color_index][tile_index]
+    pub fn for_color_tile(color: Player, tile: FlatTile) -> Zobrist {
+        HASH_DATA.color_tile[color.index() as usize][tile.index() as usize]
     }
 
     pub fn for_color_turn(color: Player) -> Zobrist {
-        let color_index = color.index() as usize;
-        HASH_DATA.color_turn[color_index]
+        HASH_DATA.color_turn[color.index() as usize]
     }
 
     pub fn for_pass_state(state: State) -> Zobrist {

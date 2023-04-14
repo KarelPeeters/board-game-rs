@@ -7,7 +7,7 @@ use itertools::Itertools;
 use crate::board::Player;
 use crate::games::go::link::{LinkHead, LinkNode, NodeStorage, NodeStorageMut};
 use crate::games::go::tile::{Direction, Tile};
-use crate::games::go::{Score, Zobrist};
+use crate::games::go::{FlatTile, Score, Zobrist, GO_MAX_SIZE};
 
 // TODO replace Option<u16> with NonMaxU16 everywhere
 
@@ -95,11 +95,8 @@ macro_rules! storage {
 }
 
 impl Chains {
-    pub const MAX_SIZE: u8 = 19;
-    pub const MAX_AREA: u16 = Self::MAX_SIZE as u16 * Self::MAX_SIZE as u16;
-
     pub fn new(size: u8) -> Self {
-        assert!(size <= Self::MAX_SIZE);
+        assert!(size <= GO_MAX_SIZE);
 
         let area = size as u16 * size as u16;
         let tiles = (0..area)
@@ -137,15 +134,15 @@ impl Chains {
     // TODO find a batter way to expose internal state
     //   eg. do we want to expose the group id?
     //   how can a user iterate over the stones in a group?
-    pub fn content_at(&self, tile: Tile) -> &Content {
-        &self.tiles[tile.index(self.size)]
+    pub fn content_at(&self, tile: FlatTile) -> &Content {
+        &self.tiles[tile.index() as usize]
     }
 
-    pub fn group_at(&self, tile: Tile) -> Option<&Group> {
+    pub fn group_at(&self, tile: FlatTile) -> Option<&Group> {
         self.content_at(tile).group_id.map(|id| &self.groups[id as usize])
     }
 
-    pub fn stone_at(&self, tile: Tile) -> Option<Player> {
+    pub fn stone_at(&self, tile: FlatTile) -> Option<Player> {
         self.group_at(tile).map(|group| group.color)
     }
 
@@ -164,31 +161,16 @@ impl Chains {
             .map(|(id, group)| (id as u16, group))
     }
 
-    pub fn group_stones(&self, id: u16) -> Option<impl ExactSizeIterator<Item = Tile> + '_> {
-        let group = self.groups.get(id as usize)?;
-        if group.is_dead() {
-            return None;
-        };
-        let iter = group
-            .stones
-            .iter(storage!(&self))
-            .map(move |index| Tile::from_index(index as usize, self.size));
-        Some(iter)
-    }
-
     pub fn tile_storage(&self) -> impl NodeStorage + '_ {
         storage!(&self)
     }
 
-    pub fn empty_tiles(&self) -> impl ExactSizeIterator<Item = Tile> + '_ {
-        let size = self.size();
-        self.empty_list
-            .iter(storage!(&self))
-            .map(move |index| Tile::from_index(index as usize, size))
+    pub fn empty_tiles(&self) -> impl ExactSizeIterator<Item = FlatTile> + '_ {
+        self.empty_list.iter(storage!(&self)).map(FlatTile::new)
     }
 
     /// Is there a path between `start` and another tile with value `target` over only `player` tiles?
-    pub fn reaches(&self, start: Tile, target: Option<Player>) -> bool {
+    pub fn reaches(&self, start: FlatTile, target: Option<Player>) -> bool {
         // TODO implement more quickly with chains
         //   alternatively, keep this as a fallback for unit tests
         let through = self.stone_at(start);
@@ -198,7 +180,7 @@ impl Chains {
         let mut stack = vec![start];
 
         while let Some(tile) = stack.pop() {
-            let index = tile.index(self.size);
+            let index = tile.index() as usize;
             if visited[index] {
                 continue;
             }
@@ -227,7 +209,7 @@ impl Chains {
         let mut score_a = 0;
         let mut score_b = 0;
 
-        for tile in Tile::all(self.size()) {
+        for tile in FlatTile::all(self.size()) {
             match self.stone_at(tile) {
                 None => {
                     let reaches_a = self.reaches(tile, Some(Player::A));
@@ -261,7 +243,7 @@ impl Chains {
         }
     }
 
-    pub fn place_stone(&mut self, tile: Tile, color: Player) -> Result<PlacementKind, TileOccupied> {
+    pub fn place_stone(&mut self, tile: FlatTile, color: Player) -> Result<PlacementKind, TileOccupied> {
         let prepared = self.prepare_place_stone(tile, color)?;
         let PreparedPlacement {
             kind,
@@ -271,13 +253,13 @@ impl Chains {
             clear_enemy,
         } = prepared;
         let size = self.size();
-        let tile_index = tile.index(size) as u16;
+        let tile_index = tile.index();
 
         match kind {
             PlacementKind::Normal | PlacementKind::Capture => {
                 // update new tile
                 //   the group id will be set later when updating all stones in the friendly group
-                let tile_zobrist = Zobrist::for_color_tile(color, tile, size);
+                let tile_zobrist = Zobrist::for_color_tile(color, tile);
                 self.zobrist ^= tile_zobrist;
                 self.empty_list.remove(tile_index, storage!(&mut self));
 
@@ -314,17 +296,16 @@ impl Chains {
 
     fn build_merged_group(
         &mut self,
-        tile: Tile,
+        tile: FlatTile,
         color: Player,
         merge_friendly: &[u16],
         new_group_liberty_edge_count_before_capture: u16,
     ) -> u16 {
-        let size = self.size();
-        let tile_index = tile.index(size);
+        let tile_index = tile.index();
 
         // track stats for new group
-        let mut new_group_stones = LinkHead::single(tile_index as u16);
-        let mut new_group_zobrist = Zobrist::for_color_tile(color, tile, size);
+        let mut new_group_stones = LinkHead::single(tile_index);
+        let mut new_group_zobrist = Zobrist::for_color_tile(color, tile);
 
         // merge in other groups
         for &merge_group_id in merge_friendly {
@@ -370,11 +351,10 @@ impl Chains {
             stones.for_each_mut(&mut TileNodeStorageMut(tiles), |storage, tile_index| {
                 // map params
                 let tiles = &mut storage.0;
-                let tile_index = tile_index as usize;
-                let tile = Tile::from_index(tile_index, size);
+                let tile = FlatTile::new(tile_index);
 
                 // remove stone->group link
-                tiles[tile_index].group_id = None;
+                tiles[tile_index as usize].group_id = None;
 
                 // increase liberties of surrounding groups
                 //    we might accidentally increment old group liberties here, but that shouldn't be a problem
@@ -392,7 +372,7 @@ impl Chains {
         clear_group.mark_dead();
     }
 
-    pub fn simulate_place_stone(&self, tile: Tile, color: Player) -> Result<SimulatedPlacement, TileOccupied> {
+    pub fn simulate_place_stone(&self, tile: FlatTile, color: Player) -> Result<SimulatedPlacement, TileOccupied> {
         let prepared = self.prepare_place_stone(tile, color)?;
         let PreparedPlacement {
             kind,
@@ -401,8 +381,6 @@ impl Chains {
             merge_friendly,
             clear_enemy,
         } = prepared;
-        let size = self.size;
-
         let (tile_survives, removed_groups): (bool, &[u16]) = match kind {
             PlacementKind::Normal => (true, &[]),
             PlacementKind::Capture => (true, &clear_enemy),
@@ -414,7 +392,7 @@ impl Chains {
         let mut stone_count_next = self.stone_count();
 
         if tile_survives {
-            zobrist_next ^= Zobrist::for_color_tile(color, tile, size);
+            zobrist_next ^= Zobrist::for_color_tile(color, tile);
             stone_count_next += 1;
         }
         for &group_id in removed_groups {
@@ -435,28 +413,26 @@ impl Chains {
     //    outputs: what groups to merge and what groups to kill
     //    => simple function with 4 inputs, 4 outputs
     #[allow(clippy::collapsible_else_if)]
-    pub fn prepare_place_stone(&self, tile: Tile, color: Player) -> Result<PreparedPlacement, TileOccupied> {
+    pub fn prepare_place_stone(&self, tile: FlatTile, color: Player) -> Result<PreparedPlacement, TileOccupied> {
         let size = self.size;
-        let tile_index = tile.index(size);
-        let content = &self.tiles[tile_index];
+        let content = &self.tiles[tile.index() as usize];
+
         if content.group_id.is_some() {
             return Err(TileOccupied);
         }
-
-        let all_adjacent = tile.all_adjacent(size);
 
         // investigate adjacent tiles
         let mut new_group_stone_count = 1;
         // TODO this name is a tragedy
         let mut new_group_liberty_edge_count_before_capture = 0;
-        let mut new_group_zobrist = Zobrist::for_color_tile(color, tile, size);
+        let mut new_group_zobrist = Zobrist::for_color_tile(color, tile);
 
         // TODO get rid of adjacent_groups, it's just redundant with enemy and friendly
         let mut adjacent_groups = vec![];
         let mut clear_enemy = vec![];
         let mut merge_friendly = vec![];
 
-        for adj in all_adjacent {
+        for adj in tile.all_adjacent(size) {
             let content = self.content_at(adj);
 
             match content.group_id {
@@ -519,7 +495,7 @@ impl Chains {
         let mut empty_tiles = HashSet::new();
         let mut stone_count = 0;
 
-        for tile in Tile::all(size) {
+        for tile in FlatTile::all(size) {
             let content = self.content_at(tile);
 
             if let Some(id) = content.group_id {
@@ -532,12 +508,12 @@ impl Chains {
 
                 // track info
                 let group_zobrist = group_info.entry(id).or_insert((Zobrist::default(), HashSet::default()));
-                group_zobrist.0 ^= Zobrist::for_color_tile(group.color, tile, size);
-                group_zobrist.1.insert(tile.index(size) as u16);
+                group_zobrist.0 ^= Zobrist::for_color_tile(group.color, tile);
+                group_zobrist.1.insert(tile.index());
 
                 stone_count += 1;
             } else {
-                empty_tiles.insert(tile.index(size) as u16);
+                empty_tiles.insert(tile.index());
             }
         }
 
@@ -566,9 +542,9 @@ impl Chains {
 
         // check hash validness
         let mut new_zobrist = Zobrist::default();
-        for tile in Tile::all(size) {
+        for tile in FlatTile::all(size) {
             if let Some(player) = self.stone_at(tile) {
-                let value = Zobrist::for_color_tile(player, tile, size);
+                let value = Zobrist::for_color_tile(player, tile);
                 new_zobrist ^= value;
             }
         }
@@ -585,12 +561,12 @@ fn change_liberty_edges_at(
     size: u8,
     tiles: &mut [Content],
     groups: &mut [Group],
-    tile: Tile,
+    tile: FlatTile,
     delta: i16,
     skip_group_id: Option<u16>,
 ) {
     for adj in tile.all_adjacent(size) {
-        if let Some(group_id) = tiles[adj.index(size)].group_id {
+        if let Some(group_id) = tiles[adj.index() as usize].group_id {
             if Some(group_id) != skip_group_id {
                 let count = &mut groups[group_id as usize].liberty_edge_count;
                 *count = count.wrapping_add_signed(delta);
@@ -615,9 +591,10 @@ impl Eq for Chains {}
 
 impl PartialEq for Chains {
     fn eq(&self, other: &Self) -> bool {
+        // TODO see if this optimizes to something decent
         self.tiles.len() == other.tiles.len()
             && self.zobrist() == other.zobrist()
-            && Tile::all(self.size).all(|tile| self.stone_at(tile) == other.stone_at(tile))
+            && FlatTile::all(self.size).all(|tile| self.stone_at(tile) == other.stone_at(tile))
     }
 }
 
@@ -645,8 +622,8 @@ impl Display for Chains {
         for y in (0..size).rev() {
             write!(f, "    {:2} ", y + 1)?;
             for x in 0..size {
-                let tile = Tile::new(x, y);
-                match self.tiles[tile.index(size)].group_id {
+                let tile = Tile::new(x, y).to_flat(size);
+                match self.tiles[tile.index() as usize].group_id {
                     None => write!(f, "   .")?,
                     Some(group) => write!(f, "{:4}", group)?,
                 }
