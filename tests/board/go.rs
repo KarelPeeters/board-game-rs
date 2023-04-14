@@ -1,5 +1,5 @@
 use board_game::board::{Board, Outcome, PlayError};
-use board_game::games::go::{GoBoard, Move, Rules, Tile};
+use board_game::games::go::{Direction, FlatTile, GoBoard, Move, Rules, Tile};
 use board_game::util::board_gen::board_with_moves;
 use board_game::util::game_stats::perft_naive;
 use std::str::FromStr;
@@ -8,7 +8,29 @@ use crate::board::go_chains::{chains_test_main, chains_test_simulate};
 use crate::board::print_board_with_moves;
 
 #[test]
-fn tile() {
+fn tile_index() {
+    // tile, size, index
+    let cases = [
+        // 5x5
+        (Tile::new(0, 0), 5, FlatTile::new(0)),
+        (Tile::new(1, 0), 5, FlatTile::new(1)),
+        (Tile::new(0, 1), 5, FlatTile::new(5)),
+        (Tile::new(1, 1), 5, FlatTile::new(6)),
+        // 19x19
+        (Tile::new(0, 0), 19, FlatTile::new(0)),
+        (Tile::new(1, 0), 19, FlatTile::new(1)),
+        (Tile::new(0, 1), 19, FlatTile::new(19)),
+        (Tile::new(1, 1), 19, FlatTile::new(20)),
+    ];
+
+    for (tile, size, flat) in cases {
+        assert_eq!(flat, tile.to_flat(size));
+        assert_eq!(tile, flat.to_tile(size));
+    }
+}
+
+#[test]
+fn tile_str() {
     let cases = [
         // basic
         ((0, 0), "A1"),
@@ -30,6 +52,20 @@ fn tile() {
         let tile = Tile::new(x, y);
         assert_eq!(tile.to_string(), s);
         assert_eq!(tile, s.parse().unwrap());
+    }
+}
+
+#[test]
+fn tile_adjacent() {
+    let size = 9;
+
+    for tile in Tile::all(size) {
+        for dir in Direction::ALL {
+            println!("tile {:?} dir {:?}", tile, dir);
+            let adjacent_0 = tile.adjacent_in(dir, size);
+            let adjacent_1 = tile.to_flat(size).adjacent_in(dir, size).map(|t| t.to_tile(size));
+            assert_eq!(adjacent_0, adjacent_1);
+        }
     }
 }
 
