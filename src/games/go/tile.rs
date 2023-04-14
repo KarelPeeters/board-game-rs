@@ -103,6 +103,10 @@ impl FlatTile {
             .filter_map(move |&dir| self.adjacent_in(dir, size))
     }
 
+    pub fn all_adjacent_opt(self, size: u8) -> impl Iterator<Item = Option<FlatTile>> + Clone {
+        Direction::ALL.iter().map(move |&dir| self.adjacent_in(dir, size))
+    }
+
     // TODO optimize this? maybe with some fancier FlatTile representation?
     pub fn adjacent_in(self, dir: Direction, size: u8) -> Option<FlatTile> {
         let index = match dir {

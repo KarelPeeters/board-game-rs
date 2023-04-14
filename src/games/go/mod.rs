@@ -18,4 +18,5 @@ mod hash;
 mod io;
 mod link;
 mod rules;
+mod stack_vec;
 mod tile;
