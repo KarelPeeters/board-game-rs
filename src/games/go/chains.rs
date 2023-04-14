@@ -264,23 +264,51 @@ impl Chains {
                 self.zobrist ^= tile_zobrist;
                 self.empty_list.remove(tile_index, storage!(&mut self));
 
-                // build new merged group
-                //   do this before modifying liberties so they're immediately counted for the new group
-                let new_group_id = self.build_merged_group(
-                    tile,
-                    color,
-                    &merge_friendly,
-                    new_group_liberty_edge_count_before_capture,
-                );
-                debug_assert_eq!(new_group_stone_count, self.groups[new_group_id as usize].stones.len());
+                // fast case: no clearing, no real merging
+                if merge_friendly.len() <= 1 && clear_enemy.is_empty() {
+                    let group_id = if let Some(group_id) = merge_friendly.first() {
+                        // merge into single adjacent friendly group
+                        let group = &mut self.groups[group_id as usize];
 
-                // remove liberties from stones adjacent to tile
-                change_liberty_edges_at(size, &mut self.tiles, &mut self.groups, tile, -1, Some(new_group_id));
+                        group.zobrist ^= tile_zobrist;
+                        group.stones.insert_front(tile_index, storage!(&mut self));
+                        group.liberty_edge_count = new_group_liberty_edge_count_before_capture;
 
-                // remove cleared groups
-                clear_enemy.for_each(|clear_group_id| {
-                    self.clear_group(clear_group_id);
-                });
+                        group_id
+                    } else {
+                        // no adjacent, allocate new group
+                        self.allocate_group(Group {
+                            color,
+                            stones: LinkHead::single(tile_index),
+                            liberty_edge_count: new_group_liberty_edge_count_before_capture,
+                            zobrist: tile_zobrist,
+                        })
+                    };
+
+                    // set tile itself
+                    self.tiles[tile_index as usize].group_id = Some(group_id);
+
+                    // decrement adjacent liberties
+                    change_liberty_edges_at(size, &mut self.tiles, &mut self.groups, tile, -1, Some(group_id));
+                } else {
+                    // build new merged group
+                    //   do this before modifying liberties so they're immediately counted for the new group
+                    let new_group_id = self.build_merged_group(
+                        tile,
+                        color,
+                        &merge_friendly,
+                        new_group_liberty_edge_count_before_capture,
+                    );
+                    debug_assert_eq!(new_group_stone_count, self.groups[new_group_id as usize].stones.len());
+
+                    // remove liberties from stones adjacent to tile
+                    change_liberty_edges_at(size, &mut self.tiles, &mut self.groups, tile, -1, Some(new_group_id));
+
+                    // remove cleared groups
+                    clear_enemy.for_each(|clear_group_id| {
+                        self.clear_group(clear_group_id);
+                    });
+                }
             }
             PlacementKind::SuicideSingle => {
                 // don't do anything, we don't even need to place the stone
@@ -295,6 +323,7 @@ impl Chains {
         Ok(kind)
     }
 
+    // TODO merge into largest existing merged group so we can skip changing those tiles?
     fn build_merged_group(
         &mut self,
         tile: FlatTile,
