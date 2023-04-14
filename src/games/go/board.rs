@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-use std::collections::HashSet;
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::ops::ControlFlow;
@@ -16,17 +15,15 @@ use crate::games::go::tile::Tile;
 use crate::games::go::{PlacementKind, Rules, SimulatedPlacement, TileOccupied, Zobrist, GO_MAX_SIZE};
 use crate::impl_unit_symmetry_board;
 
+use nohash_hasher::IntSet;
+
 #[derive(Clone, Eq, PartialEq)]
 pub struct GoBoard {
     rules: Rules,
     chains: Chains,
     next_player: Player,
     state: State,
-
-    // TODO use a hashset instead? or some even better structure?
-    //   maybe this can be (partially) shared between board clones?
-    //   a hashset would be nicer for TTs
-    history: HashSet<Zobrist>,
+    history: IntSet<Zobrist>,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -75,7 +72,7 @@ impl GoBoard {
         chains: Chains,
         next_player: Player,
         state: State,
-        history: HashSet<Zobrist>,
+        history: IntSet<Zobrist>,
     ) -> GoBoard {
         GoBoard {
             rules,
@@ -106,7 +103,7 @@ impl GoBoard {
         self.state
     }
 
-    pub fn history(&self) -> &HashSet<Zobrist> {
+    pub fn history(&self) -> &IntSet<Zobrist> {
         &self.history
     }
 
