@@ -1,4 +1,5 @@
 use std::fmt::{Debug, Formatter};
+use std::hash::{Hash, Hasher};
 
 use lazy_static::lazy_static;
 use rand::distributions::{Distribution, Standard};
@@ -10,7 +11,7 @@ use crate::games::go::{FlatTile, State, GO_MAX_AREA};
 
 type Inner = u128;
 
-#[derive(Default, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Default, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Zobrist(Inner);
 
 pub struct HashData {
@@ -103,5 +104,13 @@ impl std::ops::BitXor for Zobrist {
 impl std::ops::BitXorAssign for Zobrist {
     fn bitxor_assign(&mut self, rhs: Self) {
         self.0 ^= rhs.0;
+    }
+}
+
+impl nohash_hasher::IsEnabled for Zobrist {}
+
+impl Hash for Zobrist {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u64((self.0 as u64) ^ ((self.0 >> 64) as u64));
     }
 }
