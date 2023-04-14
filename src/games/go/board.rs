@@ -103,6 +103,8 @@ impl GoBoard {
         self.state
     }
 
+    // TODO add setter for history, and a variant of clone_and_play that takes out the history from the previous board
+    //   can be used to optimize things like perft
     pub fn history(&self) -> &IntSet<Zobrist> {
         &self.history
     }
