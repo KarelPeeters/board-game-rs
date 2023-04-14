@@ -4,7 +4,7 @@ use board_game::util::board_gen::board_with_moves;
 use board_game::util::game_stats::perft_naive;
 use std::str::FromStr;
 
-use crate::board::go_chains::chains_test_main;
+use crate::board::go_chains::{chains_test_main, chains_test_simulate};
 use crate::board::print_board_with_moves;
 
 #[test]
@@ -360,7 +360,10 @@ fn go_perft_fast() {
 
 fn go_board_test_main(board: &GoBoard) {
     chains_test_main(board.chains());
+    chains_test_simulate(board.chains());
 
     // TODO this is super slow for go
+    //  although maybe it's better with faster movegen and sampling
+    //  todo maybe only test uniform non-pass generation
     // crate::board::board_test_main(board);
 }

@@ -4,7 +4,9 @@ use std::collections::HashSet;
 
 // TODO remove options here? we either have both present or neither
 // TODO make fields private
-#[derive(Debug, Copy, Clone)]
+// TODO do a circular linked list instead?
+//   might yield an easier or more compact implementation
+#[derive(Debug, Clone)]
 pub struct LinkHead {
     pub first: Option<u16>,
     // TODO remove last?
@@ -13,7 +15,7 @@ pub struct LinkHead {
 }
 
 // TODO remove option here, this can be implicit from the containing node
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct LinkNode {
     pub prev: Option<u16>,
     pub next: Option<u16>,
@@ -28,6 +30,20 @@ pub trait NodeStorageMut: NodeStorage {
 }
 
 impl LinkHead {
+    pub fn empty() -> Self {
+        Self::full(0)
+    }
+
+    /// Build the head for a list containing a single value `index`.
+    pub fn single(index: u16) -> Self {
+        LinkHead {
+            first: Some(index),
+            last: Some(index),
+            len: 1,
+        }
+    }
+
+    /// Build the head for a list containing every value in `0..len`.
     pub fn full(len: u16) -> Self {
         if len == 0 {
             LinkHead {
@@ -45,21 +61,30 @@ impl LinkHead {
     }
 
     pub fn insert_front(&mut self, index: u16, storage: &mut impl NodeStorageMut) {
-        let prev_first = self.first;
+        let mut other = LinkHead::single(index);
+        self.splice_front_take(&mut other, storage);
+        debug_assert!(other.is_empty());
+    }
 
-        let node = storage.get_link_mut(index);
-        debug_assert_eq!(None, node.prev);
-        debug_assert_eq!(None, node.next);
-
-        self.first = Some(index);
-        node.next = prev_first;
-
-        match prev_first {
-            None => self.last = Some(index),
-            Some(next) => storage.get_link_mut(next).prev = Some(index),
+    pub fn splice_front_take(&mut self, other: &mut LinkHead, storage: &mut impl NodeStorageMut) {
+        // middle connection
+        if let Some(other_last) = other.last {
+            storage.get_link_mut(other_last).next = self.first;
+        }
+        if let Some(self_first) = self.first {
+            storage.get_link_mut(self_first).prev = other.last;
         }
 
-        self.len += 1;
+        // edges
+        let new_head = LinkHead {
+            first: other.first.or(self.first),
+            last: self.last.or(other.last),
+            len: self.len + other.len,
+        };
+
+        // results
+        *self = new_head;
+        *other = LinkHead::empty();
     }
 
     pub fn remove(&mut self, index: u16, storage: &mut impl NodeStorageMut) {
@@ -83,8 +108,25 @@ impl LinkHead {
         self.len
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn iter<S: NodeStorage>(&self, storage: S) -> LinkIterator<S> {
         LinkIterator::new(self, storage)
+    }
+
+    pub fn for_each_mut<S: NodeStorage>(&self, storage: &mut S, mut f: impl FnMut(&mut S, u16)) {
+        let mut next = self.first;
+        let mut prev = None;
+        while let Some(curr) = next {
+            let link = storage.get_link(curr);
+            debug_assert_eq!(prev, link.prev);
+            prev = Some(curr);
+
+            next = link.next;
+            f(storage, curr);
+        }
     }
 
     /// Checks whether this list is valid and returns all of the contained nodes.
@@ -121,15 +163,15 @@ impl LinkHead {
 }
 
 impl LinkNode {
+    pub fn single() -> Self {
+        LinkNode { prev: None, next: None }
+    }
+
     pub fn full(len: u16, index: u16) -> Self {
         LinkNode {
             prev: if index > 0 { Some(index - 1) } else { None },
             next: if index + 1 < len { Some(index + 1) } else { None },
         }
-    }
-
-    pub fn empty() -> Self {
-        LinkNode { prev: None, next: None }
     }
 }
 
