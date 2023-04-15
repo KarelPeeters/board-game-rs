@@ -1,4 +1,5 @@
 use crate::games::go::GO_MAX_SIZE;
+use crate::util::iter::IterExt;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Tile {
@@ -93,7 +94,7 @@ impl FlatTile {
 
     pub fn all(size: u8) -> impl Iterator<Item = FlatTile> {
         let area = (size as u16) * (size as u16);
-        (0..area).map(|index| FlatTile { index })
+        (0..area).pure_map(|index| FlatTile { index })
     }
 
     // TODO check if this gets unrolled in optimized code
@@ -104,7 +105,7 @@ impl FlatTile {
     }
 
     pub fn all_adjacent_opt(self, size: u8) -> impl Iterator<Item = Option<FlatTile>> + Clone {
-        Direction::ALL.iter().map(move |&dir| self.adjacent_in(dir, size))
+        Direction::ALL.iter().pure_map(move |&dir| self.adjacent_in(dir, size))
     }
 
     // TODO optimize this? maybe with some fancier FlatTile representation?
