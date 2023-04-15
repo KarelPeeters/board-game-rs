@@ -3,6 +3,7 @@ use board_game::games::go::{Direction, FlatTile, GoBoard, Move, Rules, Tile};
 use board_game::util::board_gen::board_with_moves;
 use board_game::util::game_stats::perft_naive;
 use std::str::FromStr;
+use std::time::Instant;
 
 use crate::board::go_chains::{chains_test_main, chains_test_simulate};
 use crate::board::print_board_with_moves;
@@ -316,10 +317,16 @@ fn go_perft_main(board: GoBoard, all_expected: &[u64]) {
     let mut all_correct = true;
 
     for (depth, &expected) in all_expected.iter().enumerate() {
+        let start = Instant::now();
         let value = perft_naive(&board, depth as u32);
+        let elapsed = start.elapsed();
+        let nps = value as f32 / elapsed.as_secs_f32();
 
         let suffix = if value == expected { "" } else { " -> wrong!" };
-        println!("Perft depth {}: expected {} got {}{}", depth, expected, value, suffix);
+        println!(
+            "Perft depth {}: took {:?} {}, expected {} got {}{}",
+            depth, elapsed, nps, expected, value, suffix
+        );
 
         all_correct &= value == expected;
     }
