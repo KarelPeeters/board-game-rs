@@ -2,12 +2,13 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 
 use itertools::Itertools;
-use rand::rngs::SmallRng;
 use rand::seq::{IteratorRandom, SliceRandom};
-use rand::{Rng, SeedableRng};
+use rand::Rng;
 
 use board_game::board::Player;
 use board_game::games::go::{Chains, FlatTile, Group, PlacementKind, Tile};
+
+use crate::util::{consistent_rng, test_sampler_uniform};
 
 #[test]
 fn empty() {
@@ -333,7 +334,7 @@ fn fuzz_test() {
     let sizes = 0..=19;
     let players = [Player::A, Player::B];
 
-    let mut rng = SmallRng::seed_from_u64(0);
+    let mut rng = consistent_rng();
 
     for game_index in 0..1000 {
         let size = rng.gen_range(sizes.clone());
@@ -351,12 +352,22 @@ fn fuzz_test() {
                 Some(tile) => tile,
             };
 
-            // place stone on that tile
             let player = *players.choose(&mut rng).unwrap();
-            chains.place_stone(tile, player).expect("Tile must be empty");
+
+            // check simulation
+            let sim = chains.simulate_place_stone(tile, player).unwrap();
+
+            // actually place stone
+            let kind = chains.place_stone(tile, player).expect("Tile must be empty");
+
+            // check simulation validness
+            assert_eq!(chains.zobrist(), sim.zobrist_next);
+            assert_eq!(chains.stone_count(), sim.stone_count_next);
+            assert_eq!(kind, sim.kind);
 
             // check validness
-            chains_test_main(&chains);
+            //   unfortunately checking the sampling here is too slow
+            chains_test_main_no_sample(&chains);
         }
     }
 }
@@ -382,10 +393,15 @@ fn build_chains(size: u8, tiles: &[(u8, u8, Player)]) -> Chains {
     chains
 }
 
-pub fn chains_test_main(chains: &Chains) {
+pub fn chains_test_main_no_sample(chains: &Chains) {
     chains.assert_valid();
     check_floodfill(chains);
     check_fen(chains);
+}
+
+pub fn chains_test_main(chains: &Chains) {
+    chains_test_main_no_sample(chains);
+    check_sample_uniform(chains);
 }
 
 fn check_fen(chains: &Chains) {
@@ -466,6 +482,18 @@ pub fn chains_test_simulate(chains: &Chains) {
             }
         }
     }
+}
+
+fn check_sample_uniform(chains: &Chains) {
+    let size = chains.size();
+    let empty_tiles: Vec<(Tile, FlatTile)> = chains.empty_tiles().map(|t| (t.to_tile(size), t)).collect();
+
+    let mut rng = consistent_rng();
+    test_sampler_uniform(&empty_tiles, false, || {
+        chains
+            .random_empty_tile(&mut rng)
+            .map(|tile_flat| (tile_flat.to_tile(size), tile_flat))
+    });
 }
 
 #[derive(Debug)]

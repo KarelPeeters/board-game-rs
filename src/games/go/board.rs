@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 use std::ops::ControlFlow;
 
 use internal_iterator::InternalIterator;
-use rand::seq::IteratorRandom;
+use nohash_hasher::IntSet;
 use rand::Rng;
 
 use crate::board::{
@@ -14,9 +14,9 @@ use crate::games::go::chains::Chains;
 use crate::games::go::tile::Tile;
 use crate::games::go::{PlacementKind, Rules, SimulatedPlacement, TileOccupied, Zobrist, GO_MAX_SIZE};
 use crate::impl_unit_symmetry_board;
+use crate::util::iter::IterExt;
 
-use nohash_hasher::IntSet;
-
+// TODO add must_pass function? maybe even cache the result of that function in board
 #[derive(Clone, Eq, PartialEq)]
 pub struct GoBoard {
     rules: Rules,
@@ -114,7 +114,9 @@ impl GoBoard {
     }
 
     pub fn empty_tiles(&self) -> impl ExactSizeIterator<Item = Tile> + '_ {
-        self.chains().empty_tiles().map(move |tile| tile.to_tile(self.size()))
+        self.chains()
+            .empty_tiles()
+            .pure_map(move |tile| tile.to_tile(self.size()))
     }
 
     pub fn current_score(&self) -> Score {
@@ -172,22 +174,12 @@ impl GoBoard {
     pub fn random_available_place_move(&self, rng: &mut impl Rng) -> Result<Option<Move>, BoardDone> {
         self.check_done()?;
 
-        // first try rejection sampling
-        for _ in 0..32 {
-            let tile = self.empty_tiles().choose(rng).unwrap();
+        let tile = self.chains.random_empty_tile_where(rng, |tile| {
+            let mv = Move::Place(tile.to_tile(self.size()));
+            self.is_available_move(mv).unwrap()
+        });
+        let mv = tile.map(|tile| Move::Place(tile.to_tile(self.size())));
 
-            let mv = Move::Place(tile);
-            if self.is_available_move(mv).unwrap() {
-                return Ok(Some(mv));
-            }
-        }
-
-        // fallback to exhaustively trying all empty tiles
-        let mv = self
-            .empty_tiles()
-            .filter(|&tile| self.is_available_move(Move::Place(tile)).unwrap())
-            .choose(rng)
-            .map(Move::Place);
         Ok(mv)
     }
 }

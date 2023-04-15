@@ -3,12 +3,15 @@ use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 
 use itertools::Itertools;
+use rand::seq::IteratorRandom;
+use rand::Rng;
 
 use crate::board::Player;
 use crate::games::go::link::{LinkHead, LinkNode, NodeStorage, NodeStorageMut};
 use crate::games::go::stack_vec::StackVec4;
 use crate::games::go::tile::{Direction, Tile};
 use crate::games::go::{FlatTile, Score, Zobrist, GO_MAX_SIZE};
+use crate::util::iter::IterExt;
 
 // TODO replace Option<u16> with NonMaxU16 everywhere
 
@@ -167,7 +170,53 @@ impl Chains {
     }
 
     pub fn empty_tiles(&self) -> impl ExactSizeIterator<Item = FlatTile> + '_ {
-        self.empty_list.iter(storage!(&self)).map(FlatTile::new)
+        self.empty_list.iter(storage!(&self)).pure_map(FlatTile::new)
+    }
+
+    pub fn random_empty_tile(&self, rng: &mut impl Rng) -> Option<FlatTile> {
+        self.random_empty_tile_where(rng, |_| true)
+    }
+
+    /// Uniformly sample an empty tile for which `f(tile)` is true.
+    ///
+    /// This implementation is optimized assuming `f` is very likely to return true.
+    pub fn random_empty_tile_where(&self, rng: &mut impl Rng, mut f: impl FnMut(FlatTile) -> bool) -> Option<FlatTile> {
+        if self.empty_list.is_empty() {
+            return None;
+        }
+
+        // TODO optimize sampling coefficients, use a mix of different sizes to profile
+        const FULL_SAMPLE_MIN_EMPTY: u16 = 8;
+        const FULL_SAMPLE_MIN_EMPTY_FRAC: f32 = 0.2;
+        const FULL_SAMPLE_TRIES: u32 = 16;
+        const EMPTY_SAMPLE_TRIES: u32 = 16;
+
+        const FRAC_DENOM: u32 = 128;
+        const FRAC_NUMER: u32 = (FULL_SAMPLE_MIN_EMPTY_FRAC * FRAC_DENOM as f32) as u32;
+
+        // if there are enough empty times, just randomly sample until we find one
+        let empty_count = self.empty_count();
+        let empty_per_64 = empty_count as u32 * FRAC_DENOM / self.area() as u32;
+        if empty_count >= FULL_SAMPLE_MIN_EMPTY && empty_per_64 > FRAC_NUMER {
+            for _ in 0..EMPTY_SAMPLE_TRIES {
+                let tile = FlatTile::new(rng.gen_range(0..self.area()));
+                if self.stone_at(tile).is_none() && f(tile) {
+                    return Some(tile);
+                }
+            }
+        }
+
+        // partial fallback: sample random empty tiles and check if they match
+        for _ in 0..FULL_SAMPLE_TRIES {
+            let tile = self.empty_tiles().choose(rng).unwrap();
+            if f(tile) {
+                return Some(tile);
+            }
+        }
+
+        // full fallback: sample from fully filtered list
+        //   this ensures that we only return None if we have actually checked all empty tiles
+        self.empty_tiles().filter(|&tile| f(tile)).choose(rng)
     }
 
     /// Is there a path between `start` and another tile with value `target` over only `player` tiles?

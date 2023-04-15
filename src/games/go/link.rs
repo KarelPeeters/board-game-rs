@@ -212,6 +212,42 @@ impl<S: NodeStorage> Iterator for LinkIterator<S> {
     fn size_hint(&self) -> (usize, Option<usize>) {
         (self.len(), Some(self.len()))
     }
+
+    // TODO optimize nth?
+    // fn nth(&mut self, n: usize) -> Option<Self::Item> {
+    //     println!(
+    //         "calling nth on self={{next: {:?}, last: {:?}, items_left: {}}}, n={}",
+    //         self.next, self.last, self.items_left, n
+    //     );
+    //
+    //     if n >= self.items_left as usize {
+    //         self.next = None;
+    //         self.items_left = 0;
+    //         return None;
+    //     }
+    //
+    //     let item = if n <= (self.items_left / 2) as usize {
+    //         // walk forward
+    //         let mut curr = self.next.unwrap();
+    //         for _ in 0..n {
+    //             curr = self.storage.get_link(curr).next.unwrap();
+    //         }
+    //         curr
+    //     } else {
+    //         // walk backwards
+    //         // TODO debug this
+    //         let mut curr = self.last.unwrap();
+    //         for _ in 0..(n - self.items_left as usize - 1) {
+    //             curr = self.storage.get_link(curr).prev.unwrap();
+    //         }
+    //         curr
+    //     };
+    //
+    //     self.next = self.storage.get_link(item).next;
+    //     self.items_left -= n as u16;
+    //
+    //     Some(item)
+    // }
 }
 
 impl<S: NodeStorage> ExactSizeIterator for LinkIterator<S> {

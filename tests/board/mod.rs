@@ -1,3 +1,4 @@
+use crate::util::consistent_rng;
 use std::collections::hash_map::RandomState;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -39,6 +40,7 @@ where
     test_symmetry(board);
 }
 
+use crate::util::test_sampler_uniform;
 use std::hash::Hash;
 
 pub fn board_perft_main<S: Debug + ?Sized, T: Debug, B: Board + Hash>(
@@ -165,39 +167,9 @@ where
     println!("random_available uniform:");
     println!("{}", board);
 
+    let expected: Vec<_> = board.available_moves().unwrap().collect();
     let mut rng = consistent_rng();
-
-    let available_move_count = board.available_moves().unwrap().count();
-    let total_samples = 1000 * available_move_count;
-    let expected_samples = total_samples as f32 / available_move_count as f32;
-
-    println!(
-        "Available moves: {}, samples: {}, expected: {}",
-        available_move_count, total_samples, expected_samples
-    );
-
-    let mut counts: HashMap<B::Move, u32> = HashMap::new();
-    for _ in 0..total_samples {
-        let mv = board.random_available_move(&mut rng).unwrap();
-        *counts.entry(mv).or_default() += 1;
-    }
-
-    for (&mv, &count) in &counts {
-        println!("Move {:?} -> count {} ~ {}", mv, count, count as f32 / expected_samples);
-    }
-
-    for (&mv, &count) in &counts {
-        assert!(
-            (count as f32) > 0.8 * expected_samples,
-            "Move {:?} not generated often enough",
-            mv
-        );
-        assert!(
-            (count as f32) < 1.2 * expected_samples,
-            "Move {:?} generated too often",
-            mv
-        );
-    }
+    test_sampler_uniform(&expected, true, || Some(board.random_available_move(&mut rng).unwrap()));
 }
 
 fn test_symmetry<B: Board>(board: &B)
@@ -256,10 +228,6 @@ where
     for &sym in B::Symmetry::all() {
         assert_eq!(expected_canonical, board.map(sym).canonicalize());
     }
-}
-
-fn consistent_rng() -> impl Rng {
-    Xoroshiro64StarStar::seed_from_u64(0)
 }
 
 fn sort_moves<B: Board>(moves: &[B::Move]) -> Vec<B::Move> {
