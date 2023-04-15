@@ -1,12 +1,14 @@
-use board_game::board::{Board, Outcome, PlayError};
+use board_game::board::{Board, BoardMoves, Outcome, PlayError};
 use board_game::games::go::{Direction, FlatTile, GoBoard, Move, Rules, Tile};
 use board_game::util::board_gen::board_with_moves;
 use board_game::util::game_stats::perft_naive;
+use internal_iterator::InternalIterator;
 use std::str::FromStr;
 use std::time::Instant;
 
 use crate::board::go_chains::{chains_test_main, chains_test_simulate};
 use crate::board::print_board_with_moves;
+use crate::util::{consistent_rng, test_sampler_uniform};
 
 #[test]
 fn tile_index() {
@@ -71,8 +73,7 @@ fn tile_adjacent() {
 }
 
 #[test]
-#[ignore]
-fn empty_0() {
+fn empty() {
     let cases = [
         (0, "/ b 0"),
         (1, ". b 0"),
@@ -85,6 +86,8 @@ fn empty_0() {
 
     for (size, fen) in cases {
         let board = GoBoard::new(size, rules);
+        println!("{}", board);
+
         assert_eq!(board.to_fen(), fen);
         assert_eq!(Ok(&board), GoBoard::from_fen(fen, rules).as_ref());
 
@@ -401,12 +404,21 @@ fn go_perft_fast() {
     );
 }
 
+// TODO test that pass is always available somewhere?
 fn go_board_test_main(board: &GoBoard) {
     chains_test_main(board.chains());
     chains_test_simulate(board.chains());
 
-    // TODO this is super slow for go
-    //  although maybe it's better with faster movegen and sampling
-    //  todo maybe only test uniform non-pass generation
+    // TODO enable this but without the slow random available sampling
     // crate::board::board_test_main(board);
+
+    // test the sampling of non-pass moves instead
+    if let Ok(available) = board.available_moves() {
+        let available_place: Vec<Move> = available.filter(|&mv| mv != Move::Pass).collect();
+
+        let mut rng = consistent_rng();
+        test_sampler_uniform(&available_place, false, || {
+            board.random_available_place_move(&mut rng).unwrap()
+        });
+    }
 }

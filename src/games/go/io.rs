@@ -15,6 +15,12 @@ impl Display for Tile {
     }
 }
 
+impl Debug for Tile {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Tile(({}, {}), {})", self.x(), self.y(), self)
+    }
+}
+
 #[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
 pub struct InvalidTile;
 

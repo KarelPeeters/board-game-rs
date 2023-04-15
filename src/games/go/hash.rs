@@ -48,6 +48,7 @@ lazy_static! {
 impl HashData {
     #[allow(clippy::new_without_default)]
     pub fn new() -> HashData {
+        // TODO use a fixed algorithm here so hashes stay consistent even if rand defaults change
         let mut rng = StdRng::seed_from_u64(0);
 
         HashData {
