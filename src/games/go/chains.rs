@@ -162,7 +162,7 @@ impl Chains {
             .iter()
             .enumerate()
             .filter(|(_, group)| !group.is_dead())
-            .map(|(id, group)| (id as u16, group))
+            .pure_map(|(id, group)| (id as u16, group))
     }
 
     pub fn tile_storage(&self) -> impl NodeStorage + '_ {

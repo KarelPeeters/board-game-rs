@@ -29,8 +29,7 @@ impl<I: Iterator> InternalIterator for ClonableInternal<I> {
     }
 }
 
-// TODO replace applicable calls to ".map" with calls to ".pure_map"?
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PureMap<I, F> {
     inner: I,
     f: F,
@@ -39,6 +38,7 @@ pub struct PureMap<I, F> {
 pub trait IterExt: Iterator {
     /// Pure version of [Iterator::map] that assumes the mapping function does not have side effects.
     /// This means that implemented functions (like [Self::count], [Self::nth], ...) are allowed to skip calling the mapping function if possible.
+    /// [Iterator::map] already does this do some extend, but only for a limited set of functions.
     fn pure_map<B, F: Fn(Self::Item) -> B>(self, f: F) -> PureMap<Self, F>
     where
         Self: Sized,
