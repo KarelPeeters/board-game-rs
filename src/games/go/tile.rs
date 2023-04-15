@@ -1,6 +1,6 @@
 use crate::games::go::GO_MAX_SIZE;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Tile {
     x: u8,
     y: u8,
