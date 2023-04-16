@@ -7,8 +7,9 @@ use rand::Rng;
 
 use board_game::board::Player;
 use board_game::games::go::{Chains, FlatTile, Group, PlacementKind, Tile};
+use board_game::util::tiny::consistent_rng;
 
-use crate::util::{consistent_rng, test_sampler_uniform};
+use crate::util::test_sampler_uniform;
 
 #[test]
 fn empty() {

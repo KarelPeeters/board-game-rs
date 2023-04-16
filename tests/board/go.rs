@@ -2,13 +2,14 @@ use board_game::board::{Board, BoardMoves, Outcome, PlayError};
 use board_game::games::go::{Direction, FlatTile, GoBoard, Move, Rules, Tile};
 use board_game::util::board_gen::board_with_moves;
 use board_game::util::game_stats::perft_naive;
+use board_game::util::tiny::consistent_rng;
 use internal_iterator::InternalIterator;
 use std::str::FromStr;
 use std::time::Instant;
 
 use crate::board::go_chains::{chains_test_main, chains_test_simulate};
 use crate::board::print_board_with_moves;
-use crate::util::{consistent_rng, test_sampler_uniform};
+use crate::util::test_sampler_uniform;
 
 #[test]
 fn tile_index() {
