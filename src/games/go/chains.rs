@@ -7,10 +7,10 @@ use rand::seq::IteratorRandom;
 use rand::Rng;
 
 use crate::board::Player;
-use crate::games::go::link::{LinkHead, LinkNode, NodeStorage, NodeStorageMut};
+use crate::games::go::link::{LinkHead, LinkNode};
 use crate::games::go::stack_vec::StackVec4;
 use crate::games::go::tile::{Direction, Tile};
-use crate::games::go::{FlatTile, Score, TileX, Zobrist, GO_MAX_SIZE};
+use crate::games::go::{FlatTile, Linked, Score, TileX, Zobrist, GO_MAX_SIZE};
 use crate::util::iter::IterExt;
 
 // TODO replace Option<u16> with NonMaxU16 everywhere
@@ -18,6 +18,14 @@ use crate::util::iter::IterExt;
 // TODO add function to remove stones?
 //   could be tricky since groups would have to be split
 //   can be pretty slow
+
+// TODO clean up getters, set right visibility
+
+// TODO do a bunch of struct-of-array instead of array-of-struct stuff?
+//   unfortunately that would require allocating more separate vecs
+
+// TODO improve function ordering (maybe also in GoBoard)
+
 #[derive(Clone)]
 pub struct Chains {
     size: u8,
@@ -28,6 +36,7 @@ pub struct Chains {
     // derived data
     stones_a: u16,
     empty_list: LinkHead,
+    dead_groups: LinkHead,
     zobrist: Zobrist,
 }
 
@@ -45,8 +54,6 @@ pub struct Content {
 #[derive(Debug, Clone)]
 pub struct Group {
     pub color: Player,
-    /// The stones that are part of this group.
-    pub stones: LinkHead,
     /// The number of edges adjacent to to liberties.
     /// This forms an upper bound on the true number of liberties.
     /// This is easier to compute incrementally but still enough to know if a group is dead.
@@ -56,6 +63,11 @@ pub struct Group {
     /// The combined hash of all stones in this group.
     /// Used to quickly remove the entire group from the hash.
     pub zobrist: Zobrist,
+
+    /// The stones that are part of this group.
+    pub stones: LinkHead,
+    /// Link in the dead group list.
+    pub dead_link: LinkNode,
 }
 
 // TODO replace vecs with on-stack vecs
@@ -90,15 +102,6 @@ pub enum PlacementKind {
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct TileOccupied;
 
-macro_rules! storage {
-    (&$self:expr) => {
-        TileNodeStorage(&$self.tiles)
-    };
-    (&mut$self:expr) => {
-        &mut TileNodeStorageMut(&mut $self.tiles)
-    };
-}
-
 impl Chains {
     pub fn new(size: u8) -> Self {
         assert!(size <= GO_MAX_SIZE);
@@ -118,6 +121,7 @@ impl Chains {
             stones_a: 0,
             empty_list: LinkHead::full(area),
             zobrist: Zobrist::default(),
+            dead_groups: LinkHead::empty(),
         }
     }
 
@@ -174,12 +178,12 @@ impl Chains {
             .pure_map(|(id, group)| (id as u16, group))
     }
 
-    pub fn tile_storage(&self) -> impl NodeStorage + '_ {
-        storage!(&self)
+    pub fn tiles(&self) -> &[Content] {
+        &self.tiles
     }
 
     pub fn empty_tiles(&self) -> impl ExactSizeIterator<Item = FlatTile> + '_ {
-        self.empty_list.iter(storage!(&self)).pure_map(FlatTile::new)
+        self.empty_list.iter(&self.tiles).pure_map(FlatTile::new)
     }
 
     pub fn random_empty_tile(&self, rng: &mut impl Rng) -> Option<FlatTile> {
@@ -287,12 +291,29 @@ impl Chains {
         Score { a: score_a, b: score_b }
     }
 
-    // TODO reorder functions
+    fn mark_group_dead(&mut self, id: u16) {
+        let group = &mut self.groups[id as usize];
+        debug_assert!(group.stones.is_empty());
+        debug_assert!(group.dead_link.is_unconnected_or_single());
+
+        // clear group info
+        self.groups[id as usize] = Group {
+            color: group.color,
+            stones: LinkHead::empty(),
+            liberty_edge_count: 0,
+            zobrist: Default::default(),
+            dead_link: LinkNode::single(),
+        };
+
+        // insert into empty list
+        self.dead_groups.insert_front(id, &mut self.groups);
+    }
+
     fn allocate_group(&mut self, new: Group) -> u16 {
-        match self.groups.iter().position(|g| g.is_dead()) {
+        match self.dead_groups.pop_front(&mut self.groups) {
             Some(id) => {
-                self.groups[id] = new;
-                id as u16
+                self.groups[id as usize] = new;
+                id
             }
             None => {
                 let id = self.groups.len() as u16;
@@ -320,7 +341,7 @@ impl Chains {
                 //   the group id will be set later when updating all stones in the friendly group
                 let tile_zobrist = Zobrist::for_color_tile(color, tile);
                 self.zobrist ^= tile_zobrist;
-                self.empty_list.remove(tile_index, storage!(&mut self));
+                self.empty_list.remove(tile_index, &mut self.tiles);
                 if color == Player::A {
                     self.stones_a += 1;
                 }
@@ -332,7 +353,7 @@ impl Chains {
                         let group = &mut self.groups[group_id as usize];
 
                         group.zobrist ^= tile_zobrist;
-                        group.stones.insert_front(tile_index, storage!(&mut self));
+                        group.stones.insert_front(tile_index, &mut self.tiles);
                         group.liberty_edge_count = new_group_liberty_edge_count_before_capture;
 
                         group_id
@@ -343,6 +364,7 @@ impl Chains {
                             stones: LinkHead::single(tile_index),
                             liberty_edge_count: new_group_liberty_edge_count_before_capture,
                             zobrist: tile_zobrist,
+                            dead_link: LinkNode::single(),
                         })
                     };
 
@@ -402,10 +424,10 @@ impl Chains {
         merge_friendly.for_each(|merge_group_id| {
             let merge_group = &mut self.groups[merge_group_id as usize];
 
-            new_group_stones.splice_front_take(&mut merge_group.stones, storage!(&mut self));
+            new_group_stones.splice_front_take(&mut merge_group.stones, &mut self.tiles);
             new_group_zobrist ^= merge_group.zobrist;
 
-            merge_group.mark_dead();
+            self.mark_group_dead(merge_group_id);
         });
 
         // allocate new group
@@ -414,11 +436,11 @@ impl Chains {
             stones: new_group_stones.clone(),
             liberty_edge_count: new_group_liberty_edge_count_before_capture,
             zobrist: new_group_zobrist,
+            dead_link: LinkNode::single(),
         });
 
         // mark tiles as part of new group
-        new_group_stones.for_each_mut(storage!(&mut self), |storage, tile_index| {
-            let tiles = &mut storage.0;
+        new_group_stones.for_each_mut(&mut self.tiles, |tiles, tile_index| {
             tiles[tile_index as usize].group_id = Some(new_group_id);
         });
 
@@ -442,9 +464,8 @@ impl Chains {
             let tiles = &mut self.tiles;
             let groups = &mut self.groups;
 
-            stones.for_each_mut(&mut TileNodeStorageMut(tiles), |storage, tile_index| {
+            stones.for_each_mut(tiles, |tiles, tile_index| {
                 // map params
-                let tiles = &mut storage.0;
                 let tile = FlatTile::new(tile_index);
 
                 // remove stone->group link
@@ -460,10 +481,10 @@ impl Chains {
 
         // add all stones to empty list
         self.empty_list
-            .splice_front_take(&mut clear_group.stones, storage!(&mut self));
+            .splice_front_take(&mut clear_group.stones, &mut self.tiles);
 
         // mark group as dead
-        clear_group.mark_dead();
+        self.mark_group_dead(group_id);
     }
 
     pub fn simulate_place_stone(&self, tile: FlatTile, color: Player) -> Result<SimulatedPlacement, TileOccupied> {
@@ -621,6 +642,8 @@ impl Chains {
         assert_eq!(self.stone_count_from(Player::A), stone_count_a);
         assert_eq!(self.stone_count_from(Player::B), stone_count_b);
 
+        let mut expected_dead_groups = HashSet::new();
+
         // check per-group stuff
         for (id, group) in self.groups.iter().enumerate() {
             // stone_count and liberty_edge_count must agree on whether the group is dead
@@ -630,7 +653,7 @@ impl Chains {
             let is_dead = group.stones.is_empty();
             assert_ne!(group_info.contains_key(&(id as u16)), is_dead);
 
-            let linked_stones = group.stones.assert_valid_and_collect(storage!(&self));
+            let linked_stones = group.stones.assert_valid_and_collect(&self.tiles);
 
             // group zobrist must be correct
             if let Some(&(zobrist, ref stones)) = group_info.get(&(id as u16)) {
@@ -640,7 +663,15 @@ impl Chains {
                 assert_eq!(Zobrist::default(), group.zobrist);
                 assert!(linked_stones.is_empty());
             }
+
+            if group.is_dead() {
+                expected_dead_groups.insert(id as u16);
+            }
         }
+
+        // check dead groups
+        let linked_dead_groups = self.dead_groups.assert_valid_and_collect(&self.groups);
+        assert_eq!(expected_dead_groups, linked_dead_groups);
 
         // check hash validness
         let mut new_zobrist = Zobrist::default();
@@ -653,7 +684,7 @@ impl Chains {
         assert_eq!(self.zobrist, new_zobrist, "Invalid zobrist hash");
 
         // check empty tiles linkedlist
-        let linked_empty_tiles = self.empty_list.assert_valid_and_collect(TileNodeStorage(&self.tiles));
+        let linked_empty_tiles = self.empty_list.assert_valid_and_collect(&self.tiles);
         assert_eq!(empty_tiles, linked_empty_tiles);
     }
 }
@@ -678,12 +709,6 @@ fn change_liberty_edges_at(
 }
 
 impl Group {
-    fn mark_dead(&mut self) {
-        debug_assert!(self.stones.is_empty());
-        self.liberty_edge_count = 0;
-        self.zobrist = Zobrist::default();
-    }
-
     fn is_dead(&self) -> bool {
         self.stones.is_empty()
     }
@@ -765,24 +790,22 @@ impl PlacementKind {
     }
 }
 
-struct TileNodeStorage<'a>(&'a [Content]);
+impl Linked for Content {
+    fn link(&self) -> &LinkNode {
+        &self.link
+    }
 
-struct TileNodeStorageMut<'a>(&'a mut [Content]);
-
-impl NodeStorage for TileNodeStorage<'_> {
-    fn get_link(&self, index: u16) -> &LinkNode {
-        &self.0[index as usize].link
+    fn link_mut(&mut self) -> &mut LinkNode {
+        &mut self.link
     }
 }
 
-impl NodeStorage for TileNodeStorageMut<'_> {
-    fn get_link(&self, index: u16) -> &LinkNode {
-        &self.0[index as usize].link
+impl Linked for Group {
+    fn link(&self) -> &LinkNode {
+        &self.dead_link
     }
-}
 
-impl NodeStorageMut for TileNodeStorageMut<'_> {
-    fn get_link_mut(&mut self, index: u16) -> &mut LinkNode {
-        &mut self.0[index as usize].link
+    fn link_mut(&mut self) -> &mut LinkNode {
+        &mut self.dead_link
     }
 }

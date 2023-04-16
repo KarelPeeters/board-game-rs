@@ -422,14 +422,15 @@ fn check_fen(chains: &Chains) {
                     ref stones,
                     liberty_edge_count,
                     zobrist,
+                    dead_link: _,
                 } = group;
 
                 assert_eq!(color, new_group.color);
                 assert_eq!(liberty_edge_count, new_group.liberty_edge_count);
                 assert_eq!(zobrist, new_group.zobrist);
 
-                let group_stones = stones.assert_valid_and_collect(chains.tile_storage());
-                let new_group_stones = new_group.stones.assert_valid_and_collect(new.tile_storage());
+                let group_stones = stones.assert_valid_and_collect(chains.tiles());
+                let new_group_stones = new_group.stones.assert_valid_and_collect(new.tiles());
                 assert_eq!(group_stones, new_group_stones);
             }
             _ => panic!("Occupation does not match"),
@@ -589,6 +590,7 @@ impl GroupExpect {
                 ref stones,
                 liberty_edge_count,
                 zobrist: _,
+                dead_link: _,
             } = actual;
 
             GroupExpect {
