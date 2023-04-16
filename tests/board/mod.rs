@@ -1,13 +1,10 @@
-use crate::util::consistent_rng;
 use std::collections::hash_map::RandomState;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::iter::FromIterator;
 use std::time::Instant;
 
 use internal_iterator::InternalIterator;
-use rand::{Rng, SeedableRng};
-use rand_xoshiro::Xoroshiro64StarStar;
 
 use board_game::board::{Board, BoardDone, PlayError};
 use board_game::symmetry::Symmetry;
@@ -41,6 +38,7 @@ where
 }
 
 use crate::util::test_sampler_uniform;
+use board_game::util::tiny::consistent_rng;
 use std::hash::Hash;
 
 pub fn board_perft_main<S: Debug + ?Sized, T: Debug, B: Board + Hash>(
