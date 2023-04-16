@@ -10,7 +10,7 @@ use crate::board::Player;
 use crate::games::go::link::{LinkHead, LinkNode, NodeStorage, NodeStorageMut};
 use crate::games::go::stack_vec::StackVec4;
 use crate::games::go::tile::{Direction, Tile};
-use crate::games::go::{FlatTile, Score, Zobrist, GO_MAX_SIZE};
+use crate::games::go::{FlatTile, Score, TileX, Zobrist, GO_MAX_SIZE};
 use crate::util::iter::IterExt;
 
 // TODO replace Option<u16> with NonMaxU16 everywhere
@@ -26,6 +26,7 @@ pub struct Chains {
     groups: Vec<Group>,
 
     // derived data
+    stones_a: u16,
     empty_list: LinkHead,
     zobrist: Zobrist,
 }
@@ -112,9 +113,10 @@ impl Chains {
 
         Chains {
             size,
-            empty_list: LinkHead::full(area),
             tiles,
             groups: vec![],
+            stones_a: 0,
+            empty_list: LinkHead::full(area),
             zobrist: Zobrist::default(),
         }
     }
@@ -129,6 +131,13 @@ impl Chains {
 
     pub fn stone_count(&self) -> u16 {
         self.area() - self.empty_count()
+    }
+
+    pub fn stone_count_from(&self, player: Player) -> u16 {
+        match player {
+            Player::A => self.stones_a,
+            Player::B => self.stone_count() - self.stones_a,
+        }
     }
 
     pub fn empty_count(&self) -> u16 {
@@ -312,6 +321,9 @@ impl Chains {
                 let tile_zobrist = Zobrist::for_color_tile(color, tile);
                 self.zobrist ^= tile_zobrist;
                 self.empty_list.remove(tile_index, storage!(&mut self));
+                if color == Player::A {
+                    self.stones_a += 1;
+                }
 
                 // fast case: no clearing, no real merging
                 if merge_friendly.len() <= 1 && clear_enemy.is_empty() {
@@ -419,6 +431,9 @@ impl Chains {
 
         // remove group from global state
         self.zobrist ^= clear_group.zobrist;
+        if clear_group.color == Player::A {
+            self.stones_a -= clear_group.stones.len();
+        }
 
         // fix per-tile state
         //  unfortunately we have to do some borrowing trickery
@@ -512,12 +527,7 @@ impl Chains {
         let mut merge_friendly = StackVec4::new();
 
         // TODO unroll?
-        for (adj_i, adj) in tile.all_adjacent_opt(size).enumerate() {
-            let adj = match adj {
-                None => continue,
-                Some(adj) => adj,
-            };
-
+        for (adj_i, adj) in tile.all_adjacent(size).enumerate() {
             let content = self.content_at(adj);
 
             match content.group_id {
@@ -578,6 +588,8 @@ impl Chains {
         let mut group_info = HashMap::new();
         let mut empty_tiles = HashSet::new();
         let mut stone_count = 0;
+        let mut stone_count_a = 0;
+        let mut stone_count_b = 0;
 
         for tile in FlatTile::all(size) {
             let content = self.content_at(tile);
@@ -596,12 +608,18 @@ impl Chains {
                 group_zobrist.1.insert(tile.index());
 
                 stone_count += 1;
+                match group.color {
+                    Player::A => stone_count_a += 1,
+                    Player::B => stone_count_b += 1,
+                }
             } else {
                 empty_tiles.insert(tile.index());
             }
         }
 
         assert_eq!(self.stone_count(), stone_count);
+        assert_eq!(self.stone_count_from(Player::A), stone_count_a);
+        assert_eq!(self.stone_count_from(Player::B), stone_count_b);
 
         // check per-group stuff
         for (id, group) in self.groups.iter().enumerate() {
@@ -716,7 +734,7 @@ impl Display for Chains {
         }
         write!(f, "       ")?;
         for x in 0..size {
-            write!(f, "   {}", Tile::x_to_char(x).unwrap())?;
+            write!(f, "   {}", TileX(x))?;
         }
         writeln!(f)?;
 
