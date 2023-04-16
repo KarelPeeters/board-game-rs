@@ -15,7 +15,7 @@ type Inner = u128;
 pub struct Zobrist(Inner);
 
 pub struct HashData {
-    color_tile: [[Zobrist; GO_MAX_AREA as usize]; 2],
+    color_tile: [Vec<Zobrist>; 2],
     color_turn: [Zobrist; 2],
     pass_state: [Zobrist; 3],
 }
@@ -49,8 +49,9 @@ impl HashData {
     #[allow(clippy::new_without_default)]
     pub fn new() -> HashData {
         let mut rng = consistent_rng();
+        let vec_len = GO_MAX_AREA as usize;
         HashData {
-            color_tile: [gen_array(&mut rng), gen_array(&mut rng)],
+            color_tile: [gen_vec(vec_len, &mut rng), gen_vec(vec_len, &mut rng)],
             color_turn: gen_array(&mut rng),
             pass_state: gen_array(&mut rng),
         }
@@ -69,15 +70,16 @@ impl Distribution<Zobrist> for Standard {
     }
 }
 
-fn gen_array<T: Default + Copy, const N: usize>(rng: &mut impl Rng) -> [T; N]
-where
-    Standard: Distribution<T>,
-{
-    let mut array = [T::default(); N];
+fn gen_array<const N: usize>(rng: &mut impl Rng) -> [Zobrist; N] {
+    let mut array = [Zobrist::default(); N];
     for i in 0..N {
         array[i] = rng.gen();
     }
     array
+}
+
+fn gen_vec(len: usize, rng: &mut impl Rng) -> Vec<Zobrist> {
+    Standard.sample_iter(rng).take(len).collect()
 }
 
 impl Debug for Zobrist {
