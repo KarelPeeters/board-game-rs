@@ -3,11 +3,11 @@ use std::hash::{Hash, Hasher};
 
 use lazy_static::lazy_static;
 use rand::distributions::{Distribution, Standard};
-use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
+use rand::Rng;
 
 use crate::board::Player;
 use crate::games::go::{FlatTile, State, GO_MAX_AREA};
+use crate::util::tiny::consistent_rng;
 
 type Inner = u128;
 
@@ -48,9 +48,7 @@ lazy_static! {
 impl HashData {
     #[allow(clippy::new_without_default)]
     pub fn new() -> HashData {
-        // TODO use a fixed algorithm here so hashes stay consistent even if rand defaults change
-        let mut rng = StdRng::seed_from_u64(0);
-
+        let mut rng = consistent_rng();
         HashData {
             color_tile: [gen_array(&mut rng), gen_array(&mut rng)],
             color_turn: gen_array(&mut rng),
