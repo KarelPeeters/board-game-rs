@@ -8,8 +8,7 @@ pub use link::*;
 pub use rules::*;
 pub use tile::*;
 
-pub const GO_MAX_SIZE: u8 = u8::MAX - 2;
-pub const GO_MAX_AREA: u16 = GO_MAX_SIZE as u16 * GO_MAX_SIZE as u16;
+include!(concat!(env!("OUT_DIR"), "/go_consts.rs"));
 
 // leave some room for edge cases, in particular for future optimization in adjacent_in
 const_assert!(GO_MAX_SIZE <= u8::MAX - 2);

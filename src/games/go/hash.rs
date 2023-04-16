@@ -1,96 +1,57 @@
+use std::convert::TryInto;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 
-use lazy_static::lazy_static;
-use rand::distributions::{Distribution, Standard};
-use rand::Rng;
+use static_assertions::const_assert;
 
 use crate::board::Player;
 use crate::games::go::{FlatTile, State, GO_MAX_AREA};
-use crate::util::tiny::consistent_rng;
-
-type Inner = u128;
 
 #[derive(Default, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Zobrist(Inner);
 
-pub struct HashData {
-    color_tile: [Vec<Zobrist>; 2],
-    color_turn: [Zobrist; 2],
-    pass_state: [Zobrist; 3],
-}
+include!(concat!(env!("OUT_DIR"), "/go_hash_code.rs"));
+
+const HASH_BYTES: usize = Inner::BITS as usize / 8;
+const HASH_DATA_COLOR_TILE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/go_hash_data.bin"));
+
+const_assert!(GO_HASH_COUNT == 2 * (GO_MAX_AREA as usize));
+const_assert!(HASH_DATA_COLOR_TILE.len() == GO_HASH_COUNT * HASH_BYTES);
 
 impl Zobrist {
+    fn from_bytes_at(data: &[u8], index: usize) -> Self {
+        let bytes = &data[index * HASH_BYTES..][..HASH_BYTES];
+        let array = bytes.try_into().unwrap();
+        let inner = Inner::from_ne_bytes(array);
+        Zobrist(inner)
+    }
+
     pub fn for_color_tile(color: Player, tile: FlatTile) -> Zobrist {
-        HASH_DATA.color_tile[color.index() as usize][tile.index() as usize]
+        // TODO try other way around to see if it's faster
+        let index = color.index() as usize * GO_MAX_AREA as usize + tile.index() as usize;
+        Zobrist::from_bytes_at(HASH_DATA_COLOR_TILE, index)
     }
 
     pub fn for_color_turn(color: Player) -> Zobrist {
-        HASH_DATA.color_turn[color.index() as usize]
+        let index = color.index() as usize;
+        Zobrist(HASH_DATA_TURN[index])
     }
 
     pub fn for_pass_state(state: State) -> Zobrist {
-        // don't include outcome, that is implicit from the other tiles anyway
-        let state_index = match state {
+        // don't include outcome itself, that is implicit from the other tiles anyway
+        let index = match state {
             State::Normal => 0,
             State::Passed => 1,
             State::Done(_) => 2,
         };
-        HASH_DATA.pass_state[state_index]
+        Zobrist(HASH_DATA_PASS[index])
     }
-}
-
-// TODO generate this at compile-time?
-lazy_static! {
-    static ref HASH_DATA: HashData = HashData::new();
-}
-
-impl HashData {
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> HashData {
-        let mut rng = consistent_rng();
-        let vec_len = GO_MAX_AREA as usize;
-        HashData {
-            color_tile: [gen_vec(vec_len, &mut rng), gen_vec(vec_len, &mut rng)],
-            color_turn: gen_array(&mut rng),
-            pass_state: gen_array(&mut rng),
-        }
-    }
-}
-
-impl Debug for HashData {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("HashData").finish_non_exhaustive()
-    }
-}
-
-impl Distribution<Zobrist> for Standard {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Zobrist {
-        Zobrist(rng.gen())
-    }
-}
-
-fn gen_array<const N: usize>(rng: &mut impl Rng) -> [Zobrist; N] {
-    let mut array = [Zobrist::default(); N];
-    for i in 0..N {
-        array[i] = rng.gen();
-    }
-    array
-}
-
-fn gen_vec(len: usize, rng: &mut impl Rng) -> Vec<Zobrist> {
-    Standard.sample_iter(rng).take(len).collect()
 }
 
 impl Debug for Zobrist {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         // print hex, full-width with leading 0x
-        write!(
-            f,
-            "Zobrist({:#0width$x})",
-            self.0,
-            width = (Inner::BITS / 8 + 2) as usize
-        )
+        write!(f, "Zobrist({:#0width$x})", self.0, width = HASH_BYTES * 2 + 2,)
     }
 }
 
@@ -113,5 +74,32 @@ impl nohash_hasher::IsEnabled for Zobrist {}
 impl Hash for Zobrist {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write_u64((self.0 as u64) ^ ((self.0 >> 64) as u64));
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::collections::HashSet;
+
+    use crate::board::{Outcome, Player};
+    use crate::games::go::{FlatTile, State, Zobrist, GO_MAX_SIZE};
+
+    #[test]
+    fn unique() {
+        let mut set = HashSet::new();
+
+        for color in [Player::A, Player::B] {
+            assert!(set.insert(Zobrist::for_color_turn(color)));
+        }
+
+        assert!(set.insert(Zobrist::for_pass_state(State::Normal)));
+        assert!(set.insert(Zobrist::for_pass_state(State::Passed)));
+        assert!(set.insert(Zobrist::for_pass_state(State::Done(Outcome::Draw))));
+
+        for color in [Player::A, Player::B] {
+            for tile in FlatTile::all(GO_MAX_SIZE) {
+                assert!(set.insert(Zobrist::for_color_tile(color, tile)));
+            }
+        }
     }
 }

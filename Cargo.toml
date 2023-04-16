@@ -12,14 +12,19 @@ repository = "https://github.com/KarelPeeters/board-game-rs"
 [features]
 default = []
 
+[build-dependencies]
+# TODO check if using nanorand speeds up compilation
+rand = "0.8.5"
+rand_xoshiro = "0.6.0"
+
 [dependencies]
 rand = { version = "0.8.5", features = ["small_rng"] }
+rand_xoshiro = "0.6.0"
 itertools = "0.10.3"
 decorum = { version = "0.3.1", default-features = false }
 internal-iterator = "0.2.0"
 num-traits = "0.2.14"
 nom = "7.1.1"
-rand_xoshiro = "0.6.0"
 cast_trait = "0.1.2"
 
 # TODO rayon is only used in bot_game, maybe we can move that into a separate crate?
