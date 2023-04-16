@@ -1,8 +1,7 @@
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Alignment, Debug, Display, Formatter};
 use std::str::FromStr;
 
 use itertools::Itertools;
-use static_assertions::const_assert;
 
 use crate::board::{Board, Player};
 use crate::games::go::chains::Chains;
@@ -11,7 +10,8 @@ use crate::games::go::{GoBoard, Move, PlacementKind, Rules, State, TileOccupied,
 
 impl Display for Tile {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}", Tile::x_to_char(self.x()).unwrap(), self.y() + 1)
+        // TODO support padding here?
+        write!(f, "{}{}", self.x_disp(), self.y() as u32 + 1)
     }
 }
 
@@ -27,22 +27,68 @@ pub struct InvalidTile;
 #[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
 pub struct InvalidX;
 
-const_assert!(GO_MAX_SIZE as usize <= Tile::TILE_X_NAMES.len());
+// By convention 'I' is skipped because it can be confused with "1".
+const TILE_X_NAMES_SINGLE: &[u8] = b"ABCDEFGHJKLMNOPQRSTUVWXYZ";
 
 impl Tile {
-    // By convention 'I' is skipped because it can be confused with "1".
-    pub const TILE_X_NAMES: &'static [u8] = b"ABCDEFGHJKLMNOPQRSTUVWXYZ";
-
-    pub fn x_to_char(x: u8) -> Result<char, InvalidX> {
-        Self::TILE_X_NAMES.get(x as usize).map(|&c| c as char).ok_or(InvalidX)
+    pub fn x_disp(&self) -> TileX {
+        TileX(self.x())
     }
+}
 
-    pub fn x_from_char(n: char) -> Result<u8, InvalidX> {
-        Self::TILE_X_NAMES
-            .iter()
-            .position(|&c| c == n as u8)
-            .map(|x| x as u8)
-            .ok_or(InvalidX)
+#[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
+pub struct TileX(pub u8);
+
+impl FromStr for TileX {
+    type Err = InvalidX;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        fn byte_index(c: u8) -> Result<usize, InvalidX> {
+            TILE_X_NAMES_SINGLE
+                .iter()
+                .position(|&cand| cand == c.to_ascii_uppercase())
+                .ok_or(InvalidX)
+        }
+
+        let x = match *s.as_bytes() {
+            [c] => byte_index(c)?,
+            [c1, c0] => (1 + byte_index(c1)?) * TILE_X_NAMES_SINGLE.len() + byte_index(c0)?,
+            _ => return Err(InvalidX),
+        };
+
+        if x <= GO_MAX_SIZE as usize {
+            Ok(TileX(x as u8))
+        } else {
+            Err(InvalidX)
+        }
+    }
+}
+
+impl Display for TileX {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let width = f.width().unwrap_or(0);
+
+        let left = match f.align() {
+            Some(Alignment::Left) => true,
+            Some(Alignment::Center | Alignment::Right) | None => false,
+        };
+
+        let x = self.0 as usize;
+        match TILE_X_NAMES_SINGLE.get(x).copied() {
+            Some(b) => match left {
+                true => write!(f, "{:<width$}", b as char, width = width),
+                false => write!(f, "{:>width$}", b as char, width = width),
+            },
+            None => {
+                let b1 = TILE_X_NAMES_SINGLE[(x / TILE_X_NAMES_SINGLE.len()) - 1] as char;
+                let b0 = (TILE_X_NAMES_SINGLE[x % TILE_X_NAMES_SINGLE.len()] as char).to_ascii_lowercase();
+                let pad = width.saturating_sub(2);
+                match left {
+                    true => write!(f, "{}{}{:pad$}", b1, b0, "", pad = pad),
+                    false => write!(f, "{:pad$}{}{}", "", b1, b0, pad = pad),
+                }
+            }
+        }
     }
 }
 
@@ -51,70 +97,80 @@ impl FromStr for Tile {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         check(s.len() >= 2 && s.is_ascii(), InvalidTile)?;
+        let split = s.bytes().take_while(|c| c.is_ascii_alphabetic()).count();
 
-        let x = Tile::x_from_char(s.as_bytes()[0] as char).map_err(|_| InvalidTile)?;
-        let y_1 = s[1..].parse::<u8>().map_err(|_| InvalidTile)?;
+        let x = TileX::from_str(&s[..split]).map_err(|_| InvalidTile)?.0;
+
+        let y_1 = s[split..].parse::<u32>().map_err(|_| InvalidTile)?;
         check(y_1 > 0, InvalidTile)?;
+        let y = y_1 - 1;
+        check(y <= GO_MAX_SIZE as u32, InvalidTile)?;
+        let y = y as u8;
 
-        Ok(Tile::new(x, y_1 - 1))
+        Ok(Tile::new(x, y))
+    }
+}
+
+impl GoBoard {
+    fn write_debug(&self, f: &mut Formatter, include_fen: bool) -> std::fmt::Result {
+        let next = match self.next_player() {
+            Player::A => 'b',
+            Player::B => 'w',
+        };
+        let fen = match include_fen {
+            true => format!(", fen={:?}", self.to_fen()),
+            false => String::new(),
+        };
+
+        write!(
+            f,
+            "GoBoard(next={:?}, state={:?}, history_len={}, stones_b={}, stones_w={}, rules={:?}{})",
+            next,
+            self.state(),
+            self.history().len(),
+            self.chains().stone_count_from(Player::A),
+            self.chains().stone_count_from(Player::B),
+            self.rules(),
+            fen,
+        )
     }
 }
 
 impl Debug for GoBoard {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "GoBoard(fen={:?}, rules={:?}, history_len={})",
-            self.to_fen(),
-            self.rules(),
-            self.history().len()
-        )
+        self.write_debug(f, true)
     }
 }
 
 impl Display for GoBoard {
+    // TODO re-introduce score and territory once we have optimized implementations for those?
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.write_debug(f, false)?;
+        writeln!(f)?;
+
         let size = self.size();
-        writeln!(f, "{:?}", self)?;
+        let width_x = TileX(size.saturating_sub(1)).to_string().len();
+        let width_y = size.to_string().len();
 
         for y in (0..size).rev() {
-            write!(f, "{:2} ", y + 1)?;
+            write!(f, "{:width$} ", y + 1, width = width_y)?;
 
             for x in 0..size {
                 let tile = Tile::new(x, y);
-                let tile_flat = tile.to_flat(size);
                 let player = self.stone_at(tile);
                 let c = match player {
-                    None => {
-                        let reaches_a = self.chains().reaches(tile_flat, Some(Player::A));
-                        let reaches_b = self.chains().reaches(tile_flat, Some(Player::B));
-                        if reaches_a ^ reaches_b {
-                            '-'
-                        } else {
-                            '.'
-                        }
-                    }
+                    None => '.',
                     Some(player) => player_symbol(player),
                 };
-                write!(f, "{}", c)?;
-            }
-
-            if y == size / 2 {
-                write!(
-                    f,
-                    "    {}  {:?}  {:?}",
-                    player_symbol(self.next_player()),
-                    self.state(),
-                    self.current_score()
-                )?;
+                write!(f, "{:width$}", c, width = width_x)?;
             }
 
             writeln!(f)?;
         }
 
-        write!(f, "   ")?;
+        write!(f, "{:width$}", "", width = width_y + 1)?;
         for x in 0..size {
-            write!(f, "{}", Tile::x_to_char(x).unwrap())?;
+            write!(f, "{:<width$}", TileX(x), width = width_x)?;
         }
         writeln!(f)?;
 

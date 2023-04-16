@@ -1,5 +1,5 @@
 use board_game::board::{Board, BoardMoves, Outcome, PlayError};
-use board_game::games::go::{Direction, FlatTile, GoBoard, Move, Rules, Tile};
+use board_game::games::go::{Direction, FlatTile, GoBoard, Move, Rules, Tile, GO_MAX_SIZE};
 use board_game::util::board_gen::board_with_moves;
 use board_game::util::game_stats::perft_naive;
 use board_game::util::tiny::consistent_rng;
@@ -35,6 +35,7 @@ fn tile_index() {
 
 #[test]
 fn tile_str() {
+    // test some hand-picked cases
     let cases = [
         // basic
         ((0, 0), "A1"),
@@ -48,14 +49,21 @@ fn tile_str() {
         ((0, 18), "A19"),
         ((18, 0), "T1"),
         ((18, 18), "T19"),
-        // largest tile
+        // largest single-letter tile
         ((24, 24), "Z25"),
+        // huge tile
+        ((209, 209), "Hk210"),
     ];
 
     for ((x, y), s) in cases {
         let tile = Tile::new(x, y);
-        assert_eq!(tile.to_string(), s);
-        assert_eq!(tile, s.parse().unwrap());
+        assert_eq!(tile.to_string(), s, "Failed to convert tile {:?} to string", tile);
+        assert_eq!(Ok(tile), s.parse(), "Failed to parse {:?} as tile", s);
+    }
+
+    // check all tiles loopback
+    for tile in Tile::all(GO_MAX_SIZE) {
+        assert_eq!(tile, tile.to_string().parse().unwrap());
     }
 }
 
