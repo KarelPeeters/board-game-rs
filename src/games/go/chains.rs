@@ -68,6 +68,12 @@ pub struct Group {
     pub dead_link: LinkNode,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct MinimalPlacement {
+    pub kind: PlacementKind,
+    pub next_zobrist: Zobrist,
+}
+
 // TODO replace pub with getters to ensure they don't get tampered with?
 // TODO remove as much computation from this as possible again, it's slowing things down
 //    we really only need the zobrist, leave other state for some separate simulate function
@@ -298,6 +304,80 @@ impl Chains {
         Ok(simulated)
     }
 
+    pub fn simulate_place_stone_minimal(
+        &self,
+        tile: FlatTile,
+        color: Player,
+    ) -> Result<MinimalPlacement, TileOccupied> {
+        let size = self.size;
+
+        let content = &self.tiles[tile.index() as usize];
+        if content.group_id.is_some() {
+            return Err(TileOccupied);
+        }
+
+        let mut merged_group_initial_liberty_edge_count = 0;
+        let mut any_merged = false;
+        let mut any_captured = false;
+
+        let mut zobrist_with_captures = self.zobrist;
+        let mut zobrist_merged = Zobrist::default();
+
+        let mut adjacent_groups = StackVec4::new();
+        for (adj_i, adj) in tile.all_adjacent(size).enumerate() {
+            let content = self.content_at(adj);
+
+            match content.group_id {
+                None => merged_group_initial_liberty_edge_count += 1,
+                Some(group_id) => {
+                    let group = &self.groups[group_id as usize];
+
+                    adjacent_groups[adj_i] = group_id;
+                    let group_adjacency_count = adjacent_groups.count(group_id);
+
+                    if group.color == color {
+                        any_merged = true;
+                        if group_adjacency_count == 1 {
+                            zobrist_merged ^= group.zobrist;
+                            merged_group_initial_liberty_edge_count += group.liberty_edge_count;
+                        }
+                        merged_group_initial_liberty_edge_count -= 1;
+                    } else {
+                        debug_assert!(group.liberty_edge_count as usize >= group_adjacency_count);
+                        if group.liberty_edge_count as usize == group_adjacency_count {
+                            zobrist_with_captures ^= group.zobrist;
+                            any_captured = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // determine what kind of placement this is
+        let kind = if any_captured {
+            PlacementKind::Capture
+        } else if merged_group_initial_liberty_edge_count == 0 {
+            if any_merged {
+                PlacementKind::SuicideMulti
+            } else {
+                PlacementKind::SuicideSingle
+            }
+        } else {
+            PlacementKind::Normal
+        };
+
+        let next_zobrist = if kind.is_suicide() {
+            // remove multi-suicide stones if any
+            zobrist_with_captures ^ zobrist_merged
+        } else {
+            // add newly placed stone
+            let zobrist_stone = Zobrist::for_color_tile(color, tile);
+            zobrist_with_captures ^ zobrist_stone
+        };
+
+        Ok(MinimalPlacement { kind, next_zobrist })
+    }
+
     // TODO unroll this whole thing into the 4 directions?
     //    collected inputs: type/group_id/liberties for each size
     //    outputs: what groups to merge and what groups to kill
@@ -359,7 +439,6 @@ impl Chains {
         debug_assert!(!clear_enemy.contains_duplicates());
 
         // decide what kind of placement this is
-
         let kind = if !clear_enemy.is_empty() {
             PlacementKind::Capture
         } else if new_group_initial_liberty_edge_count == 0 {

@@ -12,7 +12,7 @@ use crate::board::{
 };
 use crate::games::go::chains::Chains;
 use crate::games::go::tile::Tile;
-use crate::games::go::{PlacementKind, Rules, SimulatedPlacement, TileOccupied, Zobrist, GO_MAX_SIZE};
+use crate::games::go::{MinimalPlacement, PlacementKind, Rules, TileOccupied, Zobrist, GO_MAX_SIZE};
 use crate::impl_unit_symmetry_board;
 use crate::util::iter::IterExt;
 
@@ -137,7 +137,7 @@ impl GoBoard {
         )
     }
 
-    fn is_available_move_sim(&self, sim: SimulatedPlacement) -> bool {
+    fn is_available_move_sim(&self, sim: MinimalPlacement) -> bool {
         // check placement kind
         match sim.kind {
             PlacementKind::Normal => {}
@@ -201,7 +201,7 @@ impl Board for GoBoard {
                     false
                 } else {
                     let tile = tile.to_flat(self.size());
-                    match self.chains.simulate_place_stone(tile, self.next_player) {
+                    match self.chains.simulate_place_stone_minimal(tile, self.next_player) {
                         Ok(sim) => self.is_available_move_sim(sim),
                         Err(TileOccupied) => false,
                     }
