@@ -53,7 +53,7 @@ fn double_adjacent_same() {
 
     println!("{}", chains);
     let placement = chains
-        .prepare_place_stone(Tile::new(1, 0).to_flat(chains.size()), Player::A)
+        .simulate_place_stone(Tile::new(1, 0).to_flat(chains.size()), Player::A)
         .unwrap();
     println!("{:?}", placement);
 
@@ -160,12 +160,12 @@ fn capture_corner() {
     println!("{}", chains);
     assert_eq!(chains.to_fen(), "...../...../...../w..../b....");
 
-    let kind = chains
+    let sim = chains
         .place_stone(Tile::new(1, 0).to_flat(chains.size()), Player::B)
         .unwrap();
     println!("{}", chains);
     assert_eq!(chains.to_fen(), "...../...../...../w..../.w...");
-    assert_eq!(kind, PlacementKind::Capture);
+    assert_eq!(sim.kind, PlacementKind::Capture);
 
     let expected = GroupExpect {
         color: Player::B,
@@ -219,12 +219,12 @@ fn capture_cyclic_group() {
     expected_core.assert_eq(chains.group_at(Tile::new(1, 1).to_flat(chains.size())));
     chains_test_main(&chains);
 
-    let kind = chains
+    let sim = chains
         .place_stone(Tile::new(2, 2).to_flat(chains.size()), Player::A)
         .unwrap();
     println!("{}", chains);
     assert_eq!(chains.to_fen(), ".bbb./b...b/b.b.b/b...b/.bbb.");
-    assert_eq!(kind, PlacementKind::Capture);
+    assert_eq!(sim.kind, PlacementKind::Capture);
 
     let expected_edge_new = GroupExpect {
         color: Player::A,
@@ -267,10 +267,10 @@ fn fill_board() {
     {
         // ensure the full board gets suicide captured
         let mut new_chains = chains.clone();
-        let kind = new_chains.place_stone(last_tile, Player::A).unwrap();
+        let sim = new_chains.place_stone(last_tile, Player::A).unwrap();
         println!("{}", new_chains);
         assert_eq!(new_chains.to_fen(), Chains::new(size).to_fen());
-        assert_eq!(kind, PlacementKind::SuicideMulti);
+        assert_eq!(sim.kind, PlacementKind::SuicideMulti);
 
         chains_test_main(&new_chains);
     }
@@ -278,10 +278,10 @@ fn fill_board() {
     {
         // ensure the other player can capture the rest too
         let mut new_chains = chains.clone();
-        let kind = new_chains.place_stone(last_tile, Player::B).unwrap();
+        let sim = new_chains.place_stone(last_tile, Player::B).unwrap();
         println!("{}", new_chains);
         assert_eq!(new_chains.to_fen(), "....w/...../...../...../.....");
-        assert_eq!(kind, PlacementKind::Capture);
+        assert_eq!(sim.kind, PlacementKind::Capture);
 
         chains_test_main(&new_chains);
     }
@@ -292,12 +292,12 @@ fn capture_jagged() {
     let mut chains = Chains::from_fen("wbbb/wwbb/.bbw/wwww").unwrap();
     println!("{}", chains);
 
-    let kind = chains
+    let sim = chains
         .place_stone(Tile::new(0, 1).to_flat(chains.size()), Player::B)
         .unwrap();
     println!("{}", chains);
     assert_eq!(chains.to_fen(), "w.../ww../w..w/wwww");
-    assert_eq!(kind, PlacementKind::Capture);
+    assert_eq!(sim.kind, PlacementKind::Capture);
 
     let expected = GroupExpect {
         color: Player::B,
@@ -325,8 +325,8 @@ fn fill_board_simulation() {
     real.place_stone(tile, color).unwrap();
     real.assert_valid();
 
-    assert_eq!(real.zobrist(), sim.zobrist_next);
-    assert_eq!(real.stone_count(), sim.stone_count_next);
+    assert_eq!(real.zobrist(), sim.next_zobrist);
+    assert_eq!(real.stone_count(), sim.next_stone_count);
 }
 
 #[test]
@@ -359,12 +359,16 @@ fn fuzz_test() {
             let sim = chains.simulate_place_stone(tile, player).unwrap();
 
             // actually place stone
-            let kind = chains.place_stone(tile, player).expect("Tile must be empty");
+            let placed = chains.place_stone(tile, player).expect("Tile must be empty");
 
             // check simulation validness
-            assert_eq!(chains.zobrist(), sim.zobrist_next);
-            assert_eq!(chains.stone_count(), sim.stone_count_next);
-            assert_eq!(kind, sim.kind);
+            assert_eq!(placed, sim);
+            assert_eq!(chains.zobrist(), sim.next_zobrist);
+            assert_eq!(chains.stone_count(), sim.next_stone_count);
+            if !sim.kind.is_suicide() {
+                let actual_count = chains.group_at(tile).unwrap().stones.len();
+                assert_eq!(actual_count, sim.new_group_stone_count);
+            }
 
             // check validness
             //   unfortunately checking the sampling here is too slow
@@ -381,12 +385,12 @@ fn build_chains(size: u8, tiles: &[(u8, u8, Player)]) -> Chains {
         let simulated = chains.simulate_place_stone(tile, player).unwrap();
 
         println!("Placing {:?} {:?}", tile, player);
-        let kind = chains.place_stone(tile, player).unwrap();
-        println!("Kind: {:?}", kind);
+        let sim = chains.place_stone(tile, player).unwrap();
+        println!("Kind: {:?}", sim.kind);
 
-        assert_eq!(kind, simulated.kind);
-        assert_eq!(chains.zobrist(), simulated.zobrist_next);
-        assert_eq!(chains.stone_count(), simulated.stone_count_next);
+        assert_eq!(sim.kind, simulated.kind);
+        assert_eq!(chains.zobrist(), simulated.next_zobrist);
+        assert_eq!(chains.stone_count(), simulated.next_stone_count);
 
         println!("Result:\n{}", chains);
         chains_test_main(&chains);
@@ -474,11 +478,10 @@ pub fn chains_test_simulate(chains: &Chains) {
 
             match (sim, result) {
                 (Err(e_sim), Err(e_result)) => assert_eq!(e_sim, e_result),
-                (Ok(sim), Ok(real_kind)) => {
-                    real.assert_valid();
-                    assert_eq!(real_kind, sim.kind);
-                    assert_eq!(real.zobrist(), sim.zobrist_next);
-                    assert_eq!(real.stone_count(), sim.stone_count_next);
+                (Ok(sim), Ok(placed)) => {
+                    assert_eq!(sim, placed);
+                    assert_eq!(real.zobrist(), sim.next_zobrist);
+                    assert_eq!(real.stone_count(), sim.next_stone_count);
                 }
                 _ => panic!("Mismatched simulation result at {:?} {:?}", tile, color),
             }
