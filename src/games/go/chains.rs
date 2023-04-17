@@ -24,8 +24,6 @@ use crate::util::iter::IterExt;
 // TODO do a bunch of struct-of-array instead of array-of-struct stuff?
 //   unfortunately that would require allocating more separate vecs
 
-// TODO improve function ordering (maybe also in GoBoard)
-
 #[derive(Clone)]
 pub struct Chains {
     size: u8,
@@ -70,24 +68,27 @@ pub struct Group {
     pub dead_link: LinkNode,
 }
 
-// TODO replace vecs with on-stack vecs
-#[derive(Debug, Clone)]
-pub struct PreparedPlacement {
+// TODO replace pub with getters to ensure they don't get tampered with?
+// TODO remove as much computation from this as possible again, it's slowing things down
+//    we really only need the zobrist, leave other state for some separate simulate function
+// TODO remove tile, color, counts?
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct SimulatedPlacement {
+    pub tile: FlatTile,
+    pub color: Player,
     pub kind: PlacementKind,
 
+    // stats right after the stone is placed, before removing dead groups
     pub new_group_stone_count: u16,
-    pub new_group_liberty_edge_count_before_capture: u16,
+    pub new_group_initial_liberty_edge_count: u16,
 
+    // the groups that will be merged/removed
     pub merge_friendly: StackVec4,
     pub clear_enemy: StackVec4,
-}
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct SimulatedPlacement {
-    pub kind: PlacementKind,
-    // TODO remove next from names?
-    pub zobrist_next: Zobrist,
-    pub stone_count_next: u16,
+    // the state of the board after this move
+    pub next_zobrist: Zobrist,
+    pub next_stone_count: u16,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -291,47 +292,128 @@ impl Chains {
         Score { a: score_a, b: score_b }
     }
 
-    fn mark_group_dead(&mut self, id: u16) {
-        let group = &mut self.groups[id as usize];
-        debug_assert!(group.stones.is_empty());
-        debug_assert!(group.dead_link.is_unconnected_or_single());
-
-        // clear group info
-        self.groups[id as usize] = Group {
-            color: group.color,
-            stones: LinkHead::empty(),
-            liberty_edge_count: 0,
-            zobrist: Default::default(),
-            dead_link: LinkNode::single(),
-        };
-
-        // insert into empty list
-        self.dead_groups.insert_front(id, &mut self.groups);
+    pub fn place_stone(&mut self, tile: FlatTile, color: Player) -> Result<SimulatedPlacement, TileOccupied> {
+        let simulated = self.simulate_place_stone(tile, color)?;
+        self.apply_simulated_placement(&simulated);
+        Ok(simulated)
     }
 
-    fn allocate_group(&mut self, new: Group) -> u16 {
-        match self.dead_groups.pop_front(&mut self.groups) {
-            Some(id) => {
-                self.groups[id as usize] = new;
-                id
-            }
-            None => {
-                let id = self.groups.len() as u16;
-                self.groups.push(new);
-                id
+    // TODO unroll this whole thing into the 4 directions?
+    //    collected inputs: type/group_id/liberties for each size
+    //    outputs: what groups to merge and what groups to kill
+    //    => simple function with 4 inputs, 4 outputs
+    #[allow(clippy::collapsible_else_if)]
+    pub fn simulate_place_stone(&self, tile: FlatTile, color: Player) -> Result<SimulatedPlacement, TileOccupied> {
+        let size = self.size;
+        let content = &self.tiles[tile.index() as usize];
+
+        if content.group_id.is_some() {
+            return Err(TileOccupied);
+        }
+
+        // investigate adjacent tiles
+        let mut new_group_initial_liberty_edge_count = 0;
+        let mut merged_zobrist = Zobrist::default();
+        let mut merged_count = 0;
+        let mut captured_zobrist = Zobrist::default();
+        let mut captured_stone_count = 0;
+
+        // TODO get rid of adjacent_groups, it's just redundant with enemy and friendly
+        let mut adjacent_groups = StackVec4::new();
+        let mut clear_enemy = StackVec4::new();
+        let mut merge_friendly = StackVec4::new();
+
+        // TODO unroll?
+        for (adj_i, adj) in tile.all_adjacent(size).enumerate() {
+            let content = self.content_at(adj);
+
+            match content.group_id {
+                None => new_group_initial_liberty_edge_count += 1,
+                Some(group_id) => {
+                    let group = &self.groups[group_id as usize];
+
+                    adjacent_groups[adj_i] = group_id;
+                    let group_adjacency_count = adjacent_groups.count(group_id);
+
+                    if group.color == color {
+                        if group_adjacency_count == 1 {
+                            merged_count += group.stones.len();
+                            new_group_initial_liberty_edge_count += group.liberty_edge_count;
+                            merged_zobrist ^= group.zobrist;
+                            merge_friendly[adj_i] = group_id;
+                        }
+                        new_group_initial_liberty_edge_count -= 1;
+                    } else {
+                        debug_assert!(group.liberty_edge_count as usize >= group_adjacency_count);
+                        if group.liberty_edge_count as usize == group_adjacency_count {
+                            clear_enemy[adj_i] = group_id;
+                            captured_stone_count += group.stones.len();
+                            captured_zobrist ^= group.zobrist;
+                        }
+                    }
+                }
             }
         }
-    }
 
-    pub fn place_stone(&mut self, tile: FlatTile, color: Player) -> Result<PlacementKind, TileOccupied> {
-        let prepared = self.prepare_place_stone(tile, color)?;
-        let PreparedPlacement {
+        debug_assert!(!merge_friendly.contains_duplicates());
+        debug_assert!(!clear_enemy.contains_duplicates());
+
+        // decide what kind of placement this is
+
+        let kind = if !clear_enemy.is_empty() {
+            PlacementKind::Capture
+        } else if new_group_initial_liberty_edge_count == 0 {
+            if merged_count == 0 {
+                PlacementKind::SuicideSingle
+            } else {
+                PlacementKind::SuicideMulti
+            }
+        } else {
+            PlacementKind::Normal
+        };
+
+        // calculate final stats
+        let mut next_zobrist = self.zobrist ^ captured_zobrist;
+        let mut next_stone_count = self.stone_count() - captured_stone_count;
+        match kind {
+            PlacementKind::Normal | PlacementKind::Capture => {
+                next_zobrist ^= Zobrist::for_color_tile(color, tile);
+                next_stone_count += 1;
+            }
+            PlacementKind::SuicideSingle => {}
+            PlacementKind::SuicideMulti => {
+                next_zobrist ^= merged_zobrist;
+                next_stone_count -= merged_count;
+            }
+        }
+
+        // TODO include new_group_zobrist?
+        Ok(SimulatedPlacement {
+            tile,
+            color,
             kind,
-            new_group_stone_count,
-            new_group_liberty_edge_count_before_capture,
+            new_group_stone_count: 1 + merged_count,
+            new_group_initial_liberty_edge_count,
             merge_friendly,
             clear_enemy,
-        } = prepared;
+            next_zobrist,
+            next_stone_count,
+        })
+    }
+
+    pub fn apply_simulated_placement(&mut self, simulated: &SimulatedPlacement) {
+        let &SimulatedPlacement {
+            tile,
+            color,
+            kind,
+            new_group_stone_count,
+            new_group_initial_liberty_edge_count,
+            ref merge_friendly,
+            ref clear_enemy,
+            next_zobrist,
+            next_stone_count,
+        } = simulated;
+
         let size = self.size();
         let tile_index = tile.index();
 
@@ -354,7 +436,7 @@ impl Chains {
 
                         group.zobrist ^= tile_zobrist;
                         group.stones.insert_front(tile_index, &mut self.tiles);
-                        group.liberty_edge_count = new_group_liberty_edge_count_before_capture;
+                        group.liberty_edge_count = new_group_initial_liberty_edge_count;
 
                         group_id
                     } else {
@@ -362,7 +444,7 @@ impl Chains {
                         self.allocate_group(Group {
                             color,
                             stones: LinkHead::single(tile_index),
-                            liberty_edge_count: new_group_liberty_edge_count_before_capture,
+                            liberty_edge_count: new_group_initial_liberty_edge_count,
                             zobrist: tile_zobrist,
                             dead_link: LinkNode::single(),
                         })
@@ -376,12 +458,8 @@ impl Chains {
                 } else {
                     // build new merged group
                     //   do this before modifying liberties so they're immediately counted for the new group
-                    let new_group_id = self.build_merged_group(
-                        tile,
-                        color,
-                        &merge_friendly,
-                        new_group_liberty_edge_count_before_capture,
-                    );
+                    let new_group_id =
+                        self.build_merged_group(tile, color, merge_friendly, new_group_initial_liberty_edge_count);
                     debug_assert_eq!(new_group_stone_count, self.groups[new_group_id as usize].stones.len());
 
                     // remove liberties from stones adjacent to tile
@@ -403,7 +481,8 @@ impl Chains {
             }
         }
 
-        Ok(kind)
+        debug_assert_eq!(self.zobrist, next_zobrist);
+        debug_assert_eq!(self.stone_count(), next_stone_count);
     }
 
     // TODO merge into largest existing merged group so we can skip changing those tiles?
@@ -412,7 +491,7 @@ impl Chains {
         tile: FlatTile,
         color: Player,
         merge_friendly: &StackVec4,
-        new_group_liberty_edge_count_before_capture: u16,
+        new_group_initial_liberty_edge_count: u16,
     ) -> u16 {
         let tile_index = tile.index();
 
@@ -427,14 +506,14 @@ impl Chains {
             new_group_stones.splice_front_take(&mut merge_group.stones, &mut self.tiles);
             new_group_zobrist ^= merge_group.zobrist;
 
-            self.mark_group_dead(merge_group_id);
+            self.free_group(merge_group_id);
         });
 
         // allocate new group
         let new_group_id = self.allocate_group(Group {
             color,
             stones: new_group_stones.clone(),
-            liberty_edge_count: new_group_liberty_edge_count_before_capture,
+            liberty_edge_count: new_group_initial_liberty_edge_count,
             zobrist: new_group_zobrist,
             dead_link: LinkNode::single(),
         });
@@ -484,122 +563,39 @@ impl Chains {
             .splice_front_take(&mut clear_group.stones, &mut self.tiles);
 
         // mark group as dead
-        self.mark_group_dead(group_id);
+        self.free_group(group_id);
     }
 
-    pub fn simulate_place_stone(&self, tile: FlatTile, color: Player) -> Result<SimulatedPlacement, TileOccupied> {
-        let prepared = self.prepare_place_stone(tile, color)?;
-        let PreparedPlacement {
-            kind,
-            new_group_stone_count: _,
-            new_group_liberty_edge_count_before_capture: _,
-            merge_friendly,
-            clear_enemy,
-        } = prepared;
-        let (tile_survives, removed_groups): (bool, StackVec4) = match kind {
-            PlacementKind::Normal => (true, StackVec4::new()),
-            PlacementKind::Capture => (true, clear_enemy),
-            PlacementKind::SuicideSingle => (false, StackVec4::new()),
-            PlacementKind::SuicideMulti => (false, merge_friendly),
-        };
-
-        let mut zobrist_next = self.zobrist;
-        let mut stone_count_next = self.stone_count();
-
-        if tile_survives {
-            zobrist_next ^= Zobrist::for_color_tile(color, tile);
-            stone_count_next += 1;
+    fn allocate_group(&mut self, new: Group) -> u16 {
+        match self.dead_groups.pop_front(&mut self.groups) {
+            Some(id) => {
+                self.groups[id as usize] = new;
+                id
+            }
+            None => {
+                let id = self.groups.len() as u16;
+                self.groups.push(new);
+                id
+            }
         }
-        removed_groups.for_each(|group_id| {
-            let group = &self.groups[group_id as usize];
-            zobrist_next ^= group.zobrist;
-            stone_count_next -= group.stones.len();
-        });
-
-        Ok(SimulatedPlacement {
-            kind,
-            zobrist_next,
-            stone_count_next,
-        })
     }
 
-    // TODO unroll this whole thing into the 4 directions?
-    //    collected inputs: type/group_id/liberties for each size
-    //    outputs: what groups to merge and what groups to kill
-    //    => simple function with 4 inputs, 4 outputs
-    #[allow(clippy::collapsible_else_if)]
-    pub fn prepare_place_stone(&self, tile: FlatTile, color: Player) -> Result<PreparedPlacement, TileOccupied> {
-        let size = self.size;
-        let content = &self.tiles[tile.index() as usize];
+    fn free_group(&mut self, id: u16) {
+        let group = &mut self.groups[id as usize];
+        debug_assert!(group.stones.is_empty());
+        debug_assert!(group.dead_link.is_unconnected_or_single());
 
-        if content.group_id.is_some() {
-            return Err(TileOccupied);
-        }
-
-        // investigate adjacent tiles
-        let mut new_group_stone_count = 1;
-        // TODO this name is a tragedy
-        let mut new_group_liberty_edge_count_before_capture = 0;
-        let mut new_group_zobrist = Zobrist::for_color_tile(color, tile);
-
-        // TODO get rid of adjacent_groups, it's just redundant with enemy and friendly
-        let mut adjacent_groups = StackVec4::new();
-        let mut clear_enemy = StackVec4::new();
-        let mut merge_friendly = StackVec4::new();
-
-        // TODO unroll?
-        for (adj_i, adj) in tile.all_adjacent(size).enumerate() {
-            let content = self.content_at(adj);
-
-            match content.group_id {
-                None => new_group_liberty_edge_count_before_capture += 1,
-                Some(group_id) => {
-                    let group = &self.groups[group_id as usize];
-
-                    adjacent_groups[adj_i] = group_id;
-                    let group_adjacency_count = adjacent_groups.count(group_id);
-
-                    if group.color == color {
-                        if group_adjacency_count == 1 {
-                            new_group_stone_count += group.stones.len();
-                            new_group_liberty_edge_count_before_capture += group.liberty_edge_count;
-                            new_group_zobrist ^= group.zobrist;
-                            merge_friendly[adj_i] = group_id;
-                        }
-                        new_group_liberty_edge_count_before_capture -= 1;
-                    } else {
-                        debug_assert!(group.liberty_edge_count as usize >= group_adjacency_count);
-                        if group.liberty_edge_count as usize == group_adjacency_count {
-                            clear_enemy[adj_i] = group_id;
-                        }
-                    }
-                }
-            }
-        }
-
-        debug_assert!(!merge_friendly.contains_duplicates());
-        debug_assert!(!clear_enemy.contains_duplicates());
-
-        // decide what kind of placement this is
-        let kind = if !clear_enemy.is_empty() {
-            PlacementKind::Capture
-        } else if new_group_liberty_edge_count_before_capture == 0 {
-            if new_group_stone_count == 1 {
-                PlacementKind::SuicideSingle
-            } else {
-                PlacementKind::SuicideMulti
-            }
-        } else {
-            PlacementKind::Normal
+        // mark group itself as dead
+        self.groups[id as usize] = Group {
+            color: group.color,
+            stones: LinkHead::empty(),
+            liberty_edge_count: 0,
+            zobrist: Default::default(),
+            dead_link: LinkNode::single(),
         };
 
-        Ok(PreparedPlacement {
-            new_group_stone_count,
-            new_group_liberty_edge_count_before_capture,
-            merge_friendly,
-            clear_enemy,
-            kind,
-        })
+        // insert into empty list
+        self.dead_groups.insert_front(id, &mut self.groups);
     }
 
     pub fn assert_valid(&self) {

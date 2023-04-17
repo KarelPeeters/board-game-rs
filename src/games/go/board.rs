@@ -152,7 +152,7 @@ impl GoBoard {
 
         // check history
         //   scan in reverse to hopefully find quicker matches
-        if !self.rules.allow_repeating_tiles() && self.history.contains(&sim.zobrist_next) {
+        if !self.rules.allow_repeating_tiles() && self.history.contains(&sim.next_zobrist) {
             return false;
         }
 
@@ -239,13 +239,13 @@ impl Board for GoBoard {
 
                 // actually place the tile and check for errors
                 let tile = tile.to_flat(self.size());
-                let kind = self
+                let sim = self
                     .chains
                     .place_stone(tile, curr)
                     .expect("Move was not available: tile already occupied");
 
                 // ensure the move was actually valid
-                match kind {
+                match sim.kind {
                     PlacementKind::Normal => {}
                     PlacementKind::Capture => {}
                     PlacementKind::SuicideSingle => {
@@ -257,7 +257,6 @@ impl Board for GoBoard {
                         }
                     }
                 }
-                // TODO check backwards, repetitions are typically close in time
                 if !self.rules.allow_repeating_tiles() && self.history.contains(&self.chains.zobrist()) {
                     panic!("Move was not available: repeating tiles is not allowed by the current rules")
                 }
