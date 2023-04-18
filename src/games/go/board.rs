@@ -12,7 +12,7 @@ use crate::board::{
 };
 use crate::games::go::chains::Chains;
 use crate::games::go::tile::Tile;
-use crate::games::go::{MinimalPlacement, PlacementKind, Rules, TileOccupied, Zobrist, GO_MAX_SIZE};
+use crate::games::go::{PlacementKind, Rules, TileOccupied, Zobrist, GO_MAX_SIZE};
 use crate::impl_unit_symmetry_board;
 use crate::util::iter::IterExt;
 
@@ -137,28 +137,6 @@ impl GoBoard {
         )
     }
 
-    fn is_available_move_sim(&self, sim: MinimalPlacement) -> bool {
-        // check placement kind
-        match sim.kind {
-            PlacementKind::Normal => {}
-            PlacementKind::Capture => {}
-            PlacementKind::SuicideSingle => return false,
-            PlacementKind::SuicideMulti => {
-                if !self.rules.allow_multi_stone_suicide {
-                    return false;
-                }
-            }
-        }
-
-        // check history
-        //   scan in reverse to hopefully find quicker matches
-        if !self.rules.allow_repeating_tiles() && self.history.contains(&sim.next_zobrist) {
-            return false;
-        }
-
-        true
-    }
-
     /// Full zobrist, including:
     /// * the tiles
     /// * the next player
@@ -184,6 +162,28 @@ impl GoBoard {
     }
 }
 
+fn is_available_move_sim(rules: &Rules, history: &IntSet<Zobrist>, kind: PlacementKind, next_zobrist: Zobrist) -> bool {
+    // check placement kind
+    match kind {
+        PlacementKind::Normal => {}
+        PlacementKind::Capture => {}
+        PlacementKind::SuicideSingle => return false,
+        PlacementKind::SuicideMulti => {
+            if !rules.allow_multi_stone_suicide {
+                return false;
+            }
+        }
+    }
+
+    // check history
+    //   scan in reverse to hopefully find quicker matches
+    if !rules.allow_repeating_tiles() && history.contains(&next_zobrist) {
+        return false;
+    }
+
+    true
+}
+
 impl Board for GoBoard {
     type Move = Move;
 
@@ -202,7 +202,7 @@ impl Board for GoBoard {
                 } else {
                     let tile = tile.to_flat(self.size());
                     match self.chains.simulate_place_stone_minimal(tile, self.next_player) {
-                        Ok(sim) => self.is_available_move_sim(sim),
+                        Ok(sim) => is_available_move_sim(&self.rules, &self.history, sim.kind, sim.next_zobrist),
                         Err(TileOccupied) => false,
                     }
                 }
@@ -213,16 +213,17 @@ impl Board for GoBoard {
     }
 
     fn play(&mut self, mv: Self::Move) -> Result<(), PlayError> {
-        // TODO this is wasteful, we're preparing the chains move twice!
-        //   can we save some more state and reuse it?
-        self.check_can_play(mv)?;
+        // usually we'd check if the move is available too, but here we do that later
+        self.check_done()?;
 
         let curr = self.next_player;
         let other = curr.other();
 
         match mv {
             Move::Pass => {
+                // pass is always available
                 // pass doesn't create history values or care about them
+
                 // auxiliary state update
                 self.next_player = other;
                 self.state = match self.state {
@@ -232,33 +233,26 @@ impl Board for GoBoard {
                 };
             }
             Move::Place(tile) => {
+                let prev_zobrist = self.chains.zobrist();
+
+                // place the tile if the corresponding move is actually available, return error otherwise
+                {
+                    let tile = tile.to_flat(self.size());
+                    let rules = &self.rules;
+                    let history = &self.history;
+                    let place_result = self.chains.place_stone_if(tile, curr, |sim| {
+                        is_available_move_sim(rules, history, sim.kind, sim.next_zobrist)
+                    });
+                    match place_result {
+                        Ok((_, true)) => {}
+                        Ok((_, false)) => return Err(PlayError::UnavailableMove),
+                        Err(TileOccupied) => return Err(PlayError::UnavailableMove),
+                    }
+                }
+
                 // update history
                 if self.rules.needs_history() {
-                    self.history.insert(self.chains.zobrist());
-                }
-
-                // actually place the tile and check for errors
-                let tile = tile.to_flat(self.size());
-                let sim = self
-                    .chains
-                    .place_stone(tile, curr)
-                    .expect("Move was not available: tile already occupied");
-
-                // ensure the move was actually valid
-                match sim.kind {
-                    PlacementKind::Normal => {}
-                    PlacementKind::Capture => {}
-                    PlacementKind::SuicideSingle => {
-                        panic!("Move was not available: single-stone suicide is never allowed")
-                    }
-                    PlacementKind::SuicideMulti => {
-                        if !self.rules.allow_multi_stone_suicide {
-                            panic!("Move was not available: multi-stone suicide is not allowed by the current rules")
-                        }
-                    }
-                }
-                if !self.rules.allow_repeating_tiles() && self.history.contains(&self.chains.zobrist()) {
-                    panic!("Move was not available: repeating tiles is not allowed by the current rules")
+                    self.history.insert(prev_zobrist);
                 }
 
                 // update auxiliary state
