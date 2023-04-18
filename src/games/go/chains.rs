@@ -299,9 +299,23 @@ impl Chains {
     }
 
     pub fn place_stone(&mut self, tile: FlatTile, color: Player) -> Result<SimulatedPlacement, TileOccupied> {
+        self.place_stone_if(tile, color, |_| true).map(|(sim, _)| sim)
+    }
+
+    pub fn place_stone_if(
+        &mut self,
+        tile: FlatTile,
+        color: Player,
+        mut f: impl FnMut(&SimulatedPlacement) -> bool,
+    ) -> Result<(SimulatedPlacement, bool), TileOccupied> {
         let simulated = self.simulate_place_stone(tile, color)?;
-        self.apply_simulated_placement(&simulated);
-        Ok(simulated)
+
+        let cond = f(&simulated);
+        if cond {
+            self.apply_simulated_placement(&simulated);
+        }
+
+        Ok((simulated, cond))
     }
 
     pub fn simulate_place_stone_minimal(
