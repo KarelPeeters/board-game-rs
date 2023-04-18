@@ -219,6 +219,7 @@ pub enum InvalidFen {
     TooLarge,
     InvalidShape,
     HasDeadStones,
+    Komi,
 }
 
 impl GoBoard {
@@ -230,11 +231,23 @@ impl GoBoard {
             State::Passed => 1,
             State::Done(_) => 2,
         };
-        format!("{} {} {}", chains, next_player, pass_counter)
+        let komi = self.komi_2() as f32 / 2.0;
+        if komi == 0.0 {
+            format!("{} {} {}", chains, next_player, pass_counter)
+        } else {
+            format!("{} {} {} {}", chains, next_player, pass_counter, komi)
+        }
     }
 
+    /// The fen format:
+    /// `"tiles next pass [komi]"`
     pub fn from_fen(fen: &str, rules: Rules) -> Result<GoBoard, InvalidFen> {
-        let (tiles, next, pass) = fen.split(' ').collect_tuple().ok_or(InvalidFen::Syntax)?;
+        let values = fen.split(' ').collect_vec();
+        let (&tiles, &next, &pass, komi) = match values.as_slice() {
+            [tiles, next, pass] => (tiles, next, pass, None),
+            [tiles, next, pass, komi] => (tiles, next, pass, Some(komi)),
+            _ => return Err(InvalidFen::Syntax),
+        };
 
         let chains = Chains::from_fen(tiles)?;
 
@@ -244,10 +257,23 @@ impl GoBoard {
             _ => return Err(InvalidFen::InvalidChar),
         };
 
+        let komi_2 = match komi {
+            None => 0,
+            Some(komi) => {
+                let komi_f = komi.parse::<f32>().map_err(|_| InvalidFen::Komi)?;
+                let komi_2f = komi_f * 2.0;
+                let komi_2 = komi_2f as i16;
+                if komi_2 as f32 != komi_2f {
+                    return Err(InvalidFen::Komi);
+                };
+                komi_2
+            }
+        };
+
         let state = match pass {
             "0" => State::Normal,
             "1" => State::Passed,
-            "2" => State::Done(chains.score().to_outcome()),
+            "2" => State::Done(chains.score().to_outcome(komi_2)),
             _ => return Err(InvalidFen::InvalidChar),
         };
 
@@ -257,6 +283,7 @@ impl GoBoard {
             next_player,
             state,
             Default::default(),
+            komi_2,
         ))
     }
 }
