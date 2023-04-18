@@ -47,6 +47,7 @@ lazy_static! {
 
 impl HashData {
     #[allow(clippy::new_without_default)]
+    #[inline(never)]
     pub fn new() -> HashData {
         let mut rng = consistent_rng();
         let vec_len = GO_MAX_AREA as usize;
