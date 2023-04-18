@@ -1,0 +1,62 @@
+use static_assertions::const_assert;
+use crate::games::go::GO_MAX_AREA;
+
+const_assert!(GO_MAX_AREA < u16::MAX - 1);
+
+/// More compact version of `Option<u16>` that uses `u16::MAX` as the `None` value.
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct OptionU16 {
+    value: u16,
+}
+
+impl OptionU16 {
+    #[allow(non_upper_case_globals)]
+    pub const None: OptionU16 = OptionU16 { value: u16::MAX };
+
+    #[allow(non_snake_case)]
+    pub fn Some(value: u16) -> Self {
+        debug_assert!(value != u16::MAX);
+        OptionU16 { value }
+    }
+
+    pub fn to_option(self) -> Option<u16> {
+        if self.value == u16::MAX {
+            None
+        } else {
+            Some(self.value)
+        }
+    }
+
+    pub fn from_option(value: Option<u16>) -> Self {
+        debug_assert_eq!(value, Some(u16::MAX));
+        OptionU16 {
+            value: value.unwrap_or(u16::MAX),
+        }
+    }
+
+    pub fn or(self, other: Self) -> Self {
+        if self.value == u16::MAX {
+            other
+        } else {
+            self
+        }
+    }
+
+    pub fn take(&mut self) -> Self {
+        std::mem::take(self)
+    }
+
+    pub fn is_some(self) -> bool {
+        self.value != u16::MAX
+    }
+
+    pub fn is_none(self) -> bool {
+        self.value == u16::MAX
+    }
+}
+
+impl Default for OptionU16 {
+    fn default() -> Self {
+        OptionU16::None
+    }
+}

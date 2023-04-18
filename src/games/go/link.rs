@@ -1,5 +1,6 @@
 // TODO move validness checking here
 
+use crate::games::go::util::OptionU16;
 use std::collections::HashSet;
 
 // TODO remove options here? we either have both present or neither
@@ -8,17 +9,17 @@ use std::collections::HashSet;
 //   might yield an easier or more compact implementation
 #[derive(Debug, Clone)]
 pub struct LinkHead {
-    pub first: Option<u16>,
+    pub first: OptionU16,
     // TODO remove last?
-    pub last: Option<u16>,
+    pub last: OptionU16,
     len: u16,
 }
 
 // TODO remove option here, this can be implicit from the containing node
 #[derive(Debug, Clone)]
 pub struct LinkNode {
-    pub prev: Option<u16>,
-    pub next: Option<u16>,
+    pub prev: OptionU16,
+    pub next: OptionU16,
 }
 
 // TODO allow multiple implementations for the same type?
@@ -37,8 +38,8 @@ impl LinkHead {
     /// Build the head for a list containing a single value `index`.
     pub fn single(index: u16) -> Self {
         LinkHead {
-            first: Some(index),
-            last: Some(index),
+            first: OptionU16::Some(index),
+            last: OptionU16::Some(index),
             len: 1,
         }
     }
@@ -47,22 +48,22 @@ impl LinkHead {
     pub fn full(len: u16) -> Self {
         if len == 0 {
             LinkHead {
-                first: None,
-                last: None,
+                first: OptionU16::None,
+                last: OptionU16::None,
                 len: 0,
             }
         } else {
             LinkHead {
-                first: Some(0),
-                last: Some(len - 1),
+                first: OptionU16::Some(0),
+                last: OptionU16::Some(len - 1),
                 len,
             }
         }
     }
 
-    pub fn pop_front(&mut self, storage: &mut [impl Linked]) -> Option<u16> {
-        let first_id = match self.first {
-            None => return None,
+    pub fn pop_front(&mut self, storage: &mut [impl Linked]) -> OptionU16 {
+        let first_id = match self.first.to_option() {
+            None => return OptionU16::None,
             Some(first_id) => first_id,
         };
 
@@ -70,18 +71,18 @@ impl LinkHead {
         let next_id = first.next;
 
         // update first
-        debug_assert_eq!(first.prev, None);
-        first.next = None;
+        debug_assert_eq!(first.prev, OptionU16::None);
+        first.next = OptionU16::None;
 
         // update head/next
         self.first = next_id;
         self.len -= 1;
-        match next_id {
+        match next_id.to_option() {
             None => self.last = next_id,
-            Some(next) => storage[next as usize].link_mut().prev = None,
+            Some(next) => storage[next as usize].link_mut().prev = OptionU16::None,
         }
 
-        Some(first_id)
+        OptionU16::Some(first_id)
     }
 
     pub fn insert_front(&mut self, index: u16, storage: &mut [impl Linked]) {
@@ -92,10 +93,10 @@ impl LinkHead {
 
     pub fn splice_front_take(&mut self, other: &mut LinkHead, storage: &mut [impl Linked]) {
         // middle connection
-        if let Some(other_last) = other.last {
+        if let Some(other_last) = other.last.to_option() {
             storage[other_last as usize].link_mut().next = self.first;
         }
-        if let Some(self_first) = self.first {
+        if let Some(self_first) = self.first.to_option() {
             storage[self_first as usize].link_mut().prev = other.last;
         }
 
@@ -116,11 +117,11 @@ impl LinkHead {
         let prev = node.prev.take();
         let next = node.next.take();
 
-        match prev {
+        match prev.to_option() {
             None => self.first = next,
             Some(prev) => storage[prev as usize].link_mut().next = next,
         }
-        match next {
+        match next.to_option() {
             None => self.last = prev,
             Some(next) => storage[next as usize].link_mut().prev = prev,
         }
@@ -143,11 +144,11 @@ impl LinkHead {
     // TODO implement an iterator for this, similar to LinkIterator
     pub fn for_each_mut<L: Linked>(&self, storage: &mut [L], mut f: impl FnMut(&mut [L], u16)) {
         let mut next = self.first;
-        let mut prev = None;
-        while let Some(curr) = next {
+        let mut prev = OptionU16::None;
+        while let Some(curr) = next.to_option() {
             let link = storage[curr as usize].link();
             debug_assert_eq!(prev, link.prev);
-            prev = Some(curr);
+            prev = OptionU16::Some(curr);
 
             next = link.next;
             f(storage, curr);
@@ -159,10 +160,10 @@ impl LinkHead {
     pub fn assert_valid_and_collect(&self, storage: &[impl Linked]) -> HashSet<u16> {
         let mut seen = HashSet::new();
 
-        match self.first {
-            None => assert_eq!(None, self.last, "Wrong last: start |-> end"),
+        match self.first.to_option() {
+            None => assert_eq!(OptionU16::None, self.last, "Wrong last: start |-> end"),
             Some(first) => assert_eq!(
-                None,
+                OptionU16::None,
                 storage[first as usize].link().prev,
                 "Wrong prev: start |-> {}",
                 first
@@ -170,15 +171,15 @@ impl LinkHead {
         }
 
         let mut next = self.first;
-        while let Some(curr) = next {
+        while let Some(curr) = next.to_option() {
             let inserted = seen.insert(curr);
             assert!(inserted, "Empty linked list contains loop including {}", curr);
 
             next = storage[curr as usize].link().next;
-            match next {
-                None => assert_eq!(Some(curr), self.last, "Wrong last: {} |-> end", curr),
+            match next.to_option() {
+                None => assert_eq!(OptionU16::Some(curr), self.last, "Wrong last: {} |-> end", curr),
                 Some(next) => assert_eq!(
-                    Some(curr),
+                    OptionU16::Some(curr),
                     storage[next as usize].link().prev,
                     "Wrong prev: {} |-> {}",
                     curr,
@@ -194,13 +195,24 @@ impl LinkHead {
 
 impl LinkNode {
     pub fn single() -> Self {
-        LinkNode { prev: None, next: None }
+        LinkNode {
+            prev: OptionU16::None,
+            next: OptionU16::None,
+        }
     }
 
     pub fn full(len: u16, index: u16) -> Self {
         LinkNode {
-            prev: if index > 0 { Some(index - 1) } else { None },
-            next: if index + 1 < len { Some(index + 1) } else { None },
+            prev: if index > 0 {
+                OptionU16::Some(index - 1)
+            } else {
+                OptionU16::None
+            },
+            next: if index + 1 < len {
+                OptionU16::Some(index + 1)
+            } else {
+                OptionU16::None
+            },
         }
     }
 
@@ -212,7 +224,7 @@ impl LinkNode {
 #[derive(Debug)]
 pub struct LinkIterator<'s, L: Linked> {
     storage: &'s [L],
-    next: Option<u16>,
+    next: OptionU16,
     items_left: u16,
 }
 
@@ -230,7 +242,7 @@ impl<'s, L: Linked> Iterator for LinkIterator<'s, L> {
     type Item = u16;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.next {
+        match self.next.to_option() {
             None => {
                 debug_assert_eq!(self.items_left, 0);
                 None

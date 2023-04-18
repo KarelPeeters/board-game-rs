@@ -10,10 +10,9 @@ use crate::board::Player;
 use crate::games::go::link::{LinkHead, LinkNode};
 use crate::games::go::stack_vec::StackVec4;
 use crate::games::go::tile::{Direction, Tile};
+use crate::games::go::util::OptionU16;
 use crate::games::go::{FlatTile, Linked, Score, TileX, Zobrist, GO_MAX_SIZE};
 use crate::util::iter::IterExt;
-
-// TODO replace Option<u16> with NonMaxU16 everywhere
 
 // TODO add function to remove stones?
 //   could be tricky since groups would have to be split
@@ -43,7 +42,7 @@ pub struct Chains {
 // TODO find a better name than "Content"
 #[derive(Debug, Clone)]
 pub struct Content {
-    pub group_id: Option<u16>,
+    pub group_id: OptionU16,
     pub link: LinkNode,
 }
 
@@ -116,7 +115,7 @@ impl Chains {
         let area = size as u16 * size as u16;
         let tiles = (0..area)
             .map(|i| Content {
-                group_id: None,
+                group_id: OptionU16::None,
                 link: LinkNode::full(area, i),
             })
             .collect_vec();
@@ -163,7 +162,10 @@ impl Chains {
     }
 
     pub fn group_at(&self, tile: FlatTile) -> Option<&Group> {
-        self.content_at(tile).group_id.map(|id| &self.groups[id as usize])
+        self.content_at(tile)
+            .group_id
+            .to_option()
+            .map(|id| &self.groups[id as usize])
     }
 
     pub fn stone_at(&self, tile: FlatTile) -> Option<Player> {
@@ -341,7 +343,7 @@ impl Chains {
         for (adj_i, adj) in tile.all_adjacent(size).enumerate() {
             let content = self.content_at(adj);
 
-            match content.group_id {
+            match content.group_id.to_option() {
                 None => merged_group_initial_liberty_edge_count += 1,
                 Some(group_id) => {
                     let group = &self.groups[group_id as usize];
@@ -421,7 +423,7 @@ impl Chains {
         for (adj_i, adj) in tile.all_adjacent(size).enumerate() {
             let content = self.content_at(adj);
 
-            match content.group_id {
+            match content.group_id.to_option() {
                 None => new_group_initial_liberty_edge_count += 1,
                 Some(group_id) => {
                     let group = &self.groups[group_id as usize];
@@ -544,10 +546,17 @@ impl Chains {
                     };
 
                     // set tile itself
-                    self.tiles[tile_index as usize].group_id = Some(group_id);
+                    self.tiles[tile_index as usize].group_id = OptionU16::Some(group_id);
 
                     // decrement adjacent liberties
-                    change_liberty_edges_at(size, &mut self.tiles, &mut self.groups, tile, -1, Some(group_id));
+                    change_liberty_edges_at(
+                        size,
+                        &mut self.tiles,
+                        &mut self.groups,
+                        tile,
+                        -1,
+                        OptionU16::Some(group_id),
+                    );
                 } else {
                     // build new merged group
                     //   do this before modifying liberties so they're immediately counted for the new group
@@ -556,7 +565,14 @@ impl Chains {
                     debug_assert_eq!(new_group_stone_count, self.groups[new_group_id as usize].stones.len());
 
                     // remove liberties from stones adjacent to tile
-                    change_liberty_edges_at(size, &mut self.tiles, &mut self.groups, tile, -1, Some(new_group_id));
+                    change_liberty_edges_at(
+                        size,
+                        &mut self.tiles,
+                        &mut self.groups,
+                        tile,
+                        -1,
+                        OptionU16::Some(new_group_id),
+                    );
 
                     // remove cleared groups
                     clear_enemy.for_each(|clear_group_id| {
@@ -613,7 +629,7 @@ impl Chains {
 
         // mark tiles as part of new group
         new_group_stones.for_each_mut(&mut self.tiles, |tiles, tile_index| {
-            tiles[tile_index as usize].group_id = Some(new_group_id);
+            tiles[tile_index as usize].group_id = OptionU16::Some(new_group_id);
         });
 
         new_group_id
@@ -641,11 +657,11 @@ impl Chains {
                 let tile = FlatTile::new(tile_index);
 
                 // remove stone->group link
-                tiles[tile_index as usize].group_id = None;
+                tiles[tile_index as usize].group_id = OptionU16::None;
 
                 // increase liberties of surrounding groups
                 //    we might accidentally increment old group liberties here, but that shouldn't be a problem
-                change_liberty_edges_at(size, tiles, groups, tile, 1, None);
+                change_liberty_edges_at(size, tiles, groups, tile, 1, OptionU16::None);
             });
         }
 
@@ -660,7 +676,7 @@ impl Chains {
     }
 
     fn allocate_group(&mut self, new: Group) -> u16 {
-        match self.dead_groups.pop_front(&mut self.groups) {
+        match self.dead_groups.pop_front(&mut self.groups).to_option() {
             Some(id) => {
                 self.groups[id as usize] = new;
                 id
@@ -704,7 +720,7 @@ impl Chains {
         for tile in FlatTile::all(size) {
             let content = self.content_at(tile);
 
-            if let Some(id) = content.group_id {
+            if let Some(id) = content.group_id.to_option() {
                 // group must must exist
                 assert!((id as usize) < self.groups.len());
                 let group = &self.groups[id as usize];
@@ -785,11 +801,11 @@ fn change_liberty_edges_at(
     groups: &mut [Group],
     tile: FlatTile,
     delta: i16,
-    skip_group_id: Option<u16>,
+    skip_group_id: OptionU16,
 ) {
     for adj in tile.all_adjacent(size) {
-        if let Some(group_id) = tiles[adj.index() as usize].group_id {
-            if Some(group_id) != skip_group_id {
+        if let Some(group_id) = tiles[adj.index() as usize].group_id.to_option() {
+            if OptionU16::Some(group_id) != skip_group_id {
                 let count = &mut groups[group_id as usize].liberty_edge_count;
                 *count = count.wrapping_add_signed(delta);
             }
@@ -839,7 +855,7 @@ impl Display for Chains {
             write!(f, "    {:2} ", y + 1)?;
             for x in 0..size {
                 let tile = Tile::new(x, y).to_flat(size);
-                match self.tiles[tile.index() as usize].group_id {
+                match self.tiles[tile.index() as usize].group_id.to_option() {
                     None => write!(f, "   .")?,
                     Some(group) => write!(f, "{:4}", group)?,
                 }
