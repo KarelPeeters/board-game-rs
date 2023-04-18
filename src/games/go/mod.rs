@@ -7,6 +7,7 @@ pub use io::*;
 pub use link::*;
 pub use rules::*;
 pub use tile::*;
+pub use util::*;
 
 pub const GO_MAX_SIZE: u8 = u8::MAX - 2;
 pub const GO_MAX_AREA: u16 = GO_MAX_SIZE as u16 * GO_MAX_SIZE as u16;
@@ -24,3 +25,4 @@ mod link;
 mod rules;
 mod stack_vec;
 mod tile;
+mod util;
