@@ -21,7 +21,7 @@ use crate::wdl::WDL;
 ///
 /// Progress indications can be displayed at intervals of `print_progress_every`.
 #[must_use]
-pub fn run<B: Board, L: Bot<B>, R: Bot<B>>(
+pub fn run<B: Board, L: Bot<B> + Debug, R: Bot<B> + Debug>(
     start: impl Fn() -> B + Sync,
     bot_l: impl Fn() -> L + Sync,
     bot_r: impl Fn() -> R + Sync,
@@ -75,7 +75,12 @@ pub fn run<B: Board, L: Bot<B>, R: Bot<B>>(
     }
 }
 
-fn play_single_game<B: Board>(start: &B, flip: bool, bot_l: &mut impl Bot<B>, bot_r: &mut impl Bot<B>) -> Replay<B> {
+fn play_single_game<B: Board, L: Bot<B> + Debug, R: Bot<B> + Debug>(
+    start: &B,
+    flip: bool,
+    bot_l: &mut L,
+    bot_r: &mut R,
+) -> Replay<B> {
     let mut board = start.clone();
     let player_l = if flip {
         board.next_player().other()
