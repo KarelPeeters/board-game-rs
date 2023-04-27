@@ -124,12 +124,13 @@ impl GoBoard {
 
         write!(
             f,
-            "GoBoard(next={:?}, state={:?}, history_len={}, stones_b={}, stones_w={}, rules={:?}{})",
+            "GoBoard(next={:?}, state={:?}, history_len={}, stones_b={}, stones_w={}, komi={}, rules={:?}{})",
             next,
             self.state(),
             self.history().len(),
             self.chains().stone_count_from(Player::A),
             self.chains().stone_count_from(Player::B),
+            self.komi(),
             self.rules(),
             fen,
         )
