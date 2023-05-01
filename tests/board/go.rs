@@ -1,5 +1,6 @@
-use board_game::board::{Board, BoardMoves, Outcome, PlayError, Player};
+use board_game::board::{Board, BoardMoves, BoardSymmetry, Outcome, PlayError, Player};
 use board_game::games::go::{Direction, FlatTile, GoBoard, Move, Rules, Score, Tile, GO_MAX_SIZE};
+use board_game::symmetry::{D4Symmetry, Symmetry};
 use board_game::util::board_gen::board_with_moves;
 use board_game::util::game_stats::perft_naive;
 use board_game::util::tiny::consistent_rng;
@@ -164,6 +165,13 @@ fn parse_fen() {
 
         assert_eq!(parsed, Ok(board));
     }
+}
+
+#[test]
+fn simple_asymmetric() {
+    let board = GoBoard::from_fen("...../...../...../..w../.b... b 0", Rules::tromp_taylor()).unwrap();
+    println!("{:?}", board);
+    go_board_test_main(&board);
 }
 
 #[test]
@@ -474,8 +482,14 @@ fn go_board_test_main(board: &GoBoard) {
     chains_test_main(board.chains());
     chains_test_simulate(board.chains());
 
-    // TODO enable this but without the slow random available sampling
-    // crate::board::board_test_main(board);
+    // test some symmetry stuff here so we can assert validness
+    for &sym in D4Symmetry::all() {
+        let result = board.map(sym);
+        result.chains().assert_valid();
+    }
+
+    // skip uniform sampling, the large boards and the existence of the pass moves make it pretty slow
+    crate::board::board_test_main_without_uniform(board);
 
     // test the sampling of non-pass moves instead
     if let Ok(available) = board.available_moves() {

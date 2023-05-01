@@ -1,5 +1,5 @@
-use static_assertions::const_assert;
 use crate::games::go::GO_MAX_AREA;
+use static_assertions::const_assert;
 
 const_assert!(GO_MAX_AREA < u16::MAX - 1);
 
@@ -28,7 +28,7 @@ impl OptionU16 {
     }
 
     pub fn from_option(value: Option<u16>) -> Self {
-        debug_assert_eq!(value, Some(u16::MAX));
+        assert_ne!(value, Some(u16::MAX));
         OptionU16 {
             value: value.unwrap_or(u16::MAX),
         }
@@ -40,6 +40,10 @@ impl OptionU16 {
         } else {
             self
         }
+    }
+
+    pub fn map(self, f: impl FnMut(u16) -> u16) -> Self {
+        Self::from_option(self.to_option().map(f))
     }
 
     pub fn take(&mut self) -> Self {

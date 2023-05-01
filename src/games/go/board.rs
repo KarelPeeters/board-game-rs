@@ -8,12 +8,12 @@ use nohash_hasher::IntSet;
 use rand::Rng;
 
 use crate::board::{
-    AllMovesIterator, AvailableMovesIterator, Board, BoardDone, BoardMoves, Outcome, PlayError, Player,
+    AllMovesIterator, AvailableMovesIterator, Board, BoardDone, BoardMoves, BoardSymmetry, Outcome, PlayError, Player,
 };
 use crate::games::go::chains::Chains;
 use crate::games::go::tile::Tile;
 use crate::games::go::{PlacementKind, Rules, TileOccupied, Zobrist, GO_MAX_SIZE};
-use crate::impl_unit_symmetry_board;
+use crate::symmetry::D4Symmetry;
 use crate::util::iter::IterExt;
 
 // TODO add must_pass function? maybe even cache the result of that function in board
@@ -328,8 +328,10 @@ impl InternalIterator for AvailableMovesIterator<'_, GoBoard> {
         F: FnMut(Self::Item) -> ControlFlow<R>,
     {
         // TODO can this be optimized in any way?
-        // this impl is still better than using `BruteforceMoveIterator`,
-        //   we only check tiles that are actually in the board
+        //   this impl is still better than using `BruteforceMoveIterator`,
+        //     we only check tiles that are actually in the board
+        //   we don't need to keep the move order consistent according to the docs,
+        //     ensure that's right and then switch to using the empty list
 
         let board = self.board();
 
@@ -346,8 +348,33 @@ impl InternalIterator for AvailableMovesIterator<'_, GoBoard> {
     // TODO add optimized count implementation?
 }
 
-// TODO implement proper symmetry
-impl_unit_symmetry_board!(GoBoard);
+impl BoardSymmetry<GoBoard> for GoBoard {
+    type Symmetry = D4Symmetry;
+    type CanonicalKey = Zobrist;
+
+    fn map(&self, sym: D4Symmetry) -> Self {
+        GoBoard {
+            rules: self.rules,
+            chains: self.chains.map_symmetry(sym),
+            next_player: self.next_player,
+            state: self.state,
+            history: self.history.clone(),
+            komi_2: self.komi_2,
+        }
+    }
+
+    fn map_move(&self, sym: D4Symmetry, mv: Move) -> Move {
+        match mv {
+            Move::Pass => Move::Pass,
+            Move::Place(tile) => Move::Place(tile.map_symmetry(sym, self.size())),
+        }
+    }
+
+    fn canonical_key(&self) -> Zobrist {
+        // we don't care about the full zobrist here, other fields are not affected by the symmetry
+        self.chains().zobrist()
+    }
+}
 
 impl Hash for GoBoard {
     // TODO include history (or just len?)
