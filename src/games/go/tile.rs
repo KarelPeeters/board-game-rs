@@ -1,4 +1,5 @@
 use crate::games::go::GO_MAX_SIZE;
+use crate::symmetry::D4Symmetry;
 use crate::util::iter::IterExt;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
@@ -75,6 +76,11 @@ impl Tile {
 
     pub fn exists(&self, size: u8) -> bool {
         self.x < size && self.y < size
+    }
+
+    pub fn map_symmetry(&self, sym: D4Symmetry, size: u8) -> Tile {
+        let (x, y) = sym.map_xy(self.x(), self.y(), size);
+        Tile::new(x, y)
     }
 }
 

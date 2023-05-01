@@ -191,6 +191,14 @@ impl LinkHead {
         assert_eq!(seen.len(), self.len as usize);
         seen
     }
+
+    pub fn map_index(&self, mut f: impl FnMut(u16) -> u16) -> Self {
+        LinkHead {
+            first: self.first.map(&mut f),
+            last: self.last.map(&mut f),
+            len: self.len,
+        }
+    }
 }
 
 impl LinkNode {
@@ -218,6 +226,13 @@ impl LinkNode {
 
     pub fn is_unconnected_or_single(&self) -> bool {
         self.prev.is_none() && self.next.is_none()
+    }
+
+    pub fn map_index(&self, mut f: impl FnMut(u16) -> u16) -> Self {
+        LinkNode {
+            prev: self.prev.map(&mut f),
+            next: self.next.map(&mut f),
+        }
     }
 }
 

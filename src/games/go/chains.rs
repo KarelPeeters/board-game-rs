@@ -12,6 +12,7 @@ use crate::games::go::stack_vec::StackVec4;
 use crate::games::go::tile::{Direction, Tile};
 use crate::games::go::util::OptionU16;
 use crate::games::go::{FlatTile, Linked, Score, TileX, Zobrist, GO_MAX_SIZE};
+use crate::symmetry::{D4Symmetry, Symmetry};
 use crate::util::iter::IterExt;
 
 // TODO add function to remove stones?
@@ -27,6 +28,7 @@ use crate::util::iter::IterExt;
 pub struct Chains {
     size: u8,
 
+    // TODO combine these into one vec to reduce allocations?
     tiles: Vec<Content>,
     groups: Vec<Group>,
 
@@ -705,6 +707,65 @@ impl Chains {
 
         // insert into empty list
         self.dead_groups.insert_front(id, &mut self.groups);
+    }
+
+    pub fn map_symmetry(&self, sym: D4Symmetry) -> Chains {
+        let size = self.size();
+        let map_tile_index = |index: u16| {
+            FlatTile::new(index)
+                .to_tile(size)
+                .map_symmetry(sym, size)
+                .to_flat(size)
+                .index()
+        };
+
+        let new_tiles = Tile::all(size)
+            .map(|new_tile| {
+                let old_tile = new_tile.map_symmetry(sym.inverse(), size);
+                let old_flat = old_tile.to_flat(size);
+                let old_content = self.tiles[old_flat.index() as usize].clone();
+
+                Content {
+                    group_id: old_content.group_id,
+                    link: old_content.link.map_index(map_tile_index),
+                }
+            })
+            .collect_vec();
+
+        let mut new_zobrist = Zobrist::default();
+
+        let new_groups = self
+            .groups
+            .iter()
+            .map(|old_group| {
+                let new_stones = old_group.stones.map_index(map_tile_index);
+
+                let new_group_zobrist = new_stones
+                    .iter(&new_tiles)
+                    .map(|tile| Zobrist::for_color_tile(old_group.color, FlatTile::new(tile)))
+                    .fold(Zobrist::default(), |a, b| a ^ b);
+
+                new_zobrist ^= new_group_zobrist;
+
+                Group {
+                    color: old_group.color,
+                    liberty_edge_count: old_group.liberty_edge_count,
+                    zobrist: new_group_zobrist,
+                    stones: new_stones,
+                    dead_link: old_group.dead_link.clone(),
+                }
+            })
+            .collect_vec();
+
+        Chains {
+            size: self.size,
+            tiles: new_tiles,
+            groups: new_groups,
+            stones_a: self.stones_a,
+            empty_list: self.empty_list.map_index(map_tile_index),
+            dead_groups: self.dead_groups.clone(),
+            zobrist: new_zobrist,
+        }
     }
 
     pub fn assert_valid(&self) {

@@ -1,6 +1,7 @@
 use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
 use std::fmt::Debug;
+use std::hash::Hash;
 use std::iter::FromIterator;
 use std::time::Instant;
 
@@ -9,6 +10,9 @@ use internal_iterator::InternalIterator;
 use board_game::board::{Board, BoardDone, PlayError};
 use board_game::symmetry::Symmetry;
 use board_game::util::game_stats;
+use board_game::util::tiny::consistent_rng;
+
+use crate::util::test_sampler_uniform;
 
 mod arimaa;
 mod ataxx;
@@ -25,21 +29,34 @@ pub fn board_test_main<B: Board>(board: &B)
 where
     B::Move: Hash,
 {
+    board_test_main_impl(board, true)
+}
+
+pub fn board_test_main_without_uniform<B: Board>(board: &B)
+where
+    B::Move: Hash,
+{
+    board_test_main_impl(board, false)
+}
+
+fn board_test_main_impl<B: Board>(board: &B, random_uniform: bool)
+where
+    B::Move: Hash,
+{
     println!("Currently testing board\n{:?}\n{}", board, board);
 
     if board.is_done() {
-        test_done_board_panics(board);
+        test_done_board_errors(board);
     } else {
         test_available_match(board);
-        test_random_available_uniform(board);
+
+        if random_uniform {
+            test_random_available_uniform(board);
+        }
     }
 
     test_symmetry(board);
 }
-
-use crate::util::test_sampler_uniform;
-use board_game::util::tiny::consistent_rng;
-use std::hash::Hash;
 
 pub fn board_perft_main<S: Debug + ?Sized, T: Debug, B: Board + Hash>(
     f: impl Fn(&S) -> B,
@@ -76,7 +93,7 @@ pub fn board_perft_main<S: Debug + ?Sized, T: Debug, B: Board + Hash>(
     println!("Total: took {:?}", total_start.elapsed());
 }
 
-fn test_done_board_panics<B: Board>(board: &B) {
+fn test_done_board_errors<B: Board>(board: &B) {
     assert!(board.is_done(), "bug in test implementation, expected done board");
 
     assert!(matches!(board.available_moves(), Err(BoardDone)));
