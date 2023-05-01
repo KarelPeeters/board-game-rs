@@ -72,7 +72,7 @@ impl GoBoard {
         }
     }
 
-    pub(super) fn from_parts(
+    pub fn from_parts(
         rules: Rules,
         chains: Chains,
         next_player: Player,
