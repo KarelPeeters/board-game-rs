@@ -24,7 +24,7 @@ pub struct GoBoard {
     next_player: Player,
     state: State,
     history: IntSet<Zobrist>,
-    komi_2: i16,
+    komi: Komi,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -41,15 +41,21 @@ pub struct Score {
 
 impl Score {
     /// Komi is the score bonus given to the second player, white for Go but represented as [Player::B] here.
-    pub fn to_outcome(self, komi_2: i16) -> Outcome {
+    pub fn to_outcome(self, komi: Komi) -> Outcome {
         let score_a = self.a as i32 * 2;
-        let total_b = self.b as i32 * 2 + komi_2 as i32;
+        let total_b = self.b as i32 * 2 + komi.as_int() as i32;
         match score_a.cmp(&total_b) {
             Ordering::Less => Outcome::WonBy(Player::B),
             Ordering::Equal => Outcome::Draw,
             Ordering::Greater => Outcome::WonBy(Player::A),
         }
     }
+}
+
+/// Komi, in favour of [Player::B] (white).
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct Komi {
+    komi_2: i16,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -60,15 +66,14 @@ pub enum State {
 }
 
 impl GoBoard {
-    /// `komi_2 = int(2 * komi)`, all in favor of white/the second player/[Player::B].
-    pub fn new(size: u8, komi_2: i16, rules: Rules) -> GoBoard {
+    pub fn new(size: u8, komi: Komi, rules: Rules) -> GoBoard {
         GoBoard {
             rules,
             chains: Chains::new(size),
             next_player: Player::A,
             state: State::Normal,
             history: Default::default(),
-            komi_2,
+            komi,
         }
     }
 
@@ -78,7 +83,7 @@ impl GoBoard {
         next_player: Player,
         state: State,
         history: IntSet<Zobrist>,
-        komi_2: i16,
+        komi: Komi,
     ) -> GoBoard {
         GoBoard {
             rules,
@@ -86,7 +91,7 @@ impl GoBoard {
             next_player,
             state,
             history,
-            komi_2,
+            komi,
         }
     }
 
@@ -102,12 +107,8 @@ impl GoBoard {
         self.rules
     }
 
-    pub fn komi_2(&self) -> i16 {
-        self.komi_2
-    }
-
-    pub fn komi(&self) -> f32 {
-        self.komi_2 as f32 / 2.0
+    pub fn komi(&self) -> Komi {
+        self.komi
     }
 
     pub fn chains(&self) -> &Chains {
@@ -149,7 +150,7 @@ impl GoBoard {
             self.next_player,
             self.state,
             Default::default(),
-            self.komi_2,
+            self.komi,
         )
     }
 
@@ -244,7 +245,7 @@ impl Board for GoBoard {
                 self.next_player = other;
                 self.state = match self.state {
                     State::Normal => State::Passed,
-                    State::Passed => State::Done(self.current_score().to_outcome(self.komi_2)),
+                    State::Passed => State::Done(self.current_score().to_outcome(self.komi)),
                     State::Done(_) => unreachable!(),
                 };
             }
@@ -305,6 +306,24 @@ impl<'a> BoardMoves<'a, GoBoard> for GoBoard {
     }
 }
 
+impl Komi {
+    pub fn zero() -> Self {
+        Komi { komi_2: 0 }
+    }
+
+    pub fn new(komi_2: i16) -> Self {
+        Komi { komi_2 }
+    }
+
+    pub fn as_int(self) -> i16 {
+        self.komi_2
+    }
+
+    pub fn as_float(self) -> f32 {
+        self.komi_2 as f32 / 2.0
+    }
+}
+
 impl InternalIterator for AllMovesIterator<GoBoard> {
     type Item = Move;
 
@@ -359,7 +378,7 @@ impl BoardSymmetry<GoBoard> for GoBoard {
             next_player: self.next_player,
             state: self.state,
             history: self.history.clone(),
-            komi_2: self.komi_2,
+            komi: self.komi,
         }
     }
 

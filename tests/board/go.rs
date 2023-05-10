@@ -1,5 +1,5 @@
 use board_game::board::{Board, BoardMoves, BoardSymmetry, Outcome, PlayError, Player};
-use board_game::games::go::{Direction, FlatTile, GoBoard, Move, Rules, Score, Tile, GO_MAX_SIZE};
+use board_game::games::go::{Direction, FlatTile, GoBoard, Komi, Move, Rules, Score, Tile, GO_MAX_SIZE};
 use board_game::symmetry::{D4Symmetry, Symmetry};
 use board_game::util::board_gen::board_with_moves;
 use board_game::util::game_stats::perft_naive;
@@ -95,7 +95,7 @@ fn empty_fen() {
     let rules = Rules::tromp_taylor();
 
     for (size, fen) in cases {
-        let board = GoBoard::new(size, 0, rules);
+        let board = GoBoard::new(size, Komi::zero(), rules);
         println!("{}", board);
 
         assert_eq!(board.to_fen(), fen);
@@ -108,21 +108,21 @@ fn empty_fen() {
 #[test]
 fn fen_komi() {
     let cases = [
-        (".../.../... b 0", 0),
-        (".../.../... b 0 0", 0),
-        (".../.../... b 0 1", 2),
-        (".../.../... b 0 +1", 2),
-        (".../.../... b 0 +1.0", 2),
-        (".../.../... b 0 -1", -2),
-        (".../.../... b 0 -0.5", -1),
-        (".../.../... b 0 7.5", 15),
+        (".../.../... b 0", Komi::new(0)),
+        (".../.../... b 0 0", Komi::new(0)),
+        (".../.../... b 0 1", Komi::new(2)),
+        (".../.../... b 0 +1", Komi::new(2)),
+        (".../.../... b 0 +1.0", Komi::new(2)),
+        (".../.../... b 0 -1", Komi::new(-2)),
+        (".../.../... b 0 -0.5", Komi::new(-1)),
+        (".../.../... b 0 7.5", Komi::new(15)),
     ];
 
     let rules = Rules::tromp_taylor();
 
-    for (fen, komi_2) in cases {
+    for (fen, komi) in cases {
         let board = GoBoard::from_fen(fen, rules).unwrap();
-        assert_eq!(komi_2, board.komi_2());
+        assert_eq!(komi, board.komi());
 
         // next roundtrip
         let fen_mid = board.to_fen();
@@ -139,7 +139,7 @@ fn parse_fen() {
 
     let rules = Rules::tromp_taylor();
     let board = board_with_moves(
-        GoBoard::new(5, 0, rules),
+        GoBoard::new(5, Komi::zero(), rules),
         &tiles.map(|(x, y)| Move::Place(Tile::new(x, y))),
     );
     assert_eq!("b...w/...bw/...b./w..../.b... w 0", board.to_fen());
@@ -177,7 +177,7 @@ fn simple_asymmetric() {
 #[test]
 fn clear_corner() {
     let rules = Rules::tromp_taylor();
-    let start = GoBoard::new(5, 0, rules);
+    let start = GoBoard::new(5, Komi::zero(), rules);
     let moves = [(0, 0), (0, 1), (4, 4), (1, 0)].map(|(x, y)| Move::Place(Tile::new(x, y)));
 
     let board = print_board_with_moves(start, &moves);
@@ -189,7 +189,7 @@ fn clear_corner() {
 #[test]
 fn double_pass() {
     let rules = Rules::tromp_taylor();
-    let start = GoBoard::new(5, 0, rules);
+    let start = GoBoard::new(5, Komi::zero(), rules);
     let moves = [Move::Pass, Move::Pass];
 
     let board = print_board_with_moves(start, &moves);
@@ -341,7 +341,7 @@ fn super_ko_repeat() {
         Move::Place(Tile::from_str("B1").unwrap()),
         Move::Pass,
     ];
-    let start = GoBoard::new(3, 0, rules);
+    let start = GoBoard::new(3, Komi::zero(), rules);
     let board = print_board_with_moves(start, &moves);
 
     let fen_before = ".../.bb/bw. w 1";
@@ -414,11 +414,11 @@ fn go_perft_main(board: GoBoard, all_expected: &[u64]) {
 #[ignore]
 fn go_perft_3() {
     go_perft_main(
-        GoBoard::new(3, 0, Rules::tromp_taylor()),
+        GoBoard::new(3, Komi::zero(), Rules::tromp_taylor()),
         &[1, 10, 91, 738, 5281, 33384, 180768, 857576, 3474312, 12912040, 44019568],
     );
     go_perft_main(
-        GoBoard::new(3, 0, Rules::cgos()),
+        GoBoard::new(3, Komi::zero(), Rules::cgos()),
         &[
             1, 10, 91, 738, 5281, 33384, 179712, 842696, 3271208, 11279096, 33786208, 98049080, 276391080, 783708048,
         ],
@@ -429,11 +429,11 @@ fn go_perft_3() {
 #[ignore]
 fn go_perft_5() {
     go_perft_main(
-        GoBoard::new(5, 0, Rules::tromp_taylor()),
+        GoBoard::new(5, Komi::zero(), Rules::tromp_taylor()),
         &[1, 26, 651, 15650, 361041, 7984104, 168759376, 3407616216],
     );
     go_perft_main(
-        GoBoard::new(5, 0, Rules::cgos()),
+        GoBoard::new(5, Komi::zero(), Rules::cgos()),
         &[1, 26, 651, 15650, 361041, 7984104, 168755200, 3407394696],
     );
 }
@@ -442,11 +442,11 @@ fn go_perft_5() {
 #[ignore]
 fn go_perft_19() {
     go_perft_main(
-        GoBoard::new(19, 0, Rules::tromp_taylor()),
+        GoBoard::new(19, Komi::zero(), Rules::tromp_taylor()),
         &[1, 362, 130683, 47046242, 16889859009],
     );
     go_perft_main(
-        GoBoard::new(19, 0, Rules::cgos()),
+        GoBoard::new(19, Komi::zero(), Rules::cgos()),
         &[1, 362, 130683, 47046242, 16889859009],
     );
 }
@@ -454,7 +454,10 @@ fn go_perft_19() {
 #[test]
 fn go_perft_fast() {
     // 5x5 empty
-    go_perft_main(GoBoard::new(5, 0, Rules::tromp_taylor()), &[1, 26, 651, 15650, 361041]);
+    go_perft_main(
+        GoBoard::new(5, Komi::zero(), Rules::tromp_taylor()),
+        &[1, 26, 651, 15650, 361041],
+    );
 
     // 5x5 pocket
     go_perft_main(
