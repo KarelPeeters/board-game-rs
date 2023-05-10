@@ -324,6 +324,14 @@ impl Komi {
     }
 }
 
+impl std::ops::Neg for Komi {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Komi { komi_2: -self.komi_2 }
+    }
+}
+
 impl InternalIterator for AllMovesIterator<GoBoard> {
     type Item = Move;
 
