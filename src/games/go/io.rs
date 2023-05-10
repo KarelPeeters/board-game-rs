@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::fmt::{Alignment, Debug, Display, Formatter};
 use std::str::FromStr;
 
@@ -6,7 +7,7 @@ use itertools::Itertools;
 use crate::board::{Board, Player};
 use crate::games::go::chains::Chains;
 use crate::games::go::tile::Tile;
-use crate::games::go::{GoBoard, Move, PlacementKind, Rules, State, TileOccupied, GO_MAX_SIZE};
+use crate::games::go::{GoBoard, Komi, Move, PlacementKind, Rules, State, TileOccupied, GO_MAX_SIZE};
 
 impl Display for Tile {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -113,10 +114,6 @@ impl FromStr for Tile {
 
 impl GoBoard {
     fn write_debug(&self, f: &mut Formatter, include_fen: bool) -> std::fmt::Result {
-        let next = match self.next_player() {
-            Player::A => 'b',
-            Player::B => 'w',
-        };
         let fen = match include_fen {
             true => format!(", fen={:?}", self.to_fen()),
             false => String::new(),
@@ -125,7 +122,7 @@ impl GoBoard {
         write!(
             f,
             "GoBoard(next={:?}, state={:?}, history_len={}, stones_b={}, stones_w={}, komi={}, rules={:?}{})",
-            next,
+            go_player_to_symbol(self.next_player()),
             self.state(),
             self.history().len(),
             self.chains().stone_count_from(Player::A),
@@ -161,7 +158,7 @@ impl Display for GoBoard {
                 let player = self.stone_at(tile);
                 let c = match player {
                     None => '.',
-                    Some(player) => player_symbol(player),
+                    Some(player) => go_player_to_symbol(player),
                 };
                 write!(f, "{:width$}", c, width = width_x)?;
             }
@@ -195,7 +192,7 @@ impl FromStr for Move {
     type Err = InvalidMove;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s == "PASS" {
+        if s == "PASS" || s == "pass" {
             Ok(Move::Pass)
         } else {
             match Tile::from_str(s) {
@@ -206,10 +203,55 @@ impl FromStr for Move {
     }
 }
 
-fn player_symbol(player: Player) -> char {
+pub fn go_player_to_symbol(player: Player) -> char {
     match player {
         Player::A => 'b',
         Player::B => 'w',
+    }
+}
+
+pub fn go_player_from_symbol(symbol: char) -> Option<Player> {
+    match symbol {
+        'b' | 'B' => Some(Player::A),
+        'w' | 'W' => Some(Player::B),
+        _ => None,
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct InvalidKomi;
+
+impl TryFrom<f32> for Komi {
+    type Error = InvalidKomi;
+
+    fn try_from(value: f32) -> Result<Self, Self::Error> {
+        let komi_2_f = value * 2.0;
+        // ensure komi_2 is an integer
+        if komi_2_f.fract() == 0.0 {
+            let komi_2 = komi_2_f as i16;
+            // ensure komi_2 fits in i16
+            if komi_2 as f32 == komi_2_f {
+                Ok(Komi::new(komi_2))
+            } else {
+                Err(InvalidKomi)
+            }
+        } else {
+            Err(InvalidKomi)
+        }
+    }
+}
+
+impl Display for Komi {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_float())
+    }
+}
+
+impl FromStr for Komi {
+    type Err = InvalidKomi;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Komi::try_from(s.parse::<f32>().map_err(|_| InvalidKomi)?)
     }
 }
 
@@ -226,13 +268,13 @@ pub enum InvalidFen {
 impl GoBoard {
     pub fn to_fen(&self) -> String {
         let chains = self.chains().to_fen();
-        let next_player = player_symbol(self.next_player());
+        let next_player = go_player_to_symbol(self.next_player());
         let pass_counter = match self.state() {
             State::Normal => 0,
             State::Passed => 1,
             State::Done(_) => 2,
         };
-        let komi = self.komi_2() as f32 / 2.0;
+        let komi = self.komi().as_float();
         if komi == 0.0 {
             format!("{} {} {}", chains, next_player, pass_counter)
         } else {
@@ -258,23 +300,15 @@ impl GoBoard {
             _ => return Err(InvalidFen::InvalidChar),
         };
 
-        let komi_2 = match komi {
-            None => 0,
-            Some(komi) => {
-                let komi_f = komi.parse::<f32>().map_err(|_| InvalidFen::Komi)?;
-                let komi_2f = komi_f * 2.0;
-                let komi_2 = komi_2f as i16;
-                if komi_2 as f32 != komi_2f {
-                    return Err(InvalidFen::Komi);
-                };
-                komi_2
-            }
+        let komi = match komi {
+            None => Komi::zero(),
+            Some(komi) => Komi::from_str(komi).map_err(|_| InvalidFen::Komi)?,
         };
 
         let state = match pass {
             "0" => State::Normal,
             "1" => State::Passed,
-            "2" => State::Done(chains.score().to_outcome(komi_2)),
+            "2" => State::Done(chains.score().to_outcome(komi)),
             _ => return Err(InvalidFen::InvalidChar),
         };
 
@@ -284,7 +318,7 @@ impl GoBoard {
             next_player,
             state,
             Default::default(),
-            komi_2,
+            komi,
         ))
     }
 }
@@ -303,7 +337,7 @@ impl Chains {
                     let player = self.stone_at(tile);
                     let c = match player {
                         None => '.',
-                        Some(player) => player_symbol(player),
+                        Some(player) => go_player_to_symbol(player),
                     };
                     fen.push(c);
                 }
@@ -336,8 +370,7 @@ impl Chains {
                 for (x, value) in line.chars().enumerate() {
                     let tile = Tile::new(x as u8, y as u8).to_flat(size);
                     let value = match value {
-                        'b' => Some(Player::A),
-                        'w' => Some(Player::B),
+                        'b' | 'w' => Some(go_player_from_symbol(value).unwrap()),
                         '.' => None,
                         _ => unreachable!(),
                     };
