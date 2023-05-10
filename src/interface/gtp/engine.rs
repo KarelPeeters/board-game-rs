@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::io::{BufRead, Write};
 use std::str::FromStr;
 
@@ -9,7 +10,7 @@ use crate::games::go::{go_player_from_symbol, Chains, GoBoard, Komi, Move, Rules
 use crate::interface::gtp::command::{Command, CommandKind, FinalStatusKind, Response, ResponseInner};
 
 pub trait GtpBot {
-    fn select_move(&mut self, board: &GoBoard) -> Result<Move, BoardDone>;
+    fn select_move(&mut self, board: &GoBoard, time: &TimeInfo) -> Result<Move, BoardDone>;
 }
 
 #[derive(Debug)]
@@ -17,9 +18,19 @@ pub struct GtpEngineState {
     size: u8,
     rules: Rules,
     komi: Komi,
+    time_settings: TimeSettings,
+    time_left_a: TimeLeft,
+    time_left_b: TimeLeft,
 
     state: BoardState,
     stack: Vec<BoardState>,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct TimeInfo {
+    pub settings: TimeSettings,
+    pub time_left: TimeLeft,
+    pub time_left_opponent: TimeLeft,
 }
 
 /// See http://www.lysator.liu.se/~gunnar/gtp/gtp2-spec-draft2/gtp2-spec.html#sec:time-handling
@@ -31,18 +42,21 @@ pub struct TimeSettings {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct Time {
-    settings: TimeSettings,
-    time_left: u32,
-    stones_left: u32,
+pub struct TimeLeft {
+    pub time_left: u32,
+    pub stones_left: u32,
 }
 
 #[derive(Debug)]
 struct BoardState {
     chains: Chains,
     state: State,
+
+    #[allow(dead_code)]
     captured_a: u32,
+    #[allow(dead_code)]
     captured_b: u32,
+
     history: IntSet<Zobrist>,
 }
 
@@ -55,17 +69,25 @@ impl GtpEngineState {
             rules: Rules::cgos(),
             state: BoardState::new(size),
             stack: vec![],
+            time_settings: TimeSettings {
+                main_time: 0,
+                byo_yomi_time: 0,
+                byo_yomi_stones: 0,
+            },
+            time_left_a: TimeLeft {
+                time_left: 5,
+                stones_left: 1,
+            },
+            time_left_b: TimeLeft {
+                time_left: 5,
+                stones_left: 1,
+            },
         }
     }
 
     fn clear(&mut self) {
-        *self = Self {
-            size: self.size,
-            komi: self.komi,
-            rules: self.rules,
-            state: BoardState::new(self.size),
-            stack: vec![],
-        }
+        self.state = BoardState::new(self.size);
+        self.stack.clear();
     }
 
     fn arbitrary(&mut self) {
@@ -81,6 +103,19 @@ impl GtpEngineState {
             self.state.history.clone(),
             self.komi,
         )
+    }
+
+    fn time_info(&self, player: Player) -> TimeInfo {
+        let (time_left, time_left_opponent) = match player {
+            Player::A => (self.time_left_a, self.time_left_b),
+            Player::B => (self.time_left_b, self.time_left_a),
+        };
+
+        TimeInfo {
+            settings: self.time_settings,
+            time_left,
+            time_left_opponent,
+        }
     }
 
     fn play(&mut self, player: Player, mv: Move) -> Result<(), PlayError> {
@@ -124,7 +159,6 @@ impl GtpEngineState {
                 Ok(Some(known.to_string()))
             }
             Ok(CommandKind::ListCommands) => {
-                // TODO we're lying for now, but hopefully we end up supporting all of them
                 check_arg_count(&command, 0)?;
                 let list = CommandKind::ALL.iter().map(|c| format!("{}", c)).join("\n");
                 Ok(Some(list))
@@ -144,6 +178,11 @@ impl GtpEngineState {
 
                 Err("unacceptable size".to_string())
             }
+            Ok(CommandKind::ClearBoard) => {
+                check_arg_count(&command, 0)?;
+                self.clear();
+                Ok(None)
+            }
             Ok(CommandKind::Komi) => {
                 check_arg_count(&command, 1)?;
                 let new_komi = &command.args[0];
@@ -154,11 +193,6 @@ impl GtpEngineState {
                     }
                     Err(_) => Err("syntax error".to_string()),
                 }
-            }
-            Ok(CommandKind::ClearBoard) => {
-                check_arg_count(&command, 0)?;
-                self.clear();
-                Ok(None)
             }
             Ok(CommandKind::Play) => {
                 check_arg_count(&command, 2)?;
@@ -179,11 +213,14 @@ impl GtpEngineState {
             Ok(CommandKind::GenMove) => {
                 check_arg_count(&command, 1)?;
                 let color = &command.args[0];
-
                 let player = player_from_color(color)?;
 
                 let board = self.board(player);
-                let mv = engine.select_move(&board).map_err(|_| "board done".to_string())?;
+                let time_info = self.time_info(player);
+
+                let mv = engine
+                    .select_move(&board, &time_info)
+                    .map_err(|_| "board done".to_string())?;
                 self.play(player, mv).unwrap();
 
                 // TODO allow the bot to resign?
@@ -192,6 +229,54 @@ impl GtpEngineState {
                     Move::Place(tile) => tile.to_string(),
                 };
                 Ok(Some(vertex))
+            }
+            Ok(CommandKind::Undo) => {
+                check_arg_count(&command, 0)?;
+                if let Some(old_state) = self.stack.pop() {
+                    self.state = old_state;
+                    Ok(None)
+                } else {
+                    Err("cannot undo".to_string())
+                }
+            }
+            Ok(CommandKind::TimeSettings) => {
+                check_arg_count(&command, 3)?;
+
+                let main_time = u32::from_str(&command.args[0]).map_err(|_| "syntax error".to_string())?;
+                let byo_yomi_time = u32::from_str(&command.args[1]).map_err(|_| "syntax error".to_string())?;
+                let byo_yomi_stones = u32::from_str(&command.args[2]).map_err(|_| "syntax error".to_string())?;
+
+                self.time_settings.main_time = main_time;
+                self.time_settings.byo_yomi_time = byo_yomi_time;
+                self.time_settings.byo_yomi_stones = byo_yomi_stones;
+
+                Ok(None)
+            }
+            Ok(CommandKind::TimeLeft) => {
+                check_arg_count(&command, 3)?;
+
+                let color = &command.args[0];
+                let player = player_from_color(color)?;
+
+                let time_left = u32::from_str(&command.args[1]).map_err(|_| "syntax error".to_string())?;
+                let stones_left = u32::from_str(&command.args[2]).map_err(|_| "syntax error".to_string())?;
+
+                let time_left = TimeLeft { time_left, stones_left };
+                match player {
+                    Player::A => self.time_left_a = time_left,
+                    Player::B => self.time_left_b = time_left,
+                }
+
+                Ok(None)
+            }
+            Ok(CommandKind::FinalScore) => {
+                let score = self.state.chains.score();
+                let str = match score.a.cmp(&score.b) {
+                    Ordering::Equal => "0".to_string(),
+                    Ordering::Greater => format!("B+{}", score.a - score.b),
+                    Ordering::Less => format!("W+{}", score.b - score.a),
+                };
+                Ok(Some(str))
             }
             Ok(CommandKind::FinalStatusList) => {
                 check_arg_count(&command, 1)?;
@@ -216,8 +301,9 @@ impl GtpEngineState {
                 let list = stones.iter().map(|&tile| tile.to_string()).join("\n");
                 Ok(Some(list))
             }
-            // TODO we're lying about which commands we actually support
-            Ok(_) => Err("unimplemented command".to_string()),
+            Ok(CommandKind::ShowBoard) => {
+                todo!()
+            }
             Err(_) => Err("unknown command".to_string()),
         }
     }
@@ -327,4 +413,13 @@ fn preprocess_input(before: &str) -> String {
     }
 
     result
+}
+
+impl TimeInfo {
+    /// *Warning*: returns inf if there are no time limits
+    pub fn simple_time_to_use(&self, expected_stones_left: f32) -> f32 {
+        // TODO consider byo_yomi
+        let expected_stones_left = f32::max(2.0, expected_stones_left);
+        self.time_left.time_left as f32 / expected_stones_left
+    }
 }

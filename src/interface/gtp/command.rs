@@ -48,9 +48,10 @@ command_kinds!(
     BoardSize("boardsize"),
     ClearBoard("clear_board"),
     Komi("komi"),
-    FixedHandicap("fixed_handicap"),
-    PlaceFreeHandicap("place_free_handicap"),
-    SetFreeHandicap("set_free_handicap"),
+    // TODO handicap?
+    // FixedHandicap("fixed_handicap"),
+    // PlaceFreeHandicap("place_free_handicap"),
+    // SetFreeHandicap("set_free_handicap"),
     // core play
     Play("play"),
     GenMove("genmove"),
@@ -63,7 +64,6 @@ command_kinds!(
     // TODO regression?
     // LoadSgf("loadsgf"),
     // RegGenMove("reg_genmove"),
-
     //debug
     ShowBoard("showboard"),
 );
