@@ -169,7 +169,7 @@ impl FromStr for FinalStatusKind {
 
 #[cfg(test)]
 mod test {
-    use crate::interface::gtp::CommandKind;
+    use crate::interface::gtp::command::CommandKind;
     use std::str::FromStr;
 
     #[test]
