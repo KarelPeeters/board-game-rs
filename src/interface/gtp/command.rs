@@ -88,6 +88,15 @@ pub struct Response {
 
 impl Response {
     pub fn new(id: Option<u64>, inner: ResponseInner) -> Self {
+        // check that the response doesn't contain two consecutive newlines
+        let msg = match &inner {
+            Ok(msg) => msg.as_ref(),
+            Err(msg) => Some(msg),
+        };
+        if let Some(msg) = msg {
+            assert!(!msg.contains("\n\n"));
+        }
+
         Self { id, inner }
     }
 }

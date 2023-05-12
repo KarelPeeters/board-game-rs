@@ -58,6 +58,9 @@ struct BoardState {
     captured_b: u32,
 
     history: IntSet<Zobrist>,
+
+    // only used for board printing
+    prev_player: Player,
 }
 
 impl GtpEngineState {
@@ -128,6 +131,7 @@ impl GtpEngineState {
             captured_a: captured(Player::A, player, &self.state.chains, board.chains()),
             captured_b: captured(Player::B, player, &self.state.chains, board.chains()),
             history: board.history().clone(),
+            prev_player: player,
         };
         let old_state = std::mem::replace(&mut self.state, new_state);
         self.stack.push(old_state);
@@ -302,7 +306,9 @@ impl GtpEngineState {
                 Ok(Some(list))
             }
             Ok(CommandKind::ShowBoard) => {
-                todo!()
+                let board = self.board(self.state.prev_player.other());
+                let board_str = board.to_string();
+                Ok(Some(board_str))
             }
             Err(_) => Err("unknown command".to_string()),
         }
@@ -364,6 +370,7 @@ impl BoardState {
             captured_a: 0,
             captured_b: 0,
             history: Default::default(),
+            prev_player: Player::B, // assume A plays first
         }
     }
 }
