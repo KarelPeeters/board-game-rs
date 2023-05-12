@@ -9,8 +9,14 @@ use crate::board::{Board, BoardDone, PlayError, Player};
 use crate::games::go::{go_player_from_symbol, Chains, GoBoard, Komi, Move, Rules, State, Tile, Zobrist, GO_MAX_SIZE};
 use crate::interface::gtp::command::{Command, CommandKind, FinalStatusKind, Response, ResponseInner};
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum Action {
+    Resign,
+    Move(Move),
+}
+
 pub trait GtpBot {
-    fn select_move(&mut self, board: &GoBoard, time: &TimeInfo) -> Result<Move, BoardDone>;
+    fn select_action(&mut self, board: &GoBoard, time: &TimeInfo, log: &mut impl Write) -> Result<Action, BoardDone>;
 }
 
 #[derive(Debug)]
@@ -139,7 +145,7 @@ impl GtpEngineState {
         Ok(())
     }
 
-    fn handle_command(&mut self, command: Command, engine: &mut impl GtpBot) -> ResponseInner {
+    fn handle_command(&mut self, command: Command, engine: &mut impl GtpBot, log: &mut impl Write) -> ResponseInner {
         let kind = CommandKind::from_str(&command.name);
         // TODO find nice way to handle command arg length checking
 
@@ -222,15 +228,19 @@ impl GtpEngineState {
                 let board = self.board(player);
                 let time_info = self.time_info(player);
 
-                let mv = engine
-                    .select_move(&board, &time_info)
+                let action = engine
+                    .select_action(&board, &time_info, log)
                     .map_err(|_| "board done".to_string())?;
-                self.play(player, mv).unwrap();
 
-                // TODO allow the bot to resign?
-                let vertex = match mv {
-                    Move::Pass => "pass".to_string(),
-                    Move::Place(tile) => tile.to_string(),
+                let vertex = match action {
+                    Action::Move(mv) => {
+                        self.play(player, mv).unwrap();
+                        match mv {
+                            Move::Pass => "pass".to_string(),
+                            Move::Place(tile) => tile.to_string(),
+                        }
+                    }
+                    Action::Resign => "resign".to_string(),
                 };
                 Ok(Some(vertex))
             }
@@ -341,7 +351,7 @@ impl GtpEngineState {
                 }
 
                 let id = command.id;
-                let inner = self.handle_command(command, &mut engine);
+                let inner = self.handle_command(command, &mut engine, &mut log);
                 let response = Response::new(id, inner);
 
                 // the output stream disconnecting is not really an error
