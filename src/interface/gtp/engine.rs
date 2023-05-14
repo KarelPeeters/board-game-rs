@@ -393,10 +393,15 @@ fn captured(target: Player, prev: Player, before: &Chains, after: &Chains) -> u3
 }
 
 fn player_from_color(s: &str) -> Result<Player, String> {
-    if s.len() == 1 {
-        if let Some(player) = go_player_from_symbol(s.chars().next().unwrap()) {
-            return Ok(player);
+    match s.to_lowercase().as_str() {
+        "black" => return Ok(Player::A),
+        "white" => return Ok(Player::B),
+        s if s.len() == 1 => {
+            if let Some(player) = go_player_from_symbol(s.chars().next().unwrap()) {
+                return Ok(player);
+            }
         }
+        _ => {}
     }
 
     Err("invalid color".to_string())
