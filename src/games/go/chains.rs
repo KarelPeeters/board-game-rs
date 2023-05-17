@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 
@@ -9,7 +9,7 @@ use rand::Rng;
 use crate::board::Player;
 use crate::games::go::link::{LinkHead, LinkNode};
 use crate::games::go::stack_vec::StackVec4;
-use crate::games::go::tile::{Direction, Tile};
+use crate::games::go::tile::Tile;
 use crate::games::go::util::OptionU16;
 use crate::games::go::{FlatTile, Linked, Score, TileX, Zobrist, GO_MAX_SIZE};
 use crate::symmetry::{D4Symmetry, Symmetry};
@@ -109,6 +109,14 @@ pub enum PlacementKind {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct TileOccupied;
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum Territory {
+    Stone(Player),
+    Territory(Player),
+    Both,
+    Neither,
+}
 
 impl Chains {
     pub fn new(size: u8) -> Self {
@@ -243,63 +251,77 @@ impl Chains {
         self.empty_tiles().filter(|&tile| f(tile)).choose(rng)
     }
 
-    /// Is there a path between `start` and another tile with value `target` over only `player` tiles?
-    pub fn reaches(&self, start: FlatTile, target: Option<Player>) -> bool {
-        // TODO implement more quickly with chains
-        //   alternatively, keep this as a fallback for unit tests
-        let through = self.stone_at(start);
-        assert_ne!(through, target);
-
-        let mut visited = vec![false; self.tiles.len()];
-        let mut stack = vec![start];
-
-        while let Some(tile) = stack.pop() {
-            let index = tile.index() as usize;
-            if visited[index] {
-                continue;
-            }
-            visited[index] = true;
-
-            for dir in Direction::ALL {
-                if let Some(adj) = tile.adjacent_in(dir, self.size) {
-                    let value = self.stone_at(adj);
-                    if value == target {
-                        return true;
-                    }
-                    if value == through {
-                        stack.push(adj);
-                    }
-                }
-            }
-        }
-
-        false
+    pub fn territory(&self) -> Vec<Territory> {
+        self.compute_territory(true)
     }
 
     pub fn score(&self) -> Score {
-        // TODO rewrite using chains
-        // TODO maybe even move to chains?
+        let territory = self.compute_territory(false);
 
-        let mut score_a = 0;
-        let mut score_b = 0;
+        let mut score_a = self.stone_count_from(Player::A) as u32;
+        let mut score_b = self.stone_count_from(Player::B) as u32;
 
-        for tile in FlatTile::all(self.size()) {
-            match self.stone_at(tile) {
-                None => {
-                    let reaches_a = self.reaches(tile, Some(Player::A));
-                    let reaches_b = self.reaches(tile, Some(Player::B));
-                    match (reaches_a, reaches_b) {
-                        (true, false) => score_a += 1,
-                        (false, true) => score_b += 1,
-                        (true, true) | (false, false) => {}
-                    }
-                }
-                Some(Player::A) => score_a += 1,
-                Some(Player::B) => score_b += 1,
+        for tile in self.empty_tiles() {
+            match territory[tile.index() as usize] {
+                Territory::Stone(_) => unreachable!(),
+                Territory::Territory(Player::A) => score_a += 1,
+                Territory::Territory(Player::B) => score_b += 1,
+                Territory::Both | Territory::Neither => {}
             }
         }
 
         Score { a: score_a, b: score_b }
+    }
+
+    fn compute_territory(&self, include_stones: bool) -> Vec<Territory> {
+        let size = self.size;
+        let area = self.area();
+
+        // empty tiles whose info should be propagated to neighbors
+        let mut todo = VecDeque::new();
+
+        // initialize the state
+        let mut state = vec![Territory::Neither; area as usize];
+        if include_stones {
+            for tile in FlatTile::all(size) {
+                if let Some(player) = self.stone_at(tile) {
+                    state[tile.index() as usize] = Territory::Stone(player);
+                }
+            }
+        }
+
+        // collect starting points
+        for tile in self.empty_tiles() {
+            let mut reach_a = false;
+            let mut reach_b = false;
+            tile.all_adjacent(size).for_each(|adj| {
+                let stone = self.stone_at(adj);
+                reach_a |= stone == Some(Player::A);
+                reach_b |= stone == Some(Player::B);
+            });
+            if reach_a || reach_b {
+                state[tile.index() as usize] = Territory::from_reach(reach_a, reach_b);
+                todo.push_back(tile)
+            }
+        }
+
+        // propagate
+        while let Some(curr) = todo.pop_front() {
+            let curr_state = state[curr.index() as usize];
+
+            for adj in curr.all_adjacent(size) {
+                if self.stone_at(adj).is_none() {
+                    let old_state = state[adj.index() as usize];
+                    let new_state = old_state.merge_empty(curr_state);
+                    if new_state != old_state {
+                        state[adj.index() as usize] = new_state;
+                        todo.push_back(adj);
+                    }
+                }
+            }
+        }
+
+        state
     }
 
     pub fn place_stone(&mut self, tile: FlatTile, color: Player) -> Result<SimulatedPlacement, TileOccupied> {
@@ -852,6 +874,42 @@ impl Chains {
         // check empty tiles linkedlist
         let linked_empty_tiles = self.empty_list.assert_valid_and_collect(&self.tiles);
         assert_eq!(empty_tiles, linked_empty_tiles);
+    }
+}
+
+impl Territory {
+    pub fn player(self) -> Option<Player> {
+        match self {
+            Territory::Stone(player) => Some(player),
+            Territory::Territory(player) => Some(player),
+            Territory::Neither | Territory::Both => None,
+        }
+    }
+
+    fn merge_empty(self, other: Territory) -> Territory {
+        let (left_a, left_b) = self.to_reach();
+        let (right_a, right_b) = other.to_reach();
+        Territory::from_reach(left_a || right_a, left_b || right_b)
+    }
+
+    fn to_reach(self) -> (bool, bool) {
+        match self {
+            Territory::Stone(Player::A) => (true, false),
+            Territory::Stone(Player::B) => (false, true),
+            Territory::Territory(Player::A) => (true, false),
+            Territory::Territory(Player::B) => (false, true),
+            Territory::Both => (true, true),
+            Territory::Neither => (false, false),
+        }
+    }
+
+    fn from_reach(reach_a: bool, reach_b: bool) -> Territory {
+        match (reach_a, reach_b) {
+            (false, false) => Territory::Neither,
+            (true, true) => Territory::Both,
+            (true, false) => Territory::Territory(Player::A),
+            (false, true) => Territory::Territory(Player::B),
+        }
     }
 }
 

@@ -6,7 +6,7 @@ use rand::seq::{IteratorRandom, SliceRandom};
 use rand::Rng;
 
 use board_game::board::Player;
-use board_game::games::go::{Chains, FlatTile, Group, PlacementKind, Tile};
+use board_game::games::go::{Chains, Direction, FlatTile, Group, PlacementKind, Score, Tile};
 use board_game::util::tiny::consistent_rng;
 
 use crate::util::test_sampler_uniform;
@@ -402,6 +402,7 @@ pub fn chains_test_main_no_sample(chains: &Chains) {
     chains.assert_valid();
     check_floodfill(chains);
     check_fen(chains);
+    assert_eq!(compute_score(chains), chains.score());
 }
 
 pub fn chains_test_main(chains: &Chains) {
@@ -605,4 +606,58 @@ impl GroupExpect {
 
         assert_eq!(Some(self), actual);
     }
+}
+
+fn compute_score(chains: &Chains) -> Score {
+    let mut score_a = 0;
+    let mut score_b = 0;
+
+    for tile in FlatTile::all(chains.size()) {
+        match chains.stone_at(tile) {
+            None => {
+                let reaches_a = reaches(chains, tile, Some(Player::A));
+                let reaches_b = reaches(chains, tile, Some(Player::B));
+                match (reaches_a, reaches_b) {
+                    (true, false) => score_a += 1,
+                    (false, true) => score_b += 1,
+                    (true, true) | (false, false) => {}
+                }
+            }
+            Some(Player::A) => score_a += 1,
+            Some(Player::B) => score_b += 1,
+        }
+    }
+
+    Score { a: score_a, b: score_b }
+}
+
+/// Is there a path between `start` and another tile with value `target` over only `player` tiles?
+pub fn reaches(chains: &Chains, start: FlatTile, target: Option<Player>) -> bool {
+    let through = chains.stone_at(start);
+    assert_ne!(through, target);
+
+    let mut visited = vec![false; chains.area() as usize];
+    let mut stack = vec![start];
+
+    while let Some(tile) = stack.pop() {
+        let index = tile.index() as usize;
+        if visited[index] {
+            continue;
+        }
+        visited[index] = true;
+
+        for dir in Direction::ALL {
+            if let Some(adj) = tile.adjacent_in(dir, chains.size()) {
+                let value = chains.stone_at(adj);
+                if value == target {
+                    return true;
+                }
+                if value == through {
+                    stack.push(adj);
+                }
+            }
+        }
+    }
+
+    false
 }
