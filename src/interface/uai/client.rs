@@ -116,13 +116,16 @@ pub fn run(
 
                 let time_to_use = match time_settings {
                     GoTimeSettings::Move(time) => 0.95 * (time as f32 / 1000.0),
-                    GoTimeSettings::Clock { w_time, b_time, .. } => {
-                        let time_left_ms = match curr_board.next_player() {
-                            Player::A => w_time,
-                            Player::B => b_time,
+                    GoTimeSettings::Clock { w_time, b_time, w_inc, b_inc } => {
+                        let (time_left_ms, inc_ms) = match curr_board.next_player() {
+                            Player::A => (w_time, w_inc),
+                            Player::B => (b_time, b_inc),
                         };
+
                         let time_left = time_left_ms as f32 / 1000.0;
-                        time_left / 30.0
+                        let inc = inc_ms as f32 / 1000.0;
+
+                        time_left / 30.0 + inc
                     }
                 };
 
