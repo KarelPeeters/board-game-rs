@@ -28,3 +28,59 @@ impl<I: Iterator> InternalIterator for ClonableInternal<I> {
         self.iter.count()
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct PureMap<I, F> {
+    inner: I,
+    f: F,
+}
+
+pub trait IterExt: Iterator {
+    /// Pure version of [Iterator::map] that assumes the mapping function does not have side effects.
+    /// This means that implemented functions (like [Self::count], [Self::nth], ...) are allowed to skip calling the mapping function if possible.
+    /// [Iterator::map] already does this do some extend, but only for a limited set of functions.
+    fn pure_map<B, F: Fn(Self::Item) -> B>(self, f: F) -> PureMap<Self, F>
+    where
+        Self: Sized,
+    {
+        PureMap { inner: self, f }
+    }
+}
+
+impl<I: Iterator> IterExt for I {}
+
+impl<I: Iterator, B, F: Fn(I::Item) -> B> Iterator for PureMap<I, F> {
+    type Item = B;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(&self.f)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+
+    fn count(self) -> usize
+    where
+        Self: Sized,
+    {
+        self.inner.count()
+    }
+
+    fn last(self) -> Option<Self::Item>
+    where
+        Self: Sized,
+    {
+        self.inner.last().map(&self.f)
+    }
+
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        self.inner.nth(n).map(&self.f)
+    }
+}
+
+impl<I: ExactSizeIterator, B, F: Fn(I::Item) -> B> ExactSizeIterator for PureMap<I, F> {
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+}

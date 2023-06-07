@@ -140,3 +140,40 @@ pub fn random_board_with_depth_condition<B: Board>(
         }
     }
 }
+
+/// Iterator over randomly generated boards.
+/// Yields all intermediate boards, including the start and end of each simulation.
+#[derive(Debug, Clone)]
+pub struct RandomBoardIterator<B: Board, R: Rng> {
+    start: B,
+    rng: R,
+    curr: B,
+}
+
+impl<B: Board, R: Rng> RandomBoardIterator<B, R> {
+    pub fn new(start: B, rng: R) -> Result<Self, BoardDone> {
+        start.check_done()?;
+        Ok(RandomBoardIterator {
+            start: start.clone(),
+            rng,
+            curr: start,
+        })
+    }
+}
+
+impl<B: Board, R: Rng> Iterator for RandomBoardIterator<B, R> {
+    type Item = B;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let result = self.curr.clone();
+
+        match self.curr.play_random_available_move(&mut self.rng) {
+            Ok(()) => {}
+            Err(BoardDone) => {
+                self.curr = self.start.clone();
+            }
+        }
+
+        Some(result)
+    }
+}

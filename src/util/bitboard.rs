@@ -2,6 +2,7 @@ use std::fmt::{Display, Formatter};
 
 use crate::util::bits::{get_nth_set_bit, BitIter};
 use crate::util::coord::Coord8;
+use crate::util::iter::{IterExt, PureMap};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct BitBoard8(pub u64);
@@ -180,10 +181,10 @@ impl BitBoard8 {
 
 impl IntoIterator for BitBoard8 {
     type Item = Coord8;
-    type IntoIter = std::iter::Map<BitIter<u64>, fn(u8) -> Coord8>;
+    type IntoIter = PureMap<BitIter<u64>, fn(u8) -> Coord8>;
 
     fn into_iter(self) -> Self::IntoIter {
-        BitIter::new(self.0).map(Coord8::from_index)
+        BitIter::new(self.0).pure_map(Coord8::from_index)
     }
 }
 

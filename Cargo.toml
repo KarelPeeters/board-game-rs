@@ -28,8 +28,12 @@ rayon = "1.5.2"
 # TODO the chess crate is heavy (and takes a long time to build, see below "temp fix"), maybe replace it with
 #  cozy-chess or shakmaty
 chess = "3.2.0"
+# TODO make arimaa optional with a feature
 arimaa_engine_step = { version = "1.0.1" } # , path = "../arimaa-engine-step"
 once_cell = "1.12.0"
+lazy_static = "1.4.0"
+static_assertions = "1.1.0"
+nohash-hasher = "0.2.0"
 
 # temporary fix until https://github.com/jordanbray/chess/pull/67 is merged
 [profile.dev.build-override]
@@ -40,4 +44,8 @@ opt-level = 3
 opt-level = 3
 
 [profile.release]
+debug = true
+
+[profile.release-with-debug]
+inherits = "release"
 debug = true

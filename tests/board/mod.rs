@@ -1,21 +1,25 @@
 use std::collections::hash_map::RandomState;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt::Debug;
+use std::hash::Hash;
 use std::iter::FromIterator;
 use std::time::Instant;
 
 use internal_iterator::InternalIterator;
-use rand::{Rng, SeedableRng};
-use rand_xoshiro::Xoroshiro64StarStar;
 
 use board_game::board::{Board, BoardDone, PlayError};
 use board_game::symmetry::Symmetry;
 use board_game::util::game_stats;
+use board_game::util::tiny::consistent_rng;
+
+use crate::util::test_sampler_uniform;
 
 mod arimaa;
 mod ataxx;
 mod chess;
 mod connect4;
+mod go;
+mod go_chains;
 mod max_moves;
 mod oware;
 mod sttt;
@@ -25,19 +29,34 @@ pub fn board_test_main<B: Board>(board: &B)
 where
     B::Move: Hash,
 {
+    board_test_main_impl(board, true)
+}
+
+pub fn board_test_main_without_uniform<B: Board>(board: &B)
+where
+    B::Move: Hash,
+{
+    board_test_main_impl(board, false)
+}
+
+fn board_test_main_impl<B: Board>(board: &B, random_uniform: bool)
+where
+    B::Move: Hash,
+{
     println!("Currently testing board\n{:?}\n{}", board, board);
 
     if board.is_done() {
-        test_done_board_panics(board);
+        test_done_board_errors(board);
     } else {
         test_available_match(board);
-        test_random_available_uniform(board);
+
+        if random_uniform {
+            test_random_available_uniform(board);
+        }
     }
 
     test_symmetry(board);
 }
-
-use std::hash::Hash;
 
 pub fn board_perft_main<S: Debug + ?Sized, T: Debug, B: Board + Hash>(
     f: impl Fn(&S) -> B,
@@ -74,7 +93,7 @@ pub fn board_perft_main<S: Debug + ?Sized, T: Debug, B: Board + Hash>(
     println!("Total: took {:?}", total_start.elapsed());
 }
 
-fn test_done_board_panics<B: Board>(board: &B) {
+fn test_done_board_errors<B: Board>(board: &B) {
     assert!(board.is_done(), "bug in test implementation, expected done board");
 
     assert!(matches!(board.available_moves(), Err(BoardDone)));
@@ -163,39 +182,9 @@ where
     println!("random_available uniform:");
     println!("{}", board);
 
+    let expected: Vec<_> = board.available_moves().unwrap().collect();
     let mut rng = consistent_rng();
-
-    let available_move_count = board.available_moves().unwrap().count();
-    let total_samples = 1000 * available_move_count;
-    let expected_samples = total_samples as f32 / available_move_count as f32;
-
-    println!(
-        "Available moves: {}, samples: {}, expected: {}",
-        available_move_count, total_samples, expected_samples
-    );
-
-    let mut counts: HashMap<B::Move, u32> = HashMap::new();
-    for _ in 0..total_samples {
-        let mv = board.random_available_move(&mut rng).unwrap();
-        *counts.entry(mv).or_default() += 1;
-    }
-
-    for (&mv, &count) in &counts {
-        println!("Move {:?} -> count {} ~ {}", mv, count, count as f32 / expected_samples);
-    }
-
-    for (&mv, &count) in &counts {
-        assert!(
-            (count as f32) > 0.8 * expected_samples,
-            "Move {:?} not generated often enough",
-            mv
-        );
-        assert!(
-            (count as f32) < 1.2 * expected_samples,
-            "Move {:?} generated too often",
-            mv
-        );
-    }
+    test_sampler_uniform(&expected, true, || Some(board.random_available_move(&mut rng).unwrap()));
 }
 
 fn test_symmetry<B: Board>(board: &B)
@@ -256,10 +245,19 @@ where
     }
 }
 
-fn consistent_rng() -> impl Rng {
-    Xoroshiro64StarStar::seed_from_u64(0)
-}
-
 fn sort_moves<B: Board>(moves: &[B::Move]) -> Vec<B::Move> {
     B::all_possible_moves().filter(|&mv| moves.contains(&mv)).collect()
+}
+
+pub fn print_board_with_moves<B: Board>(start: B, moves: &[B::Move]) -> B {
+    let mut board = start;
+    println!("{}", board);
+
+    for &mv in moves {
+        println!("Playing {}", mv);
+        board.play(mv).unwrap();
+        println!("{}", board);
+    }
+
+    board
 }

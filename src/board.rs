@@ -8,6 +8,8 @@ use rand::Rng;
 
 use crate::symmetry::Symmetry;
 
+// TODO consider adding pseudo-legal movegen and a play variant that can reject non-available moves
+
 /// One of the two players.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Player {
@@ -65,6 +67,7 @@ where
         Ok(self.available_moves()?.nth(index).unwrap())
     }
 
+    // TODO is play with an invalid move allowed to leave the board in an inconsistent state?
     /// Play the move `mv`, modifying this board.
     fn play(&mut self, mv: Self::Move) -> Result<(), PlayError>;
 

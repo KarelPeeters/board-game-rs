@@ -12,3 +12,4 @@ pub mod mask;
 pub mod rating;
 
 pub mod iter;
+pub mod tiny;
