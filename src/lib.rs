@@ -5,44 +5,44 @@
 #![allow(clippy::assertions_on_constants)]
 #![allow(clippy::new_without_default)]
 
-//! A [Board](board::Board) abstraction for deterministic two player games.
+//! A [Board](crate::board::Board) abstraction for deterministic two player games.
 //! This allows for code to be generic over the actual game, so it only needs to written once.
 //!
 //! # Features
 //!
 //! Currently, the implemented games are:
-//! * [Chess](https://en.wikipedia.org/wiki/Chess) as [ChessBoard](games::chess::ChessBoard),
+//! * [Chess](https://en.wikipedia.org/wiki/Chess) as [ChessBoard](crate::games::chess::ChessBoard),
 //!     implemented as a simple wrapper around the [chess](https://crates.io/crates/chess) crate.
 //! * [Go/Baduk](https://en.wikipedia.org/wiki/Go_(game))
-//!     as [GoBoard](games::go::board::GoBoard).
+//!     as [GoBoard](crate::games::go::board::GoBoard).
 //! * [Super/Ultimate tic-tac-toe](https://en.wikipedia.org/wiki/Ultimate_tic-tac-toe)
-//!     as [STTTBoard](games::sttt::STTTBoard).
+//!     as [STTTBoard](crate::games::sttt::STTTBoard).
 //! * [Ataxx](https://en.wikipedia.org/wiki/Ataxx)
-//!     as [AtaxxBoard](games::ataxx::AtaxxBoard).
-//! * [Oware](https://en.wikipedia.org/wiki/Oware) as [OwareBoard](games::oware::OwareBoard).
-//! * [Connect4](https://en.wikipedia.org/wiki/Connect_Four) as [Connect4](games::connect4::Connect4).
-//! * [Tic Tac Toe](https://en.wikipedia.org/wiki/Tic-tac-toe) as [TTTBoard](games::ttt::TTTBoard).
+//!     as [AtaxxBoard](crate::games::ataxx::board::AtaxxBoard).
+//! * [Oware](https://en.wikipedia.org/wiki/Oware) as [OwareBoard](crate::games::oware::OwareBoard).
+//! * [Connect4](https://en.wikipedia.org/wiki/Connect_Four) as [Connect4](crate::games::connect4::Connect4).
+//! * [Tic Tac Toe](https://en.wikipedia.org/wiki/Tic-tac-toe) as [TTTBoard](crate::games::ttt::TTTBoard).
 //!
 //! Most game implementations are heavily optimized, using bitboards or other techniques where appropriate.
 //!
 //! There are also some utility boards:
-//! * [MaxMovesBoard](games::max_length::MaxMovesBoard)
+//! * [MaxMovesBoard](crate::games::max_length::MaxMovesBoard)
 //!     wraps another board and sets the outcome to a draw after move limit has been reached.
-//! * [DummyGame](games::dummy::DummyGame)
+//! * [DummyGame](crate::games::dummy::DummyGame)
 //!     is a board that is constructed from an explicit game tree, useful for debugging.
 //!
-//! Utilities in this crate that work for any [Board](board::Board):
+//! Utilities in this crate that work for any [Board](crate::board::Board):
 //! * Game-playing algorithms, specifically:
-//!     * [RandomBot](ai::simple::RandomBot),
+//!     * [RandomBot](crate::ai::simple::RandomBot),
 //!         which simply picks a random move.
-//!     * [RolloutBot](ai::simple::RolloutBot),
+//!     * [RolloutBot](crate::ai::simple::RolloutBot),
 //!         which simulates a fixed number of random games for each possible move and picks the one with the best win probability.
-//!     * [MinimaxBot](ai::minimax::MiniMaxBot),
+//!     * [MinimaxBot](crate::ai::minimax::MiniMaxBot),
 //!         which picks the best move as evaluated by a customizable heuristic at a fixed depth. (implemented as alpha-beta negamax).
-//!     * [MCTSBot](ai::mcts::MCTSBot),
+//!     * [MCTSBot](crate::ai::mcts::MCTSBot),
 //!         which picks the best move as found by [Monte Carlo Tree Search](https://en.wikipedia.org/wiki/Monte_Carlo_tree_search).
-//! * Random board generation functions, see [board_gen](util::board_gen).
-//! * A bot vs bot game runner to compare playing strength, see [bot_game](util::bot_game).
+//! * Random board generation functions, see [board_gen](crate::util::board_gen).
+//! * A bot vs bot game runner to compare playing strength, see [bot_game](crate::util::bot_game).
 //! * Simple game statistics (perft, random game length) which can be used to test board implementations.
 //!
 //! This crate is also used as the foundation for [kZero](https://github.com/KarelPeeters/kZero),
