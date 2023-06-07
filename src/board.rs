@@ -42,7 +42,7 @@ pub enum PlayError {
 /// Implementing [Board] also requires [BoardSymmetry] and [BoardMoves] to be implemented.
 ///
 /// Additionally it can be useful to implement [Hash] for both the board and move types, some utility functions require those extra bounds.
-/// Do **not** implement [Copy] for the board, since the type is mutated by some of the functions and this can quickly lead to confusion.   
+/// Do **not** implement [Copy] for the board, since the type is mutated by some of the functions and this can quickly lead to confusion.
 pub trait Board: 'static + Debug + Display + Clone + Eq + Send + Sync + BoardSymmetry<Self>
 where
     for<'a> Self: BoardMoves<'a, Self>,

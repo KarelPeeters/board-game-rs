@@ -10,42 +10,64 @@ DO NOT EDIT MANUALLY
 
 <!-- cargo-rdme start -->
 
-A [Board](https://docs.rs/board-game/latest/board_game/board/trait.Board.html) abstraction for deterministic two player games.
+A [Board](board::Board) abstraction for deterministic two player games.
 This allows for code to be generic over the actual game, so it only needs to written once.
 
 ## Features
 
 Currently, the implemented games are:
-* [Super/Ultimate tic-tac-toe](https://en.wikipedia.org/wiki/Ultimate_tic-tac-toe)
-    in the module [sttt](https://docs.rs/board-game/latest/board_game/games/sttt/).
-* [Ataxx](https://en.wikipedia.org/wiki/Ataxx)
-    in the module [ataxx](https://docs.rs/board-game/latest/board_game/games/ataxx/).
-* Chess in the module [chess](https://docs.rs/board-game/latest/board_game/games/chess/),
-    implemented as a simple wrapper around the [chess](https://crates.io/crates/chess) crate.
 
-Notable things currently implemented in this crate that work for any [Board](https://docs.rs/board-game/latest/board_game/board/trait.Board.html):
+* [Chess](https://en.wikipedia.org/wiki/Chess) as [ChessBoard](games::chess::ChessBoard),
+  implemented as a simple wrapper around the [chess](https://crates.io/crates/chess) crate.
+* [Go/Baduk](https://en.wikipedia.org/wiki/Go_(game))
+  as [GoBoard](games::go::board::GoBoard).
+* [Super/Ultimate tic-tac-toe](https://en.wikipedia.org/wiki/Ultimate_tic-tac-toe)
+  as [STTTBoard](games::sttt::STTTBoard).
+* [Ataxx](https://en.wikipedia.org/wiki/Ataxx)
+  as [AtaxxBoard](games::ataxx::AtaxxBoard).
+* [Oware](https://en.wikipedia.org/wiki/Oware) as [OwareBoard](games::oware::OwareBoard).
+* [Connect4](https://en.wikipedia.org/wiki/Connect_Four) as [Connect4](games::connect4::Connect4).
+* [Tic Tac Toe](https://en.wikipedia.org/wiki/Tic-tac-toe) as [TTTBoard](games::ttt::TTTBoard).
+
+Most game implementations are heavily optimized, using bitboards or other techniques where appropriate.
+
+There are also some utility boards:
+
+* [MaxMovesBoard](games::max_length::MaxMovesBoard)
+  wraps another board and sets the outcome to a draw after move limit has been reached.
+* [DummyGame](games::dummy::DummyGame)
+  is a board that is constructed from an explicit game tree, useful for debugging.
+
+Utilities in this crate that work for any [Board](board::Board):
+
 * Game-playing algorithms, specifically:
-    * [RandomBot](https://docs.rs/board-game/latest/board_game/ai/simple/struct.RandomBot.html),
-        which simply picks a random move.
-    * [RolloutBot](https://docs.rs/board-game/latest/board_game/ai/simple/struct.RolloutBot.html),
-        which simulates a fixed number of random games for each possible move and picks the one with the best win probability.
-    * [MinimaxBot](https://docs.rs/board-game/latest/board_game/ai/minimax/struct.MiniMaxBot.html),
-        which picks the best move as evaluated by a customizable heuristic at a fixed depth. (implemented as alpha-beta negamax).
-    * [MCTSBot](https://docs.rs/board-game/latest/board_game/ai/mcts/struct.MCTSBot.html),
-        which picks the best move as found by [Monte Carlo Tree Search](https://en.wikipedia.org/wiki/Monte_Carlo_tree_search).
-* Random board generation functions, see [board_gen](https://docs.rs/board-game/latest/board_game/util/board_gen/).
-* A bot vs bot game runner to compare playing strength, see [bot_game](https://docs.rs/board-game/latest/board_game/util/bot_game/).
-* Simple game statistics (perft, random game length) which can be used to test [Board](https://docs.rs/board-game/latest/board_game/board/trait.Board.html) implementations.
+    * [RandomBot](ai::simple::RandomBot),
+      which simply picks a random move.
+    * [RolloutBot](ai::simple::RolloutBot),
+      which simulates a fixed number of random games for each possible move and picks the one with the best win
+      probability.
+    * [MinimaxBot](ai::minimax::MiniMaxBot),
+      which picks the best move as evaluated by a customizable heuristic at a fixed depth. (implemented as alpha-beta
+      negamax).
+    * [MCTSBot](ai::mcts::MCTSBot),
+      which picks the best move as found
+      by [Monte Carlo Tree Search](https://en.wikipedia.org/wiki/Monte_Carlo_tree_search).
+* Random board generation functions, see [board_gen](util::board_gen).
+* A bot vs bot game runner to compare playing strength, see [bot_game](util::bot_game).
+* Simple game statistics (perft, random game length) which can be used to test board implementations.
+
+This crate is also used as the foundation for [kZero](https://github.com/KarelPeeters/kZero),
+a general AlphaZero implementation.
 
 ## Examples
 
 ### List the available moves on a board and play a random one.
 
 ```rust
-let mut board = AtaxxBoard::default();
+let mut board = AtaxxBoard::default ();
 println!("{}", board);
 
-board.available_moves().unwrap().for_each(|mv| {
+board.available_moves().unwrap().for_each( | mv| {
     println!("{:?}", mv)
 });
 
@@ -58,7 +80,10 @@ println!("{}", board);
 ### Get the best move according to MCTS
 
 ```rust
-let board = AtaxxBoard::default();
+
+
+
+let board = AtaxxBoard::default ();
 println!("{}", board);
 
 let mut bot = MCTSBot::new(1000, 2.0, thread_rng());
