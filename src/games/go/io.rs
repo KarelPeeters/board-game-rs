@@ -390,6 +390,47 @@ impl Chains {
     }
 }
 
+impl Debug for Chains {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Chains({:?})", self.to_fen())
+    }
+}
+
+impl Display for Chains {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Chains {{")?;
+        writeln!(f, "  fen: {:?}", self.to_fen())?;
+
+        writeln!(f, "  tiles:")?;
+        let size = self.size();
+        for y in (0..size).rev() {
+            write!(f, "    {:2} ", y + 1)?;
+            for x in 0..size {
+                let tile = Tile::new(x, y).to_flat(size);
+                match self.tiles()[tile.index() as usize].group_id.to_option() {
+                    None => write!(f, "   .")?,
+                    Some(group) => write!(f, "{:4}", group)?,
+                }
+            }
+            writeln!(f)?;
+        }
+        write!(f, "       ")?;
+        for x in 0..size {
+            write!(f, "   {}", TileX(x))?;
+        }
+        writeln!(f)?;
+
+        // TODO only print alive groups?
+        writeln!(f, "  groups:")?;
+        for (i, group) in self.groups().enumerate() {
+            writeln!(f, "    group {}: {:?}", i, group)?;
+        }
+
+        writeln!(f, "}}")?;
+        Ok(())
+    }
+}
+
 fn check<E>(c: bool, e: E) -> Result<(), E> {
     match c {
         true => Ok(()),

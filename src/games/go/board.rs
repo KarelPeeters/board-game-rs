@@ -12,7 +12,7 @@ use crate::board::{
 };
 use crate::games::go::chains::Chains;
 use crate::games::go::tile::Tile;
-use crate::games::go::{PlacementKind, Rules, TileOccupied, Zobrist, GO_MAX_SIZE};
+use crate::games::go::{PlacementKind, Rules, Territory, TileOccupied, Zobrist, GO_MAX_SIZE};
 use crate::symmetry::D4Symmetry;
 use crate::util::iter::IterExt;
 
@@ -119,10 +119,40 @@ impl GoBoard {
         self.state
     }
 
-    // TODO add setter for history, and a variant of clone_and_play that takes out the history from the previous board
-    //   can be used to optimize things like perft
     pub fn history(&self) -> &IntSet<Zobrist> {
         &self.history
+    }
+
+    // TODO optimize perft by messing around with history
+    pub fn replace_history(&mut self, history: IntSet<Zobrist>) -> IntSet<Zobrist> {
+        std::mem::replace(&mut self.history, history)
+    }
+
+    pub fn clear_history(&mut self) {
+        self.history.clear();
+    }
+
+    pub fn clone_without_history(&self) -> Self {
+        Self::from_parts(
+            self.rules,
+            self.chains.clone(),
+            self.next_player,
+            self.state,
+            Default::default(),
+            self.komi,
+        )
+    }
+
+    pub fn stone_count(&self) -> u16 {
+        self.chains.stone_count()
+    }
+
+    pub fn stone_count_from(&self, player: Player) -> u16 {
+        self.chains.stone_count_from(player)
+    }
+
+    pub fn empty_count(&self) -> u16 {
+        self.chains.empty_count()
     }
 
     pub fn stone_at(&self, tile: Tile) -> Option<Player> {
@@ -139,27 +169,18 @@ impl GoBoard {
         self.chains().score()
     }
 
-    pub fn clear_history(&mut self) {
-        self.history.clear();
-    }
-
-    pub fn without_history(&self) -> Self {
-        Self::from_parts(
-            self.rules,
-            self.chains.clone(),
-            self.next_player,
-            self.state,
-            Default::default(),
-            self.komi,
-        )
+    /// The territory map computed using Tromp-Taylor rules.
+    /// The returned vec can be indexed by [FlatTile::index].
+    pub fn territory(&self) -> Vec<Territory> {
+        self.chains().territory()
     }
 
     /// Full zobrist, including:
     /// * the tiles
     /// * the next player
     /// * the pass state
-    pub fn zobrist_full(&self) -> Zobrist {
-        // TODO include rules?
+    pub fn zobrist(&self) -> Zobrist {
+        // TODO include rules and komi?
         let mut result = self.chains().zobrist();
         result ^= Zobrist::for_color_turn(self.next_player);
         result ^= Zobrist::for_pass_state(self.state);
@@ -176,6 +197,15 @@ impl GoBoard {
         let mv = tile.map(|tile| Move::Place(tile.to_tile(self.size())));
 
         Ok(mv)
+    }
+
+    pub fn assert_valid(&self) {
+        // TODO can we add more asserts?
+        self.chains().assert_valid();
+
+        if !self.rules().needs_history() {
+            assert!(self.history.is_empty())
+        }
     }
 }
 
@@ -406,6 +436,6 @@ impl BoardSymmetry<GoBoard> for GoBoard {
 impl Hash for GoBoard {
     // TODO include history (or just len?)
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.zobrist_full().hash(state);
+        self.zobrist().hash(state);
     }
 }

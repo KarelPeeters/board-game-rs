@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 
 use itertools::Itertools;
@@ -11,15 +11,13 @@ use crate::games::go::link::{LinkHead, LinkNode};
 use crate::games::go::stack_vec::StackVec4;
 use crate::games::go::tile::Tile;
 use crate::games::go::util::OptionU16;
-use crate::games::go::{FlatTile, Linked, Score, TileX, Zobrist, GO_MAX_SIZE};
+use crate::games::go::{FlatTile, Linked, Score, Zobrist, GO_MAX_SIZE};
 use crate::symmetry::{D4Symmetry, Symmetry};
 use crate::util::iter::IterExt;
 
 // TODO add function to remove stones?
 //   could be tricky since groups would have to be split
-//   can be pretty slow
-
-// TODO clean up getters, set right visibility
+//   could be pretty slow, we never need fast stone removal (except maybe for perft?)
 
 // TODO do a bunch of struct-of-array instead of array-of-struct stuff?
 //   unfortunately that would require allocating more separate vecs
@@ -29,7 +27,7 @@ pub struct Chains {
     size: u8,
 
     // TODO combine these into one vec to reduce allocations?
-    tiles: Vec<Content>,
+    tiles: Vec<TileContent>,
     groups: Vec<Group>,
 
     // derived data
@@ -41,9 +39,8 @@ pub struct Chains {
 
 // TODO compact into single u8
 // TODO store the current tile in the content too without the extra indirection?
-// TODO find a better name than "Content"
 #[derive(Debug, Clone)]
-pub struct Content {
+pub struct TileContent {
     pub group_id: OptionU16,
     pub link: LinkNode,
 }
@@ -124,7 +121,7 @@ impl Chains {
 
         let area = size as u16 * size as u16;
         let tiles = (0..area)
-            .map(|i| Content {
+            .map(|i| TileContent {
                 group_id: OptionU16::None,
                 link: LinkNode::full(area, i),
             })
@@ -167,7 +164,7 @@ impl Chains {
     // TODO find a batter way to expose internal state
     //   eg. do we want to expose the group id?
     //   how can a user iterate over the stones in a group?
-    pub fn content_at(&self, tile: FlatTile) -> &Content {
+    pub fn content_at(&self, tile: FlatTile) -> &TileContent {
         &self.tiles[tile.index() as usize]
     }
 
@@ -197,7 +194,7 @@ impl Chains {
             .pure_map(|(id, group)| (id as u16, group))
     }
 
-    pub fn tiles(&self) -> &[Content] {
+    pub fn tiles(&self) -> &[TileContent] {
         &self.tiles
     }
 
@@ -747,7 +744,7 @@ impl Chains {
                 let old_flat = old_tile.to_flat(size);
                 let old_content = self.tiles[old_flat.index() as usize].clone();
 
-                Content {
+                TileContent {
                     group_id: old_content.group_id,
                     link: old_content.link.map_index(map_tile_index),
                 }
@@ -916,7 +913,7 @@ impl Territory {
 // This is not a function on the struct because we need to use it while things are partially borrowed.
 fn change_liberty_edges_at(
     size: u8,
-    tiles: &mut [Content],
+    tiles: &mut [TileContent],
     groups: &mut [Group],
     tile: FlatTile,
     delta: i16,
@@ -955,49 +952,6 @@ impl Hash for Chains {
     }
 }
 
-// TODO move to io?
-impl Debug for Chains {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Chains({:?})", self.to_fen())
-    }
-}
-
-// TODO move to io?
-impl Display for Chains {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Chains {{")?;
-        writeln!(f, "  fen: {:?}", self.to_fen())?;
-
-        writeln!(f, "  tiles:")?;
-        let size = self.size();
-        for y in (0..size).rev() {
-            write!(f, "    {:2} ", y + 1)?;
-            for x in 0..size {
-                let tile = Tile::new(x, y).to_flat(size);
-                match self.tiles[tile.index() as usize].group_id.to_option() {
-                    None => write!(f, "   .")?,
-                    Some(group) => write!(f, "{:4}", group)?,
-                }
-            }
-            writeln!(f)?;
-        }
-        write!(f, "       ")?;
-        for x in 0..size {
-            write!(f, "   {}", TileX(x))?;
-        }
-        writeln!(f)?;
-
-        // TODO only print alive groups?
-        writeln!(f, "  groups:")?;
-        for (i, group) in self.groups.iter().enumerate() {
-            writeln!(f, "    group {}: {:?}", i, group)?;
-        }
-
-        writeln!(f, "}}")?;
-        Ok(())
-    }
-}
-
 impl PlacementKind {
     pub fn is_suicide(self) -> bool {
         match self {
@@ -1014,7 +968,7 @@ impl PlacementKind {
     }
 }
 
-impl Linked for Content {
+impl Linked for TileContent {
     fn link(&self) -> &LinkNode {
         &self.link
     }

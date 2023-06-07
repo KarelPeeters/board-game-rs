@@ -154,7 +154,7 @@ fn parse_fen() {
     assert_eq!("b...w/...bw/...b./w..../.b... w 2", board_done.to_fen());
 
     for board in [board, board_white, board_pass, board_done] {
-        let board = board.without_history();
+        let board = board.clone_without_history();
 
         println!("Checking loopback for\n{}", board);
         let parsed = GoBoard::from_fen(&board.to_fen(), rules);
@@ -204,7 +204,7 @@ fn simulate_moves(start: &str, moves: &[Move], result: &str, rules: Rules) {
 
     let result_board_expected = GoBoard::from_fen(result, rules).unwrap();
     println!("Expected:\n{}", result_board_expected);
-    assert_eq!(result_board.without_history(), result_board_expected);
+    assert_eq!(result_board.clone_without_history(), result_board_expected);
 
     go_board_test_main(&result_board);
 }
@@ -282,7 +282,7 @@ fn suicide_2() {
     assert_eq!(Ok(true), board_tt.is_available_move(mv));
     assert_eq!(
         Ok(board_tt_after),
-        board_tt.clone_and_play(mv).map(|b| b.without_history())
+        board_tt.clone_and_play(mv).map(|b| b.clone_without_history())
     );
 
     // not allowed in CGOS, suicide is banned
@@ -345,7 +345,10 @@ fn super_ko_repeat() {
     let board = print_board_with_moves(start, &moves);
 
     let fen_before = ".../.bb/bw. w 1";
-    assert_eq!(GoBoard::from_fen(fen_before, rules).unwrap(), board.without_history());
+    assert_eq!(
+        GoBoard::from_fen(fen_before, rules).unwrap(),
+        board.clone_without_history()
+    );
 
     // not available, would repeat earlier pos
     let mv = Move::Place(Tile::from_str("C1").unwrap());
@@ -482,13 +485,15 @@ fn go_perft_fast() {
 
 // TODO test that pass is always available somewhere?
 fn go_board_test_main(board: &GoBoard) {
+    board.assert_valid();
+
     chains_test_main(board.chains());
     chains_test_simulate(board.chains());
 
     // test some symmetry stuff here so we can assert validness
     for &sym in D4Symmetry::all() {
         let result = board.map(sym);
-        result.chains().assert_valid();
+        result.assert_valid();
     }
 
     // skip uniform sampling, the large boards and the existence of the pass moves make it pretty slow
