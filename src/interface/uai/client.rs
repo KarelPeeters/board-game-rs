@@ -143,7 +143,9 @@ pub fn run(
                 let time_used = (Instant::now() - start).as_secs_f32();
 
                 output.respond(&format!("info (info): time used {}s", time_used))?;
-                output.respond(&format!("info (info): {}", info))?;
+                if !info.is_empty() {
+                    output.respond(&format!("info (info): {}", info))?;
+                }
                 output.respond(&format!("bestmove {}", best_move.to_uai()))?;
             }
             Command::Quit => return Ok(()),
