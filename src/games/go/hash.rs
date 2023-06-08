@@ -73,8 +73,8 @@ impl Distribution<Zobrist> for Standard {
 
 fn gen_array<const N: usize>(rng: &mut impl Rng) -> [Zobrist; N] {
     let mut array = [Zobrist::default(); N];
-    for i in 0..N {
-        array[i] = rng.gen();
+    for x in &mut array {
+        *x = rng.gen();
     }
     array
 }

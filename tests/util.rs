@@ -64,7 +64,7 @@ pub fn test_sampler_uniform<T: Eq + Hash + Debug + Copy>(
     //   do this separately so worse errors are reported first
     for value in expected {
         assert!(
-            *all_counts.get(&value).unwrap() > 0,
+            *all_counts.get(value).unwrap() > 0,
             "Never sampled expected value {:?}",
             value
         );
@@ -72,7 +72,7 @@ pub fn test_sampler_uniform<T: Eq + Hash + Debug + Copy>(
 
     // check uniformity
     for value in expected {
-        let count = *all_counts.get(&value).unwrap();
+        let count = *all_counts.get(value).unwrap();
         let relative = count as f32 / samples_per_value as f32;
 
         assert!(

@@ -277,7 +277,7 @@ fn fill_board() {
 
     {
         // ensure the other player can capture the rest too
-        let mut new_chains = chains.clone();
+        let mut new_chains = chains;
         let sim = new_chains.place_stone(last_tile, Player::B).unwrap();
         println!("{}", new_chains);
         assert_eq!(new_chains.to_fen(), "....w/...../...../...../.....");

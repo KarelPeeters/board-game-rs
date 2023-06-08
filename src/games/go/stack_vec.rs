@@ -36,12 +36,7 @@ impl StackVec4 {
     }
 
     pub fn first(&self) -> Option<u16> {
-        for v in self.values {
-            if v != u16::MAX {
-                return Some(v);
-            }
-        }
-        None
+        self.values.iter().find(|&&v| v != u16::MAX).copied()
     }
 
     pub fn contains_duplicates(&self) -> bool {
