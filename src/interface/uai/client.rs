@@ -45,7 +45,7 @@ pub fn run(
         let command = match Command::parse(line) {
             Ok(command) => command,
             Err(_) => {
-                output.respond(&format!("info (error): failed to parse command '{}'", line))?;
+                output.error(&format!("failed to parse command '{}'", line))?;
                 continue;
             }
         };
@@ -60,10 +60,7 @@ pub fn run(
                 output.respond("readyok")?;
             }
             Command::SetOption { name, value } => {
-                output.respond(&format!(
-                    "info (warning) ignoring command setoption, name={}, value={}",
-                    name, value
-                ))?;
+                output.warning(&format!("ignoring command setoption, name={}, value={}", name, value))?;
             }
             Command::NewGame => {
                 board_stack.push_front(AtaxxBoard::default());
@@ -71,17 +68,17 @@ pub fn run(
             Command::Print => match board_stack.front() {
                 Some(board) => {
                     let board = board.to_string();
-                    output.respond("info: current board:")?;
+                    output.info("current board:")?;
                     for line in board.lines() {
-                        output.respond(&format!("info: {}", line))?;
+                        output.info(line)?;
                     }
                 }
-                None => output.respond("info (error): cannot print, no board")?,
+                None => output.error("cannot print, no board")?,
             },
             Command::Takeback => {
                 let popped = board_stack.pop_front().is_some();
                 if !popped {
-                    output.respond("info (error): cannot takeback, board stack is empty")?;
+                    output.error("cannot takeback, board stack is empty")?;
                 }
             }
             Command::Position { position, moves } => {
@@ -101,16 +98,13 @@ pub fn run(
                 let curr_board = match board_stack.front() {
                     Some(curr_board) => curr_board,
                     None => {
-                        output.respond("info (error): received go command without having a board")?;
+                        output.error("received go command without having a board")?;
                         continue;
                     }
                 };
 
                 if let Some(outcome) = curr_board.outcome() {
-                    output.respond(&format!(
-                        "info (error): cannot go on done board, outcome: {:?}",
-                        outcome
-                    ))?;
+                    output.error(&format!("cannot go on done board, outcome: {:?}", outcome))?;
                     continue;
                 }
 
@@ -135,16 +129,16 @@ pub fn run(
                     }
                 };
 
-                output.respond(&format!("info (info): planning to use {}s", time_to_use))?;
+                output.info(&format!("planning to use {}s", time_to_use))?;
                 output.flush()?;
 
                 let start = Instant::now();
                 let (best_move, info) = bot(curr_board, time_to_use);
                 let time_used = (Instant::now() - start).as_secs_f32();
 
-                output.respond(&format!("info (info): time used {}s", time_used))?;
+                output.info(&format!("time used {}s", time_used))?;
                 if !info.is_empty() {
-                    output.respond(&format!("info (info): {}", info))?;
+                    output.info(&info)?;
                 }
                 output.respond(&format!("bestmove {}", best_move.to_uai()))?;
             }
@@ -207,6 +201,21 @@ impl<O: Write, L: Write> Output<O, L> {
         assert!(!s.contains('\n'), "UAI response cannot contain newline");
         writeln!(&mut self.log, "< {}", s)?;
         writeln!(&mut self.output, "{}", s)?;
+        Ok(())
+    }
+
+    fn info(&mut self, msg: &str) -> std::io::Result<()> {
+        self.respond(&format!("info string (info): {}", msg))?;
+        Ok(())
+    }
+
+    fn warning(&mut self, msg: &str) -> std::io::Result<()> {
+        self.respond(&format!("info string (warning): {}", msg))?;
+        Ok(())
+    }
+
+    fn error(&mut self, msg: &str) -> std::io::Result<()> {
+        self.respond(&format!("info string (error): {}", msg))?;
         Ok(())
     }
 

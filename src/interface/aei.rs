@@ -44,6 +44,7 @@ pub enum InfoType {
     Pv,
     Time,
     CurrMoveNumber,
+    String,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -119,6 +120,7 @@ impl Display for InfoType {
             InfoType::Pv => write!(f, "pv"),
             InfoType::Time => write!(f, "time"),
             InfoType::CurrMoveNumber => write!(f, "currmovenumber"),
+            InfoType::String => write!(f, "string"),
         }
     }
 }
