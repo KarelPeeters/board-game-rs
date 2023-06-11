@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
-use std::io::Write;
 use std::io::{BufRead, BufReader, BufWriter, Read};
+use std::io::{ErrorKind, Write};
 use std::time::Instant;
 
 use crate::board::{Board, PlayError, Player};
@@ -10,6 +10,25 @@ use crate::interface::uai::command::{Command, GoTimeSettings, Position};
 pub const MAX_STACK_SIZE: usize = 100;
 
 pub fn run(
+    bot: impl FnMut(&AtaxxBoard, f32) -> (Move, String),
+    name: &str,
+    author: &str,
+    input: impl Read,
+    output: impl Write,
+    log: impl Write,
+) -> std::io::Result<()> {
+    let result = run_inner(bot, name, author, input, output, log);
+
+    if let Err(err) = &result {
+        if err.kind() == ErrorKind::BrokenPipe {
+            return Ok(());
+        }
+    }
+
+    result
+}
+
+pub fn run_inner(
     mut bot: impl FnMut(&AtaxxBoard, f32) -> (Move, String),
     name: &str,
     author: &str,
@@ -38,7 +57,13 @@ pub fn run(
         }
 
         line.clear();
-        input.read_line(&mut line)?;
+        let line_result = input.read_line(&mut line)?;
+
+        // check for eof
+        if line_result == 0 {
+            return Ok(());
+        }
+
         let line = line.trim();
         output.log(&format!("> {}", line))?;
 
