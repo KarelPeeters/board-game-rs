@@ -1,7 +1,7 @@
 use fst::raw::Node;
 use itertools::Itertools;
 
-use board_game::games::scrabble::{Deck, Letter, Mask};
+use board_game::games::scrabble::basic::{Deck, Letter, Mask};
 
 type Set = fst::Set<Vec<u8>>;
 
