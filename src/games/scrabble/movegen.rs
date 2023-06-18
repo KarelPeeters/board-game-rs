@@ -29,6 +29,17 @@ pub struct Cell {
     pub attached: bool,
 }
 
+impl Direction {
+    pub const ALL: [Direction; 2] = [Direction::Horizontal, Direction::Vertical];
+
+    pub fn delta(self) -> (u8, u8) {
+        match self {
+            Direction::Horizontal => (1, 0),
+            Direction::Vertical => (0, 1),
+        }
+    }
+}
+
 impl Cell {
     fn is_anchor(&self) -> bool {
         self.letter.is_none() && self.attached
@@ -144,6 +155,8 @@ impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
         curr: &mut Vec<u8>,
         forward_count: usize,
     ) -> ControlFlow<R> {
+        debug_assert!(forward_count > 0);
+
         let back_count = curr.len() - forward_count + 1;
         let cell = self.anchor.checked_sub(back_count);
 

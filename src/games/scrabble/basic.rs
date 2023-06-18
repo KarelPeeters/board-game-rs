@@ -153,13 +153,17 @@ mod debug {
 
     impl Debug for Mask {
         fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            write!(f, "Mask(\"")?;
-            for (i, c) in LETTERS.chars().enumerate() {
-                if self.0 & (1 << i) != 0 {
-                    write!(f, "{}", c)?;
+            if *self == Mask::ALL_LETTERS {
+                write!(f, "Mask(ALL_LETTERS)")
+            } else {
+                write!(f, "Mask(\"")?;
+                for (i, c) in LETTERS.chars().enumerate() {
+                    if self.0 & (1 << i) != 0 {
+                        write!(f, "{}", c)?;
+                    }
                 }
+                write!(f, "\")")
             }
-            write!(f, "\")")
         }
     }
 

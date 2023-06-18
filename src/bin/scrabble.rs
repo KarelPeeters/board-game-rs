@@ -26,13 +26,14 @@ S...MIDI....B.T
 
 fn main() {
     // gen_fst();
+    let set = load_fst();
 
     let empty_cell = Cell {
         letter: None,
         letter_multiplier: 1,
         word_multiplier: 1,
-        allowed_horizontal: Mask::ALL_LETTERS,
-        allowed_vertical: Mask::ALL_LETTERS,
+        allowed_by_horizontal: Mask::NONE,
+        allowed_by_vertical: Mask::NONE,
         attached: false,
     };
     let mut grid = ScrabbleGrid {
@@ -49,10 +50,6 @@ fn main() {
                 let cell = grid.cell_mut(x as u8, y as u8);
                 let letter = Letter::from_char(c).unwrap();
                 cell.letter = Some(letter);
-                cell.allowed_horizontal.clear();
-                cell.allowed_horizontal.set(letter, true);
-                cell.allowed_vertical.clear();
-                cell.allowed_vertical.set(letter, true);
 
                 // set neighbors attached
                 if x > 0 {
@@ -72,11 +69,14 @@ fn main() {
         }
     }
 
-    // TODO set allowed masks
+    grid.recompute_allowed(&set);
 
-    println!("{:?}", grid.cell(10, 0));
+    // for y in 0..grid.height {
+    //     for x in 0..grid.width {
+    //         println!("({}, {}) => {:?}", x, y, grid.cell(x, y));
+    //     }
+    // }
 
-    let set = load_fst();
     // let deck = Deck::from_letters("DGILOPR").unwrap();
     // let deck = Deck::from_letters("GID").unwrap();
     let deck = Deck::from_letters("GLID").unwrap();
