@@ -5,7 +5,7 @@ use itertools::Itertools;
 
 use crate::games::scrabble::basic::{Deck, Letter, Mask};
 use crate::games::scrabble::movegen;
-use crate::games::scrabble::movegen::{movegen, Move, Set};
+use crate::games::scrabble::movegen::{movegen, Direction, Move, Set};
 
 #[derive(Debug, Clone)]
 pub struct Cell {
@@ -14,8 +14,7 @@ pub struct Cell {
     pub word_multiplier: u8,
     pub allowed_horizontal: Mask,
     pub allowed_vertical: Mask,
-    pub attached_horizontal: bool,
-    pub attached_vertical: bool,
+    pub attached: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -65,12 +64,12 @@ impl InternalIterator for MovesIterator<'_, '_> {
                     movegen::Cell {
                         letter: cell.letter,
                         allowed: cell.allowed_vertical,
-                        has_neighbor: cell.attached_vertical,
+                        attached: cell.attached,
                     }
                 })
                 .collect_vec();
 
-            movegen(set, &cells, deck, &mut f)?;
+            movegen(set, Direction::Horizontal, y, &cells, deck, &mut f)?;
         }
 
         // vertical
@@ -81,11 +80,11 @@ impl InternalIterator for MovesIterator<'_, '_> {
                     movegen::Cell {
                         letter: cell.letter,
                         allowed: cell.allowed_horizontal,
-                        has_neighbor: cell.attached_horizontal,
+                        attached: cell.attached,
                     }
                 })
                 .collect_vec();
-            movegen(set, &cells, deck, &mut f)?;
+            movegen(set, Direction::Vertical, x, &cells, deck, &mut f)?;
         }
 
         ControlFlow::Continue(())

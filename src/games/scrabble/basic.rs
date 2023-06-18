@@ -114,6 +114,10 @@ impl Mask {
         self.0 == 0
     }
 
+    pub fn clear(&mut self) {
+        self.0 = 0;
+    }
+
     pub fn has_all_letters(self) -> bool {
         self & Self::ALL_LETTERS == Self::ALL_LETTERS
     }
