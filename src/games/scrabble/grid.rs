@@ -100,70 +100,54 @@ impl ScrabbleGrid {
     }
 }
 
+// TODO try getting rid of some unwraps here
 fn find_cross_set(set: &Set, prefix: &[u8], suffix: &[u8]) -> Mask {
+    if prefix.is_empty() && suffix.is_empty() {
+        return Mask::ALL_LETTERS;
+    }
+
     let fst = set.as_fst();
+    let mut mask = Mask::NONE;
 
-    match (prefix, suffix) {
-        (&[], &[]) => Mask::ALL_LETTERS,
-        (prefix, &[]) => {
-            // TODO it would be easier to leave off the final + in the set here
-            // look for chars 'c' with path
-            // root --"prefix"-> node_start --'c'-> node_mid --'+'-> node_final
+    // pick the order with most certain transitions (including the fixed '+')
+    if prefix.len() > suffix.len() {
+        // look for chars 'c' with path
+        // [root] -> prefix -> 'c' -> suffix -> '+' -> [final]
 
-            let node_start = fst_follow(set, fst.root(), prefix).expect("invalid word on the board");
+        let node_prefix = fst_follow(set, fst.root(), prefix).expect("invalid word on the board");
 
-            let mut mask = Mask::NONE;
+        for trans in node_prefix.transitions() {
+            if trans.inp == b'+' {
+                continue;
+            }
 
-            for trans in node_start.transitions() {
-                let node_mid = fst.node(trans.addr);
+            let c = Letter::from_char(trans.inp as char).unwrap();
+            let node_c = fst.node(trans.addr);
 
-                if let Some(node_final) = fst_follow(set, node_mid, &[b'+']) {
-                    let letter = Letter::from_char(trans.inp as char).unwrap();
-                    mask.set(letter, node_final.is_final());
+            if let Some(node_suffix) = fst_follow(set, node_c, suffix) {
+                if let Some(node_plus) = fst_follow(set, node_suffix, &[b'+']) {
+                    mask.set(c, node_plus.is_final());
                 }
             }
-
-            mask
         }
-        (&[], suffix) => {
-            // look for chars 'c' with path
-            // root --"suffix"-> node_start --'+'-> node_mid --'c'-> node_final
+    } else {
+        // look for chars 'c' with path
+        // [root] -> suffix -> '+' -> 'c' -> rev(prefix) -> [final]
 
-            let node_start = fst_follow(set, fst.root(), suffix).expect("invalid word on the board");
-            let node_mid = fst_follow(set, node_start, &[b'+']).expect("invalid word on the board");
+        let node_suffix = fst_follow(set, fst.root(), suffix).expect("invalid word on the board");
+        let node_plus = fst_follow(set, node_suffix, &[b'+']).expect("invalid word on the board");
 
-            let mut mask = Mask::NONE;
+        for trans in node_plus.transitions() {
+            let c = Letter::from_char(trans.inp as char).unwrap();
+            let node_c = fst.node(trans.addr);
 
-            for trans in node_mid.transitions() {
-                let letter = Letter::from_char(trans.inp as char).unwrap();
-
-                let node_final = fst.node(trans.addr);
-                mask.set(letter, node_final.is_final());
+            if let Some(node_prefix) = fst_follow(set, node_c, prefix.iter().rev()) {
+                mask.set(c, node_prefix.is_final());
             }
-
-            mask
-        }
-        (prefix, suffix) => {
-            // look for chars 'c' with path
-            // root --"suffix"-> node_start --'+'-> node_mid --'c'-> node_next --rev("prefix")--> node_end
-
-            let node_start = fst_follow(set, fst.root(), suffix).expect("invalid word on the board");
-            let node_mid = fst_follow(set, node_start, &[b'+']).expect("invalid word on the board");
-
-            let mut mask = Mask::NONE;
-
-            for trans in node_mid.transitions() {
-                let letter = Letter::from_char(trans.inp as char).unwrap();
-
-                let node_next = fst.node(trans.addr);
-                if let Some(node_end) = fst_follow(set, node_next, prefix.iter().rev()) {
-                    mask.set(letter, node_end.is_final());
-                }
-            }
-
-            mask
         }
     }
+
+    mask
 }
 
 fn fst_follow<'s, 'a>(set: &'s Set, start: Node<'s>, sequence: impl IntoIterator<Item = &'a u8>) -> Option<Node<'s>> {
