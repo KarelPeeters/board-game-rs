@@ -10,6 +10,7 @@ categories = ["algorithms", "games"]
 repository = "https://github.com/KarelPeeters/board-game-rs"
 
 [features]
+# TODO add feature per-game to reduce dependencies
 default = []
 
 [dependencies]
@@ -34,6 +35,7 @@ once_cell = "1.18.0"
 lazy_static = "1.4.0"
 static_assertions = "1.1.0"
 nohash-hasher = "0.2.0"
+fst = "0.4.7"
 
 # temporary fix until https://github.com/jordanbray/chess/pull/67 is merged
 [profile.dev.build-override]
