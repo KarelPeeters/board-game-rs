@@ -96,36 +96,39 @@ fn gen_fst() {
 
     println!("Collecting expanded strings");
     let mut expanded = vec![];
-    let mut line_count = 0;
-    for line in file.lines() {
-        if line.is_empty() {
+    let mut word_count = 0;
+
+    for word in file.lines() {
+        let word = word.trim();
+        if word.is_empty() {
             continue;
         }
 
-        line_count += 1;
+        word_count += 1;
 
-        for i in 0..line.len() {
-            let prefix = &line[..i];
-            let suffix = &line[i..];
+        for i in 0..word.len() {
+            let prefix = &word[..i];
+            let suffix = &word[i..];
+            assert!(!suffix.is_empty());
 
             // having a trailing + for complete words is important to force a direction switch
             let prefix_rev = prefix.chars().rev().collect::<String>();
             let combined = format!("{}+{}", suffix, prefix_rev);
 
-            expanded.push(combined)
+            expanded.push(combined);
         }
     }
 
-    println!("collected {} lines -> {} expanded", line_count, expanded.len());
+    println!("Sorting list");
+    expanded.sort_unstable();
 
-    println!("Sorting");
-    expanded.sort();
+    println!("collected {} lines -> {} expanded", word_count, expanded.len());
 
     println!("Building set");
-    let set = Set::from_iter(expanded).unwrap();
+    let set = Set::from_iter(expanded.iter()).unwrap();
 
-    println!("{}", set.len());
-    println!("{}", set.contains("YRREB"));
+    println!("map len: {}", set.len());
+    println!("map bytes: {}", set.as_fst().as_bytes().len());
 
     std::fs::write("ignored/fst.bin", set.as_fst().as_bytes()).unwrap();
 }
