@@ -1,5 +1,6 @@
 use std::ops::ControlFlow;
 
+use fst::raw::Node;
 use internal_iterator::InternalIterator;
 use itertools::Itertools;
 
@@ -91,33 +92,90 @@ impl ScrabbleGrid {
 
         // otherwise look at the possible completions
         let (prefix, suffix) = self.find_prefix_suffix(x, y, dir);
-        let set = find_cross_set(set, &prefix, &suffix);
 
-        if !(prefix.is_empty() && suffix.is_empty()) {
-            println!(
-                "cell ({}, {}) dir {:?} => prefix {:?} suffix {:?} => {:?}",
-                x,
-                y,
-                dir,
-                std::str::from_utf8(&prefix).unwrap(),
-                std::str::from_utf8(&suffix).unwrap(),
-                set,
-            );
-        }
+        let mask = find_cross_set(set, &prefix, &suffix);
+        debug_assert_eq!(mask, find_cross_set_slow(set, &prefix, &suffix));
 
-        set
+        mask
     }
 }
 
 fn find_cross_set(set: &Set, prefix: &[u8], suffix: &[u8]) -> Mask {
-    find_cross_set_slow(set, prefix, suffix)
+    let fst = set.as_fst();
 
-    // match (prefix.is_empty(), suffix.is_empty()) {
-    //     (true, true) => Mask::ALL_LETTERS,
-    //     (true, false) => {}
-    //     (false, true) => todo!(),
-    //     (false, false) => todo!(),
-    // }
+    match (prefix, suffix) {
+        (&[], &[]) => Mask::ALL_LETTERS,
+        (prefix, &[]) => {
+            // TODO it would be easier to leave off the final + in the set here
+            // look for chars 'c' with path
+            // root --"prefix"-> node_start --'c'-> node_mid --'+'-> node_final
+
+            let node_start = fst_follow(set, fst.root(), prefix).expect("invalid word on the board");
+
+            let mut mask = Mask::NONE;
+
+            for trans in node_start.transitions() {
+                let node_mid = fst.node(trans.addr);
+
+                if let Some(node_final) = fst_follow(set, node_mid, &[b'+']) {
+                    let letter = Letter::from_char(trans.inp as char).unwrap();
+                    mask.set(letter, node_final.is_final());
+                }
+            }
+
+            mask
+        }
+        (&[], suffix) => {
+            // look for chars 'c' with path
+            // root --"suffix"-> node_start --'+'-> node_mid --'c'-> node_final
+
+            let node_start = fst_follow(set, fst.root(), suffix).expect("invalid word on the board");
+            let node_mid = fst_follow(set, node_start, &[b'+']).expect("invalid word on the board");
+
+            let mut mask = Mask::NONE;
+
+            for trans in node_mid.transitions() {
+                let letter = Letter::from_char(trans.inp as char).unwrap();
+
+                let node_final = fst.node(trans.addr);
+                mask.set(letter, node_final.is_final());
+            }
+
+            mask
+        }
+        (prefix, suffix) => {
+            // look for chars 'c' with path
+            // root --"suffix"-> node_start --'+'-> node_mid --'c'-> node_next --rev("prefix")--> node_end
+
+            let node_start = fst_follow(set, fst.root(), suffix).expect("invalid word on the board");
+            let node_mid = fst_follow(set, node_start, &[b'+']).expect("invalid word on the board");
+
+            let mut mask = Mask::NONE;
+
+            for trans in node_mid.transitions() {
+                let letter = Letter::from_char(trans.inp as char).unwrap();
+
+                let node_next = fst.node(trans.addr);
+                if let Some(node_end) = fst_follow(set, node_next, prefix.iter().rev()) {
+                    mask.set(letter, node_end.is_final());
+                }
+            }
+
+            mask
+        }
+    }
+}
+
+fn fst_follow<'s, 'a>(set: &'s Set, start: Node<'s>, sequence: impl IntoIterator<Item = &'a u8>) -> Option<Node<'s>> {
+    let fst = set.as_fst();
+
+    let mut node = start;
+    for &v in sequence {
+        let index = node.find_input(v)?;
+        node = fst.node(node.transition_addr(index));
+    }
+
+    Some(node)
 }
 
 fn find_cross_set_slow(set: &Set, prefix: &[u8], suffix: &[u8]) -> Mask {
