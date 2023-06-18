@@ -20,6 +20,10 @@ pub struct Deck {
 pub struct InvalidLetter(char);
 
 impl Letter {
+    pub fn all() -> impl Iterator<Item = Letter> {
+        LETTERS.bytes().map(|c| Letter::from_char(c as char).unwrap())
+    }
+
     pub fn from_char(c: char) -> Result<Letter, InvalidLetter> {
         let c_upper = c.to_ascii_uppercase();
         if c_upper.is_ascii_uppercase() {
@@ -31,8 +35,12 @@ impl Letter {
         }
     }
 
-    pub fn to_char(&self) -> char {
-        (self.index + b'A') as char
+    pub fn to_ascii(self) -> u8 {
+        self.index + b'A'
+    }
+
+    pub fn to_char(self) -> char {
+        self.to_ascii() as char
     }
 
     pub fn to_mask(self) -> Mask {
@@ -83,6 +91,15 @@ impl Mask {
             result.set(Letter::from_char(c)?, true);
         }
         Ok(result)
+    }
+
+    pub fn from_inner(inner: u32) -> Mask {
+        assert_eq!(inner & !Self::ALL_LETTERS.inner(), 0);
+        Mask(inner)
+    }
+
+    pub fn inner(self) -> u32 {
+        self.0
     }
 
     pub fn get(self, c: Letter) -> bool {
