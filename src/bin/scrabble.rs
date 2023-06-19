@@ -32,8 +32,7 @@ fn main() {
         letter: None,
         letter_multiplier: 1,
         word_multiplier: 1,
-        allowed_by_horizontal: Mask::NONE,
-        allowed_by_vertical: Mask::NONE,
+        allowed_by_dir: [Mask::NONE; 2],
         attached: false,
     };
     let mut grid = ScrabbleGrid {
@@ -69,7 +68,8 @@ fn main() {
         }
     }
 
-    grid.recompute_allowed(&set);
+    grid.update_all_allowed(&set);
+    grid.assert_valid(&set);
 
     // for y in 0..grid.height {
     //     for x in 0..grid.width {
@@ -84,6 +84,15 @@ fn main() {
     grid.available_moves(&set, deck).for_each(|mv| {
         println!("{:?}", mv);
     });
+
+    let mv = grid.available_moves(&set, deck).next().unwrap();
+
+    println!("playing {:?}", mv);
+
+    let new_deck = grid.play(&set, mv, deck);
+    grid.assert_valid(&set);
+
+    println!("deck after: {:?}", new_deck);
 }
 
 fn load_fst() -> Set {

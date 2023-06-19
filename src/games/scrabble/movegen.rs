@@ -1,6 +1,8 @@
-use crate::games::scrabble::basic::{Deck, Letter, Mask};
-use fst::raw::Node;
 use std::ops::ControlFlow;
+
+use fst::raw::Node;
+
+use crate::games::scrabble::basic::{Deck, Letter, Mask};
 
 pub type Set = fst::Set<Vec<u8>>;
 
@@ -12,12 +14,16 @@ pub enum Direction {
 
 #[derive(Debug)]
 pub struct Move {
+    // TODO encode which tiles use a wildcard tile
+    //   does it ever make sense to use a wildcard when not necessary?
+    //   does it make sense to place the wildcard on a multiplier tile when possible to avoid?
     pub dir: Direction,
-    pub row: u8,
-    pub anchor: usize,
-    pub forward_count: usize,
-    pub backward_count: usize,
-    pub start: usize,
+    pub x: u8,
+    pub y: u8,
+
+    pub anchor: u8,
+    pub forward_count: u8,
+    pub backward_count: u8,
     pub raw: String,
     pub word: String,
 }
@@ -36,6 +42,20 @@ impl Direction {
         match self {
             Direction::Horizontal => (1, 0),
             Direction::Vertical => (0, 1),
+        }
+    }
+
+    pub fn orthogonal(self) -> Self {
+        match self {
+            Direction::Horizontal => Direction::Vertical,
+            Direction::Vertical => Direction::Horizontal,
+        }
+    }
+
+    pub fn index(self) -> usize {
+        match self {
+            Direction::Horizontal => 0,
+            Direction::Vertical => 1,
         }
     }
 }
@@ -225,13 +245,20 @@ impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
             ordered.extend(suffix_rev.iter().copied().rev());
             ordered.extend_from_slice(prefix);
 
+            let start = (self.anchor - backward_count) as u8;
+
+            let (x, y) = match self.dir {
+                Direction::Horizontal => (start, self.row),
+                Direction::Vertical => (self.row, start),
+            };
+
             let mv = Move {
                 dir: self.dir,
-                row: self.row,
-                backward_count,
-                forward_count,
-                anchor: self.anchor,
-                start: self.anchor - backward_count,
+                x,
+                y,
+                backward_count: backward_count as u8,
+                forward_count: forward_count as u8,
+                anchor: self.anchor as u8,
                 raw: String::from_utf8(word.to_owned()).unwrap(),
                 word: String::from_utf8(ordered).unwrap(),
             };
