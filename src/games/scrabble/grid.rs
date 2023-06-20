@@ -10,9 +10,14 @@ use crate::games::scrabble::movegen::{movegen, Direction, Move, Set};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Cell {
+    // current state
     pub letter: Option<Letter>,
+
+    // intrinsic board state
     pub letter_multiplier: u8,
     pub word_multiplier: u8,
+
+    // prepared information for movegen
     pub allowed_by_dir: [Mask; 2],
     pub score_by_dir: [u32; 2],
     pub attached: bool,
@@ -46,11 +51,13 @@ impl ScrabbleGrid {
         &mut self.cells[index]
     }
 
-    pub fn set_letter_without_allowed(&mut self, x: u8, y: u8, letter: Letter) {
+    /// **Warning**: only partial: the neighbor allowed sets and scores are not updated
+    pub fn set_letter_partial(&mut self, x: u8, y: u8, letter: Letter) {
         let cell = self.cell_mut(x, y);
         cell.letter = Some(letter);
         cell.allowed_by_dir = [letter.to_mask(), letter.to_mask()];
         cell.attached = false;
+        cell.score_by_dir = [0, 0];
 
         // set neighbors to be attached if empty
         let neighbors = [
@@ -89,7 +96,12 @@ impl ScrabbleGrid {
     pub fn assert_valid(&self, set: &Set) {
         let mut clone = self.clone();
         clone.update_all_allowed(set);
-        assert_eq!(self.cells, clone.cells);
+
+        for y in 0..self.height {
+            for x in 0..self.width {
+                assert_eq!(self.cell(x, y), clone.cell(x, y), "Cell mismatch at ({}, {})", x, y);
+            }
+        }
     }
 
     fn neighbor(&self, x: u8, y: u8, dir: Direction, delta: i16) -> Option<(u8, u8)> {
@@ -129,7 +141,7 @@ impl ScrabbleGrid {
                     if !deck.try_remove(c) {
                         return Err(InvalidMove::NotInDeck(c));
                     }
-                    self.set_letter_without_allowed(x, y, c);
+                    self.set_letter_partial(x, y, c);
                 }
                 Some(prev) => {
                     if prev != c {
@@ -347,8 +359,11 @@ impl InternalIterator for MovesIterator<'_, '_> {
                     let cell = grid.cell(x, y);
                     movegen::Cell {
                         letter: cell.letter,
-                        allowed: cell.allowed_by_dir[Direction::Vertical.index()],
                         attached: cell.attached,
+                        allowed: cell.allowed_by_dir[Direction::Vertical.index()],
+                        score_cross: cell.score_by_dir[Direction::Vertical.index()],
+                        letter_multiplier: cell.letter_multiplier,
+                        word_multiplier: cell.word_multiplier,
                     }
                 })
                 .collect_vec();
@@ -363,8 +378,11 @@ impl InternalIterator for MovesIterator<'_, '_> {
                     let cell = grid.cell(x, y);
                     movegen::Cell {
                         letter: cell.letter,
-                        allowed: cell.allowed_by_dir[Direction::Horizontal.index()],
                         attached: cell.attached,
+                        allowed: cell.allowed_by_dir[Direction::Horizontal.index()],
+                        score_cross: cell.score_by_dir[Direction::Horizontal.index()],
+                        letter_multiplier: cell.letter_multiplier,
+                        word_multiplier: cell.word_multiplier,
                     }
                 })
                 .collect_vec();

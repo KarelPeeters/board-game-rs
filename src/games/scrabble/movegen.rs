@@ -21,6 +21,8 @@ pub struct Move {
     pub x: u8,
     pub y: u8,
 
+    pub score: u32,
+
     pub anchor: u8,
     pub forward_count: u8,
     pub backward_count: u8,
@@ -31,8 +33,12 @@ pub struct Move {
 #[derive(Debug)]
 pub struct Cell {
     pub letter: Option<Letter>,
-    pub allowed: Mask,
     pub attached: bool,
+    pub allowed: Mask,
+
+    pub score_cross: u32,
+    pub word_multiplier: u8,
+    pub letter_multiplier: u8,
 }
 
 impl Direction {
@@ -104,18 +110,81 @@ pub fn movegen<R>(
     ControlFlow::Continue(())
 }
 
+#[derive(Debug, Copy, Clone)]
+struct PartialScore {
+    sum_orthogonal: u32,
+    sum_word: u32,
+    total_word_multiplier: u32,
+    tiles_placed: u8,
+}
+
+impl Default for PartialScore {
+    fn default() -> Self {
+        PartialScore {
+            sum_word: 0,
+            sum_orthogonal: 0,
+            total_word_multiplier: 1,
+            tiles_placed: 0,
+        }
+    }
+}
+
+impl PartialScore {
+    fn add(mut self, placed: bool, letter: Letter, cell: &Cell) -> Self {
+        let letter_mul = cell.letter_multiplier as u32;
+        let word_mul = cell.word_multiplier as u32;
+
+        if placed {
+            debug_assert!(cell.letter.is_none());
+            self.tiles_placed += 1;
+
+            // both multipliers count
+            let letter_value = letter.score_value() as u32 * letter_mul;
+            self.sum_word += letter_value;
+            self.total_word_multiplier *= word_mul;
+
+            // add cross score if any
+            if cell.score_cross != 0 {
+                self.sum_orthogonal += (letter_value + cell.score_cross) * word_mul;
+            }
+        } else {
+            // only count letter for word, non-multiplied
+            self.sum_word += letter.score_value() as u32;
+        }
+
+        self
+    }
+
+    fn total(self) -> u32 {
+        debug_assert!(
+            0 < self.tiles_placed && self.tiles_placed <= 7,
+            "Invalid tiles_placed: {}",
+            self.tiles_placed
+        );
+
+        let bingo_bonus = if self.tiles_placed == 7 { 50 } else { 0 };
+        self.sum_orthogonal + self.sum_word * self.total_word_multiplier + bingo_bonus
+    }
+}
+
 impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
     fn run(&mut self, deck: Deck) -> ControlFlow<R> {
         let root = self.set.as_fst().root();
         let mut curr = vec![];
-        self.run_recurse_forward(deck, root, &mut curr)?;
+        self.run_recurse_forward(deck, root, &mut curr, PartialScore::default())?;
         debug_assert!(curr.is_empty());
 
         ControlFlow::Continue(())
     }
 
     #[must_use]
-    fn run_recurse_forward(&mut self, mut deck: Deck, node: Node, curr: &mut Vec<u8>) -> ControlFlow<R> {
+    fn run_recurse_forward(
+        &mut self,
+        mut deck: Deck,
+        node: Node,
+        curr: &mut Vec<u8>,
+        score: PartialScore,
+    ) -> ControlFlow<R> {
         let cell = self.anchor + curr.len();
 
         // force direction change when hitting the right edge
@@ -123,11 +192,12 @@ impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
             if let Some(index) = node.find_input(b'+') {
                 let trans = node.transition(index);
                 let next = self.set.as_fst().node(trans.addr);
-                self.run_recurse_backward(deck, next, curr, curr.len())?;
+                self.run_recurse_backward(deck, next, curr, curr.len(), score)?;
             }
 
             return ControlFlow::Continue(());
         }
+        let cell = &self.cells[cell];
 
         for trans in node.transitions() {
             let char = trans.inp;
@@ -135,15 +205,15 @@ impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
 
             if char == b'+' {
                 // switch direction if possible
-                if self.cells[cell].letter.is_none() {
-                    self.run_recurse_backward(deck, next, curr, curr.len())?;
+                if cell.letter.is_none() {
+                    self.run_recurse_backward(deck, next, curr, curr.len(), score)?;
                 }
             } else {
                 // place letter if possible
                 let letter = Letter::from_char(char as char).unwrap();
 
-                if self.cells[cell].allowed.get(letter) {
-                    let used_deck = if let Some(actual) = self.cells[cell].letter {
+                if cell.allowed.get(letter) {
+                    let used_deck = if let Some(actual) = cell.letter {
                         debug_assert_eq!(actual, letter);
                         false
                     } else if deck.try_remove(letter) {
@@ -153,7 +223,9 @@ impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
                     };
 
                     curr.push(char);
-                    self.run_recurse_forward(deck, next, curr)?;
+                    let new_score = score.add(used_deck, letter, cell);
+
+                    self.run_recurse_forward(deck, next, curr, new_score)?;
                     let popped = curr.pop();
                     debug_assert_eq!(popped, Some(char));
 
@@ -174,6 +246,7 @@ impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
         node: Node,
         curr: &mut Vec<u8>,
         forward_count: usize,
+        score: PartialScore,
     ) -> ControlFlow<R> {
         debug_assert!(forward_count > 0);
 
@@ -183,19 +256,20 @@ impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
         let cell = match cell {
             None => {
                 // adjacent to edge, report and stop
-                self.maybe_report(node, forward_count, curr)?;
+                self.maybe_report(node, forward_count, curr, score)?;
                 return ControlFlow::Continue(());
             }
             Some(cell) => cell,
         };
+        let cell = &self.cells[cell];
 
         // report if on empty tile
-        if self.cells[cell].letter.is_none() {
-            self.maybe_report(node, forward_count, curr)?;
+        if cell.letter.is_none() {
+            self.maybe_report(node, forward_count, curr, score)?;
         }
 
         // stop if on previous anchor
-        if self.cells[cell].is_anchor() {
+        if cell.is_anchor() {
             return ControlFlow::Continue(());
         }
 
@@ -209,8 +283,8 @@ impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
             } else {
                 let letter = Letter::from_char(char as char).unwrap();
 
-                if self.cells[cell].allowed.get(letter) {
-                    let used_deck = if let Some(actual) = self.cells[cell].letter {
+                if cell.allowed.get(letter) {
+                    let used_deck = if let Some(actual) = cell.letter {
                         debug_assert_eq!(actual, letter);
                         false
                     } else if deck.try_remove(letter) {
@@ -220,7 +294,9 @@ impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
                     };
 
                     curr.push(char);
-                    self.run_recurse_backward(deck, next, curr, forward_count)?;
+                    let new_score = score.add(used_deck, letter, cell);
+
+                    self.run_recurse_backward(deck, next, curr, forward_count, new_score)?;
                     curr.pop();
 
                     if used_deck {
@@ -234,7 +310,7 @@ impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
     }
 
     #[must_use]
-    fn maybe_report(&mut self, node: Node, forward_count: usize, word: &[u8]) -> ControlFlow<R> {
+    fn maybe_report(&mut self, node: Node, forward_count: usize, word: &[u8], score: PartialScore) -> ControlFlow<R> {
         if node.is_final() {
             let backward_count = word.len() - forward_count;
 
@@ -256,6 +332,7 @@ impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
                 dir: self.dir,
                 x,
                 y,
+                score: score.total(),
                 backward_count: backward_count as u8,
                 forward_count: forward_count as u8,
                 anchor: self.anchor as u8,
