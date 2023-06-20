@@ -284,11 +284,29 @@ impl ScrabbleGrid {
             let (sx, sy) = self.neighbor(mv.x, mv.y, mv.dir, i as i16).unwrap();
             let orthogonal = mv.dir.orthogonal();
 
-            if let Some((nx, ny)) = self.neighbor(sx, sy, orthogonal, -1) {
-                self.update_cell_prepared(set, nx, ny, orthogonal)
+            // update first empty square on either side
+            // TODO maybe cache the length of both sides so we don't need to loop here?
+            for i in 0.. {
+                match self.neighbor(sx, sy, orthogonal, -i) {
+                    Some((nx, ny)) => {
+                        if self.cell(nx, ny).letter.is_none() {
+                            self.update_cell_prepared(set, nx, ny, orthogonal);
+                            break;
+                        }
+                    }
+                    None => break,
+                }
             }
-            if let Some((nx, ny)) = self.neighbor(sx, sy, orthogonal, 1) {
-                self.update_cell_prepared(set, nx, ny, orthogonal)
+            for i in 0.. {
+                match self.neighbor(sx, sy, orthogonal, i) {
+                    Some((nx, ny)) => {
+                        if self.cell(nx, ny).letter.is_none() {
+                            self.update_cell_prepared(set, nx, ny, orthogonal);
+                            break;
+                        }
+                    }
+                    None => break,
+                }
             }
         }
 
