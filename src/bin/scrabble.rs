@@ -24,6 +24,29 @@ E.T..KI.TOONIES
 S...MIDI....B.T
 ";
 
+// scrabble multiplier values
+//  w: double word
+//  W: triple word
+//  l: double letter
+//  L: triple letter
+const MULTIPLIERS: &str = "
+W..l...W...l..W
+.w...L...L...w.
+..w...l.l...w..
+l..w...l...w..l
+....w.....w....
+.L...L...L...L.
+..l...l.l...l..
+W..l...w...l..W
+..l...l.l...l..
+.L...L...L...L.
+....w.....w....
+l..w...l...w..l
+..w...l.l...w..
+.w...L...L...w.
+W..l...W...l..W
+";
+
 fn main() {
     // gen_fst();
     let set = load_fst();
@@ -64,6 +87,21 @@ fn main() {
                 }
                 if y < 14 {
                     grid.cell_mut(x as u8, y as u8 + 1).attached = true;
+                }
+            }
+        }
+    }
+    for (y, line) in MULTIPLIERS.trim().lines().enumerate() {
+        for (x, c) in line.trim().chars().enumerate() {
+            if c != '.' {
+                // set letter
+                let cell = grid.cell_mut(x as u8, y as u8);
+                match c {
+                    'w' => cell.word_multiplier = 2,
+                    'W' => cell.word_multiplier = 3,
+                    'l' => cell.letter_multiplier = 2,
+                    'L' => cell.letter_multiplier = 3,
+                    _ => panic!("invalid char {:?}", c),
                 }
             }
         }
