@@ -17,11 +17,13 @@ pub struct Cell {
     // intrinsic board state
     pub letter_multiplier: u8,
     pub word_multiplier: u8,
+    pub force_attached: bool,
 
     // prepared information for movegen
-    pub allowed_by_dir: [Mask; 2],
-    pub score_by_dir: [u32; 2],
-    pub attached: bool,
+    pub cache_allowed_by_dir: [Mask; 2],
+    pub cache_score_by_dir: [u32; 2],
+    // we don't _really_ need a separate attachment per direction, but it makes verification easier
+    pub cache_attached_by_dir: [bool; 2],
 }
 
 #[derive(Debug, Clone)]
@@ -58,7 +60,7 @@ const STANDARD_GRID_STR: &str = r#"
 ....-.....-....
 ."..."..."...".
 ..'...'.'...'..
-=..'...-...'..=
+=..'...*...'..=
 ..'...'.'...'..
 ."..."..."...".
 ....-.....-....
@@ -127,12 +129,18 @@ impl ScrabbleGrid {
                     '"' => grid.cell_mut(x, y).letter_multiplier = 3,
                     '\'' => grid.cell_mut(x, y).letter_multiplier = 2,
 
+                    // starting square
+                    '*' => {
+                        grid.cell_mut(x, y).word_multiplier = 2;
+                        grid.cell_mut(x, y).force_attached = true;
+                    }
+
                     _ => return Err(InvalidGridString::UnexpectedChar(c)),
                 }
             }
         }
 
-        grid.update_all_allowed(set);
+        grid.update_all_cached(set);
         Ok(grid)
     }
 
@@ -164,41 +172,25 @@ impl ScrabbleGrid {
         &mut self.cells[index]
     }
 
-    /// **Warning**: only partial: the neighbor allowed sets and scores are not updated
+    /// **Warning**: only partial: this tile and its adjacent tiles should still be updated
     pub fn set_letter_partial(&mut self, x: u8, y: u8, letter: Letter) {
         let cell = self.cell_mut(x, y);
         cell.letter = Some(letter);
-        cell.allowed_by_dir = [letter.to_mask(), letter.to_mask()];
-        cell.attached = false;
-        cell.score_by_dir = [0, 0];
 
-        // set neighbors to be attached if empty
-        let deltas = [
-            (Direction::Horizontal, 1),
-            (Direction::Horizontal, -1),
-            (Direction::Vertical, 1),
-            (Direction::Vertical, -1),
-        ];
-        for (dir, delta) in deltas {
-            if let Some((nx, ny)) = self.neighbor(x, y, dir, delta) {
-                let neighbor = self.cell_mut(nx, ny);
-                neighbor.attached = neighbor.letter.is_none();
-            }
-        }
+        cell.cache_allowed_by_dir = [letter.to_mask(), letter.to_mask()];
+        cell.cache_score_by_dir = [0, 0];
+        cell.cache_attached_by_dir = [false, false];
     }
 
     pub fn available_moves<'s>(&self, set: &'s Set, deck: Deck) -> MovesIterator<'_, 's> {
         MovesIterator { grid: self, set, deck }
     }
 
-    pub fn update_all_allowed(&mut self, set: &Set) {
+    pub fn update_all_cached(&mut self, set: &Set) {
         for y in 0..self.height {
             for x in 0..self.width {
                 for dir in Direction::ALL {
-                    let (allowed, score) = self.calc_cell_prepared(set, x, y, dir);
-                    let cell = self.cell_mut(x, y);
-                    cell.allowed_by_dir[dir.index()] = allowed;
-                    cell.score_by_dir[dir.index()] = score;
+                    self.update_cell_cached(set, x, y, dir);
                 }
             }
         }
@@ -206,11 +198,11 @@ impl ScrabbleGrid {
 
     pub fn assert_valid(&self, set: &Set) {
         let mut clone = self.clone();
-        clone.update_all_allowed(set);
+        clone.update_all_cached(set);
 
         for y in 0..self.height {
             for x in 0..self.width {
-                assert_eq!(self.cell(x, y), clone.cell(x, y), "Cell mismatch at ({}, {})", x, y);
+                assert_eq!(clone.cell(x, y), self.cell(x, y), "Cell mismatch at ({}, {})", x, y);
             }
         }
     }
@@ -232,6 +224,18 @@ impl ScrabbleGrid {
         }
     }
 
+    pub fn adjacent(&self, x: u8, y: u8) -> impl Iterator<Item = (u8, u8)> + '_ {
+        const STEPS: [(Direction, i16); 4] = [
+            (Direction::Horizontal, 1),
+            (Direction::Horizontal, -1),
+            (Direction::Vertical, 1),
+            (Direction::Vertical, -1),
+        ];
+        STEPS
+            .iter()
+            .filter_map(move |&(dir, delta)| self.neighbor(x, y, dir, delta))
+    }
+
     pub fn play(&mut self, set: &Set, mv: Move, mut deck: Deck) -> Result<Deck, InvalidMove> {
         let mut attached = false;
         let mut placed = false;
@@ -244,7 +248,7 @@ impl ScrabbleGrid {
             let c = Letter::from_char(c as char).unwrap();
 
             let cell = self.cell_mut(x, y);
-            attached |= cell.attached;
+            attached |= cell.attached();
 
             match cell.letter {
                 None => {
@@ -275,10 +279,10 @@ impl ScrabbleGrid {
 
         // prefix and suffix
         if let Some((nx, ny)) = self.neighbor(mv.x, mv.y, mv.dir, -1) {
-            self.update_cell_prepared(set, nx, ny, mv.dir);
+            self.update_cell_cached(set, nx, ny, mv.dir);
         }
         if let Some((nx, ny)) = self.neighbor(mv.x, mv.y, mv.dir, mv.word.len() as i16) {
-            self.update_cell_prepared(set, nx, ny, mv.dir);
+            self.update_cell_cached(set, nx, ny, mv.dir);
         }
 
         // orthogonal
@@ -292,7 +296,7 @@ impl ScrabbleGrid {
                 match self.neighbor(sx, sy, orthogonal, -i) {
                     Some((nx, ny)) => {
                         if self.cell(nx, ny).letter.is_none() {
-                            self.update_cell_prepared(set, nx, ny, orthogonal);
+                            self.update_cell_cached(set, nx, ny, orthogonal);
                             break;
                         }
                     }
@@ -303,7 +307,7 @@ impl ScrabbleGrid {
                 match self.neighbor(sx, sy, orthogonal, i) {
                     Some((nx, ny)) => {
                         if self.cell(nx, ny).letter.is_none() {
-                            self.update_cell_prepared(set, nx, ny, orthogonal);
+                            self.update_cell_cached(set, nx, ny, orthogonal);
                             break;
                         }
                     }
@@ -351,7 +355,7 @@ impl ScrabbleGrid {
         (prefix, suffix)
     }
 
-    fn calc_cell_prepared(&mut self, set: &Set, x: u8, y: u8, dir: Direction) -> (Mask, u32) {
+    fn calc_cell_allowed_and_score(&mut self, set: &Set, x: u8, y: u8, dir: Direction) -> (Mask, u32) {
         // a letter only allows itself
         if let Some(letter) = self.cell(x, y).letter {
             return (letter.to_mask(), 0);
@@ -368,21 +372,27 @@ impl ScrabbleGrid {
         let allowed = find_cross_set(set, &prefix, &suffix);
         debug_assert_eq!(allowed, find_cross_set_slow(set, &prefix, &suffix));
 
-        let score = prefix
-            .iter()
-            .chain(suffix.iter())
+        let letters = prefix.iter().chain(suffix.iter());
+        let score = letters
             .map(|&c| Letter::from_char(c as char).unwrap().score_value() as u32)
             .sum();
 
         (allowed, score)
     }
 
-    fn update_cell_prepared(&mut self, set: &Set, x: u8, y: u8, dir: Direction) {
-        let (allowed, score) = self.calc_cell_prepared(set, x, y, dir);
+    fn update_cell_cached(&mut self, set: &Set, x: u8, y: u8, dir: Direction) {
+        let (allowed, score) = self.calc_cell_allowed_and_score(set, x, y, dir);
+
+        let attached = self.cell(x, y).letter.is_none()
+            && [-1, 1].iter().any(|&d| {
+                self.neighbor(x, y, dir, d)
+                    .is_some_and(|(nx, ny)| self.cell(nx, ny).letter.is_some())
+            });
 
         let cell = self.cell_mut(x, y);
-        cell.allowed_by_dir[dir.index()] = allowed;
-        cell.score_by_dir[dir.index()] = score;
+        cell.cache_allowed_by_dir[dir.index()] = allowed;
+        cell.cache_score_by_dir[dir.index()] = score;
+        cell.cache_attached_by_dir[dir.index()] = attached;
     }
 }
 
@@ -471,10 +481,21 @@ impl Cell {
             letter: None,
             letter_multiplier: 1,
             word_multiplier: 1,
-            allowed_by_dir: [Mask::NONE; 2],
-            score_by_dir: [0; 2],
-            attached: false,
+            force_attached: false,
+
+            cache_allowed_by_dir: [Mask::NONE; 2],
+            cache_score_by_dir: [0; 2],
+            cache_attached_by_dir: [false, false],
         }
+    }
+
+    fn attached(&self) -> bool {
+        let cache_attached = self.cache_attached_by_dir.iter().any(|&b| b);
+        let tile_empty = self.letter.is_none();
+        if cache_attached {
+            debug_assert!(tile_empty);
+        }
+        cache_attached || (tile_empty && self.force_attached)
     }
 }
 
@@ -501,9 +522,9 @@ impl InternalIterator for MovesIterator<'_, '_> {
                     let cell = grid.cell(x, y);
                     movegen::Cell {
                         letter: cell.letter,
-                        attached: cell.attached,
-                        allowed: cell.allowed_by_dir[Direction::Vertical.index()],
-                        score_cross: cell.score_by_dir[Direction::Vertical.index()],
+                        attached: cell.attached(),
+                        allowed: cell.cache_allowed_by_dir[Direction::Vertical.index()],
+                        score_cross: cell.cache_score_by_dir[Direction::Vertical.index()],
                         letter_multiplier: cell.letter_multiplier,
                         word_multiplier: cell.word_multiplier,
                     }
@@ -520,9 +541,9 @@ impl InternalIterator for MovesIterator<'_, '_> {
                     let cell = grid.cell(x, y);
                     movegen::Cell {
                         letter: cell.letter,
-                        attached: cell.attached,
-                        allowed: cell.allowed_by_dir[Direction::Horizontal.index()],
-                        score_cross: cell.score_by_dir[Direction::Horizontal.index()],
+                        attached: cell.attached(),
+                        allowed: cell.cache_allowed_by_dir[Direction::Horizontal.index()],
+                        score_cross: cell.cache_score_by_dir[Direction::Horizontal.index()],
                         letter_multiplier: cell.letter_multiplier,
                         word_multiplier: cell.word_multiplier,
                     }
@@ -554,16 +575,22 @@ impl Display for ScrabbleGrid {
             for x in 0..self.width {
                 let cell = self.cell(x, y);
 
+                // TODO print starting square?
                 let c = match cell.letter {
                     Some(letter) => letter.to_char(),
-                    None => match (cell.letter_multiplier, cell.word_multiplier) {
-                        (1, 1) => ' ',
-                        (1, 2) => '-',
-                        (1, 3) => '=',
-                        (1, 4) => '~',
-                        (2, 1) => '\'',
-                        (3, 1) => '"',
-                        (4, 1) => '^',
+                    None => match (cell.force_attached, cell.letter_multiplier, cell.word_multiplier) {
+                        // word multipliers
+                        (false, 1, 1) => ' ',
+                        (false, 1, 2) => '-',
+                        (false, 1, 3) => '=',
+                        (false, 1, 4) => '~',
+                        // letter multipliers
+                        (false, 2, 1) => '\'',
+                        (false, 3, 1) => '"',
+                        (false, 4, 1) => '^',
+                        // starting square
+                        (true, 1, 2) => '*',
+                        // some other combination
                         _ => '?',
                     },
                 };

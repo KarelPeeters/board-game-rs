@@ -1,11 +1,15 @@
 use internal_iterator::InternalIterator;
+use rand::seq::{IteratorRandom, SliceRandom};
+use rand::Rng;
 
-use board_game::games::scrabble::basic::Deck;
+use board_game::games::scrabble::basic::{Deck, Letter};
 use board_game::games::scrabble::grid::ScrabbleGrid;
+use board_game::games::scrabble::movegen::Move;
+use board_game::util::tiny::consistent_rng;
 
 type Set = fst::Set<Vec<u8>>;
 
-const LETTERS: &str = "
+const GRID: &str = "
 .......L.......
 .......A.J.....
 .......TWINER..
@@ -26,8 +30,10 @@ S...MIDI....B.T
 fn main() {
     // gen_fst();
     let set = load_fst();
+    fuzz(&set);
+    return;
 
-    let mut grid = ScrabbleGrid::from_str_2d(&set, LETTERS.trim()).unwrap();
+    let mut grid = ScrabbleGrid::from_str_2d(&set, GRID.trim()).unwrap();
     grid.copy_multipliers_from(&ScrabbleGrid::default());
 
     println!("{}", grid);
@@ -56,6 +62,54 @@ fn main() {
     grid.assert_valid(&set);
 
     println!("deck after: {:?}", new_deck);
+}
+
+fn fuzz(set: &Set) {
+    let mut rng = consistent_rng();
+
+    loop {
+        let mut grid = ScrabbleGrid::default();
+        println!("{}", grid);
+
+        let mut fails = 0;
+
+        loop {
+            let count = rng.gen_range(1..=7);
+            let letters = (0..count)
+                .map(|_| Letter::all().choose(&mut rng).unwrap().to_char())
+                .collect::<String>();
+            let deck = Deck::from_letters(&letters).unwrap();
+            println!("Deck: {:?}", deck);
+
+            let moves: Vec<Move> = grid.available_moves(set, deck).collect();
+
+            let mv = match moves.choose(&mut rng) {
+                None => {
+                    fails += 1;
+                    if fails < 100 {
+                        continue;
+                    } else {
+                        break;
+                    }
+                }
+                Some(mv) => {
+                    fails = 0;
+                    mv
+                }
+            };
+
+            println!("Playing {:?}", mv);
+            let new_deck = grid.play(set, mv.clone(), deck).unwrap();
+            println!("Deck after: {:?}", new_deck);
+
+            println!("Grid after:");
+            println!("{}", grid);
+
+            grid.assert_valid(set);
+
+            println!();
+        }
+    }
 }
 
 fn load_fst() -> Set {

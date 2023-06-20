@@ -12,7 +12,7 @@ pub enum Direction {
     Vertical,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Move {
     // TODO encode which tiles use a wildcard tile
     //   does it ever make sense to use a wildcard when not necessary?
