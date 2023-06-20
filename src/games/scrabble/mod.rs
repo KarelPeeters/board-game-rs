@@ -1,4 +1,7 @@
 //! # Resources used:
+//! ## Standards:
+//! - https://www.poslfit.com/scrabble/gcg/
+//!
 //! ## Papers:
 //! - [Appel, Jacobson (1988)](https://www.cs.cmu.edu/afs/cs/academic/class/15451-s06/www/lectures/scrabble.pdf)
 //! - [Gordon (1993)](https://ericsink.com/downloads/faster-scrabble-gordon.pdf)

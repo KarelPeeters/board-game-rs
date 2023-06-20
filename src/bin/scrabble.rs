@@ -1,12 +1,11 @@
 use internal_iterator::InternalIterator;
-use itertools::Itertools;
 
-use board_game::games::scrabble::basic::{Deck, Letter, Mask};
-use board_game::games::scrabble::grid::{Cell, ScrabbleGrid};
+use board_game::games::scrabble::basic::Deck;
+use board_game::games::scrabble::grid::ScrabbleGrid;
 
 type Set = fst::Set<Vec<u8>>;
 
-const GRID: &str = "
+const LETTERS: &str = "
 .......L.......
 .......A.J.....
 .......TWINER..
@@ -24,97 +23,22 @@ E.T..KI.TOONIES
 S...MIDI....B.T
 ";
 
-// scrabble multiplier values
-//  w: double word
-//  W: triple word
-//  l: double letter
-//  L: triple letter
-const MULTIPLIERS: &str = "
-W..l...W...l..W
-.w...L...L...w.
-..w...l.l...w..
-l..w...l...w..l
-....w.....w....
-.L...L...L...L.
-..l...l.l...l..
-W..l...w...l..W
-..l...l.l...l..
-.L...L...L...L.
-....w.....w....
-l..w...l...w..l
-..w...l.l...w..
-.w...L...L...w.
-W..l...W...l..W
-";
-
 fn main() {
     // gen_fst();
     let set = load_fst();
 
-    let empty_cell = Cell {
-        letter: None,
-        letter_multiplier: 1,
-        word_multiplier: 1,
-        allowed_by_dir: [Mask::NONE; 2],
-        score_by_dir: [0; 2],
-        attached: false,
-    };
-    let mut grid = ScrabbleGrid {
-        width: 15,
-        height: 15,
-        cells: (0..15 * 15).map(|_| empty_cell.clone()).collect_vec(),
-    };
+    let mut grid = ScrabbleGrid::from_str_2d(&set, LETTERS.trim()).unwrap();
+    grid.copy_multipliers_from(&ScrabbleGrid::standard());
 
-    // set letters
-    for (y, line) in GRID.trim().lines().enumerate() {
-        for (x, c) in line.trim().chars().enumerate() {
-            if c != '.' {
-                // set letter
-                let cell = grid.cell_mut(x as u8, y as u8);
-                let letter = Letter::from_char(c).unwrap();
-                cell.letter = Some(letter);
+    println!("{}", grid);
 
-                // set neighbors attached
-                if x > 0 {
-                    grid.cell_mut(x as u8 - 1, y as u8).attached = true;
-                }
-                if x < 14 {
-                    grid.cell_mut(x as u8 + 1, y as u8).attached = true;
-                }
-
-                if y > 0 {
-                    grid.cell_mut(x as u8, y as u8 - 1).attached = true;
-                }
-                if y < 14 {
-                    grid.cell_mut(x as u8, y as u8 + 1).attached = true;
-                }
-            }
-        }
-    }
-    for (y, line) in MULTIPLIERS.trim().lines().enumerate() {
-        for (x, c) in line.trim().chars().enumerate() {
-            if c != '.' {
-                // set letter
-                let cell = grid.cell_mut(x as u8, y as u8);
-                match c {
-                    'w' => cell.word_multiplier = 2,
-                    'W' => cell.word_multiplier = 3,
-                    'l' => cell.letter_multiplier = 2,
-                    'L' => cell.letter_multiplier = 3,
-                    _ => panic!("invalid char {:?}", c),
-                }
-            }
-        }
-    }
-
-    grid.update_all_allowed(&set);
     grid.assert_valid(&set);
 
-    // for y in 0..grid.height {
-    //     for x in 0..grid.width {
-    //         println!("({}, {}) => {:?}", x, y, grid.cell(x, y));
-    //     }
-    // }
+    for y in 0..grid.height {
+        for x in 0..grid.width {
+            println!("({}, {}) => {:?}", x, y, grid.cell(x, y));
+        }
+    }
 
     // let deck = Deck::from_letters("DGILOPR").unwrap();
     // let deck = Deck::from_letters("GID").unwrap();

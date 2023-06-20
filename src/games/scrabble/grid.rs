@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use std::ops::ControlFlow;
 
 use fst::raw::Node;
@@ -40,7 +41,117 @@ pub enum InvalidMove {
     NoNewTiles,
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum InvalidGridString {
+    Empty,
+    TooLarge,
+    WidthMismatch,
+    UnexpectedChar(char),
+    NotAscii,
+}
+
+const STANDARD_GRID_STR: &str = r#"
+=..'...=...'..=
+.-..."..."...-.
+..-...'.'...-..
+'..-...'...-..'
+....-.....-....
+."..."..."...".
+..'...'.'...'..
+=..'...-...'..=
+..'...'.'...'..
+."..."..."...".
+....-.....-....
+'..-...'...-..'
+..-...'.'...-..
+.-..."..."...-.
+=..'...=...'..=
+"#;
+
 impl ScrabbleGrid {
+    // only limited by display impl for now
+    pub const MAX_SIZE: u8 = 25;
+
+    pub fn standard() -> ScrabbleGrid {
+        // if there are no letters yet the set used doesn't matter
+        let set = Set::from_iter(std::iter::empty::<String>()).unwrap();
+        let s = STANDARD_GRID_STR.trim();
+        ScrabbleGrid::from_str_2d(&set, s).unwrap()
+    }
+
+    pub fn from_str_2d(set: &Set, s: &str) -> Result<ScrabbleGrid, InvalidGridString> {
+        if !s.is_ascii() {
+            return Err(InvalidGridString::NotAscii);
+        }
+
+        let width = s.lines().next().map_or(0, |s| s.len());
+        let height = s.lines().count();
+
+        if width > Self::MAX_SIZE as usize || height > Self::MAX_SIZE as usize {
+            return Err(InvalidGridString::TooLarge);
+        }
+        if width == 0 || height == 0 {
+            return Err(InvalidGridString::Empty);
+        }
+
+        let mut grid = ScrabbleGrid {
+            width: width as u8,
+            height: height as u8,
+            cells: vec![Cell::empty(); height * width],
+        };
+
+        for (y, line) in s.lines().enumerate() {
+            let y = y as u8;
+            if line.len() != width {
+                return Err(InvalidGridString::WidthMismatch);
+            }
+
+            for (x, c) in line.chars().enumerate() {
+                let x = x as u8;
+                match c {
+                    // empty square
+                    ' ' | '.' => {}
+
+                    // letter
+                    'A'..='Z' => grid.set_letter_partial(x, y, Letter::from_char(c).unwrap()),
+
+                    // word multipliers
+                    '~' => grid.cell_mut(x, y).word_multiplier = 4,
+                    '=' => grid.cell_mut(x, y).word_multiplier = 3,
+                    '-' => grid.cell_mut(x, y).word_multiplier = 2,
+
+                    // letter multipliers
+                    '^' => grid.cell_mut(x, y).letter_multiplier = 4,
+                    '"' => grid.cell_mut(x, y).letter_multiplier = 3,
+                    '\'' => grid.cell_mut(x, y).letter_multiplier = 2,
+
+                    _ => return Err(InvalidGridString::UnexpectedChar(c)),
+                }
+            }
+        }
+
+        grid.update_all_allowed(set);
+        Ok(grid)
+    }
+
+    pub fn copy_multipliers_from(&mut self, other: &ScrabbleGrid) {
+        assert!(
+            self.width == other.width && self.height == other.height,
+            "Shape mismatch: ({}, {}) vs ({}, {})",
+            self.width,
+            self.height,
+            other.width,
+            other.height
+        );
+
+        for (cell, other_cell) in self.cells.iter_mut().zip(other.cells.iter()) {
+            cell.letter_multiplier = other_cell.letter_multiplier;
+            cell.word_multiplier = other_cell.word_multiplier;
+        }
+
+        // the multipliers don't affect any prepared stuff (not even the scores)
+    }
+
     pub fn cell(&self, x: u8, y: u8) -> &Cell {
         let index = (y as usize) * (self.width as usize) + (x as usize);
         &self.cells[index]
@@ -60,18 +171,16 @@ impl ScrabbleGrid {
         cell.score_by_dir = [0, 0];
 
         // set neighbors to be attached if empty
-        let neighbors = [
-            (x.checked_sub(1), Some(y)),
-            (x.checked_add(1), Some(y)),
-            (Some(x), y.checked_sub(1)),
-            (Some(x), y.checked_add(1)),
+        let deltas = [
+            (Direction::Horizontal, 1),
+            (Direction::Horizontal, -1),
+            (Direction::Vertical, 1),
+            (Direction::Vertical, -1),
         ];
-        for (nx, ny) in neighbors {
-            if let (Some(nx), Some(ny)) = (nx, ny) {
-                if nx < self.width && ny < self.height {
-                    let cell = self.cell_mut(x, y);
-                    cell.attached = cell.letter.is_none();
-                }
+        for (dir, delta) in deltas {
+            if let Some((nx, ny)) = self.neighbor(x, y, dir, delta) {
+                let neighbor = self.cell_mut(nx, ny);
+                neighbor.attached = neighbor.letter.is_none();
             }
         }
     }
@@ -336,6 +445,19 @@ fn find_cross_set_slow(set: &Set, prefix: &[u8], suffix: &[u8]) -> Mask {
     mask
 }
 
+impl Cell {
+    fn empty() -> Cell {
+        Cell {
+            letter: None,
+            letter_multiplier: 1,
+            word_multiplier: 1,
+            allowed_by_dir: [Mask::NONE; 2],
+            score_by_dir: [0; 2],
+            attached: false,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct MovesIterator<'g, 's> {
     grid: &'g ScrabbleGrid,
@@ -390,5 +512,53 @@ impl InternalIterator for MovesIterator<'_, '_> {
         }
 
         ControlFlow::Continue(())
+    }
+}
+
+impl Display for ScrabbleGrid {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "   ")?;
+        for x in 0..self.width {
+            write!(f, "{} ", (b'A' + x) as char)?;
+        }
+        writeln!(f)?;
+
+        write!(f, "   ")?;
+        for _ in 0..self.width {
+            write!(f, "--")?;
+        }
+        writeln!(f)?;
+
+        for y in 0..self.height {
+            write!(f, "{:2}|", y + 1)?;
+            for x in 0..self.width {
+                let cell = self.cell(x, y);
+
+                let c = match cell.letter {
+                    Some(letter) => letter.to_char(),
+                    None => match (cell.letter_multiplier, cell.word_multiplier) {
+                        (1, 1) => ' ',
+                        (1, 2) => '-',
+                        (1, 3) => '=',
+                        (1, 4) => '~',
+                        (2, 1) => '\'',
+                        (3, 1) => '"',
+                        (4, 1) => '^',
+                        _ => '?',
+                    },
+                };
+
+                write!(f, "{} ", c)?;
+            }
+            writeln!(f, "|")?;
+        }
+
+        write!(f, "   ")?;
+        for _ in 0..self.width {
+            write!(f, "--")?;
+        }
+        writeln!(f)?;
+
+        Ok(())
     }
 }
