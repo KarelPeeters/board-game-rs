@@ -28,7 +28,7 @@ fn main() {
     let set = load_fst();
 
     let mut grid = ScrabbleGrid::from_str_2d(&set, LETTERS.trim()).unwrap();
-    grid.copy_multipliers_from(&ScrabbleGrid::standard());
+    grid.copy_multipliers_from(&ScrabbleGrid::default());
 
     println!("{}", grid);
 

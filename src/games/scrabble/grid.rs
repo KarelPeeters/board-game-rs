@@ -68,16 +68,18 @@ const STANDARD_GRID_STR: &str = r#"
 =..'...=...'..=
 "#;
 
-impl ScrabbleGrid {
-    // only limited by display impl for now
-    pub const MAX_SIZE: u8 = 25;
-
-    pub fn standard() -> ScrabbleGrid {
+impl Default for ScrabbleGrid {
+    fn default() -> Self {
         // if there are no letters yet the set used doesn't matter
         let set = Set::from_iter(std::iter::empty::<String>()).unwrap();
         let s = STANDARD_GRID_STR.trim();
         ScrabbleGrid::from_str_2d(&set, s).unwrap()
     }
+}
+
+impl ScrabbleGrid {
+    // only limited by display impl for now
+    pub const MAX_SIZE: u8 = 25;
 
     pub fn from_str_2d(set: &Set, s: &str) -> Result<ScrabbleGrid, InvalidGridString> {
         if !s.is_ascii() {
