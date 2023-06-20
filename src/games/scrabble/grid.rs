@@ -14,6 +14,7 @@ pub struct Cell {
     pub letter_multiplier: u8,
     pub word_multiplier: u8,
     pub allowed_by_dir: [Mask; 2],
+    pub score_by_dir: [u32; 2],
     pub attached: bool,
 }
 
@@ -76,7 +77,10 @@ impl ScrabbleGrid {
         for y in 0..self.height {
             for x in 0..self.width {
                 for dir in Direction::ALL {
-                    self.cell_mut(x, y).allowed_by_dir[dir.index()] = self.calc_cell_allowed(set, x, y, dir);
+                    let (allowed, score) = self.calc_cell_prepared(set, x, y, dir);
+                    let cell = self.cell_mut(x, y);
+                    cell.allowed_by_dir[dir.index()] = allowed;
+                    cell.score_by_dir[dir.index()] = score;
                 }
             }
         }
@@ -148,10 +152,10 @@ impl ScrabbleGrid {
 
         // prefix and suffix
         if let Some((nx, ny)) = self.neighbor(mv.x, mv.y, mv.dir, -1) {
-            self.cell_mut(nx, ny).allowed_by_dir[mv.dir.index()] = self.calc_cell_allowed(set, nx, ny, mv.dir)
+            self.update_cell_prepared(set, nx, ny, mv.dir);
         }
         if let Some((nx, ny)) = self.neighbor(mv.x, mv.y, mv.dir, mv.word.len() as i16) {
-            self.cell_mut(nx, ny).allowed_by_dir[mv.dir.index()] = self.calc_cell_allowed(set, nx, ny, mv.dir)
+            self.update_cell_prepared(set, nx, ny, mv.dir);
         }
 
         // orthogonal
@@ -160,12 +164,10 @@ impl ScrabbleGrid {
             let orthogonal = mv.dir.orthogonal();
 
             if let Some((nx, ny)) = self.neighbor(sx, sy, orthogonal, -1) {
-                self.cell_mut(nx, ny).allowed_by_dir[orthogonal.index()] =
-                    self.calc_cell_allowed(set, nx, ny, orthogonal)
+                self.update_cell_prepared(set, nx, ny, orthogonal)
             }
             if let Some((nx, ny)) = self.neighbor(sx, sy, orthogonal, 1) {
-                self.cell_mut(nx, ny).allowed_by_dir[orthogonal.index()] =
-                    self.calc_cell_allowed(set, nx, ny, orthogonal)
+                self.update_cell_prepared(set, nx, ny, orthogonal)
             }
         }
 
@@ -208,28 +210,43 @@ impl ScrabbleGrid {
         (prefix, suffix)
     }
 
-    fn calc_cell_allowed(&mut self, set: &Set, x: u8, y: u8, dir: Direction) -> Mask {
+    fn calc_cell_prepared(&mut self, set: &Set, x: u8, y: u8, dir: Direction) -> (Mask, u32) {
         // a letter only allows itself
         if let Some(letter) = self.cell(x, y).letter {
-            return letter.to_mask();
+            return (letter.to_mask(), 0);
         }
 
         // otherwise look at the possible completions
         let (prefix, suffix) = self.find_prefix_suffix(x, y, dir);
 
-        let mask = find_cross_set(set, &prefix, &suffix);
-        debug_assert_eq!(mask, find_cross_set_slow(set, &prefix, &suffix));
+        // if no adjacent tiles, allow everything
+        if prefix.is_empty() && suffix.is_empty() {
+            return (Mask::ALL_LETTERS, 0);
+        }
 
-        mask
+        let allowed = find_cross_set(set, &prefix, &suffix);
+        debug_assert_eq!(allowed, find_cross_set_slow(set, &prefix, &suffix));
+
+        let score = prefix
+            .iter()
+            .chain(suffix.iter())
+            .map(|&c| Letter::from_char(c as char).unwrap().score_value() as u32)
+            .sum();
+
+        (allowed, score)
+    }
+
+    fn update_cell_prepared(&mut self, set: &Set, x: u8, y: u8, dir: Direction) {
+        let (allowed, score) = self.calc_cell_prepared(set, x, y, dir);
+
+        let cell = self.cell_mut(x, y);
+        cell.allowed_by_dir[dir.index()] = allowed;
+        cell.score_by_dir[dir.index()] = score;
     }
 }
 
 // TODO try getting rid of some unwraps here
 fn find_cross_set(set: &Set, prefix: &[u8], suffix: &[u8]) -> Mask {
-    if prefix.is_empty() && suffix.is_empty() {
-        return Mask::ALL_LETTERS;
-    }
-
     let fst = set.as_fst();
     let mut mask = Mask::NONE;
 

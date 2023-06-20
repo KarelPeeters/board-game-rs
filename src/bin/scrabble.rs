@@ -33,6 +33,7 @@ fn main() {
         letter_multiplier: 1,
         word_multiplier: 1,
         allowed_by_dir: [Mask::NONE; 2],
+        score_by_dir: [0; 2],
         attached: false,
     };
     let mut grid = ScrabbleGrid {

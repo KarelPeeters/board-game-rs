@@ -1,9 +1,43 @@
 pub const LETTERS: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 pub const LETTER_COUNT: usize = LETTERS.len();
+pub const LETTER_INFO: [LetterInfo; LETTER_COUNT] = [
+    LetterInfo::new(1, 9),  // A
+    LetterInfo::new(3, 2),  // B
+    LetterInfo::new(3, 2),  // C
+    LetterInfo::new(2, 4),  // D
+    LetterInfo::new(1, 12), // E
+    LetterInfo::new(4, 2),  // F
+    LetterInfo::new(2, 3),  // G
+    LetterInfo::new(4, 2),  // H
+    LetterInfo::new(1, 9),  // I
+    LetterInfo::new(8, 1),  // J
+    LetterInfo::new(5, 1),  // K
+    LetterInfo::new(1, 4),  // L
+    LetterInfo::new(3, 2),  // M
+    LetterInfo::new(1, 6),  // N
+    LetterInfo::new(1, 8),  // O
+    LetterInfo::new(3, 2),  // P
+    LetterInfo::new(10, 1), // Q
+    LetterInfo::new(1, 6),  // R
+    LetterInfo::new(1, 4),  // S
+    LetterInfo::new(1, 6),  // T
+    LetterInfo::new(1, 4),  // U
+    LetterInfo::new(4, 2),  // V
+    LetterInfo::new(4, 2),  // W
+    LetterInfo::new(8, 1),  // X
+    LetterInfo::new(4, 2),  // Y
+    LetterInfo::new(10, 1), // Z
+];
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Letter {
     index: u8,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct LetterInfo {
+    score: u8,
+    initial_count: u8,
 }
 
 #[derive(Default, Copy, Clone, Eq, PartialEq)]
@@ -18,6 +52,12 @@ pub struct Deck {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct InvalidLetter(char);
+
+impl LetterInfo {
+    pub const fn new(score: u8, initial_count: u8) -> Self {
+        Self { score, initial_count }
+    }
+}
 
 impl Letter {
     pub fn all() -> impl Iterator<Item = Letter> {
@@ -45,6 +85,10 @@ impl Letter {
 
     pub fn to_mask(self) -> Mask {
         Mask(1 << self.index)
+    }
+
+    pub fn score_value(self) -> u8 {
+        LETTER_INFO[self.index as usize].score
     }
 }
 
