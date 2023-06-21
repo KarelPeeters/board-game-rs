@@ -100,6 +100,30 @@ pub fn minimax_all_moves<B: Board, H: Heuristic<B>>(
     result
 }
 
+/// Variant of [minimax] that deterministically returns the last move.
+pub fn minimax_last_move<B: Board, H: Heuristic<B>>(
+    board: &B,
+    heuristic: &H,
+    depth: u32,
+) -> MinimaxResult<H::V, B::Move> {
+    let result = negamax_recurse(
+        heuristic,
+        board,
+        heuristic.value(board, 0),
+        0,
+        depth,
+        None,
+        None,
+        LastMoveSelector::new(),
+    );
+
+    if result.best_move.is_none() {
+        assert!(board.is_done() || depth == 0, "Implementation error in negamax");
+    }
+
+    result
+}
+
 /// Variant of [minimax] that only returns the value and not the best move.
 /// The advantage is that no rng is necessary to break ties between best moves.
 pub fn minimax_value<B: Board, H: Heuristic<B>>(board: &B, heuristic: &H, depth: u32) -> H::V {
@@ -139,6 +163,34 @@ impl<M> MoveSelector<M> for NoMoveSelector {
     fn accept(&mut self, _: M) {}
 
     fn finish(self) {}
+}
+
+/// Accept the last move.
+#[derive(Debug)]
+struct LastMoveSelector<M> {
+    picked: Option<M>,
+}
+
+impl<M> LastMoveSelector<M> {
+    pub fn new() -> Self {
+        Self { picked: None }
+    }
+}
+
+impl<M> MoveSelector<M> for LastMoveSelector<M> {
+    type Result = M;
+
+    fn reset(&mut self) {
+        self.picked = None;
+    }
+
+    fn accept(&mut self, mv: M) {
+        self.picked = Some(mv)
+    }
+
+    fn finish(self) -> Self::Result {
+        self.picked.expect("we should have selected a move by now")
+    }
 }
 
 /// Accept each move with equal probability,

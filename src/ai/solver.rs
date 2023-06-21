@@ -5,7 +5,7 @@ use std::ops::Neg;
 use internal_iterator::InternalIterator;
 use rand::Rng;
 
-use crate::ai::minimax::{minimax, minimax_all_moves, minimax_value, Heuristic, MinimaxResult};
+use crate::ai::minimax::{minimax, minimax_all_moves, minimax_last_move, minimax_value, Heuristic, MinimaxResult};
 use crate::ai::Bot;
 use crate::board::{Board, BoardDone, Outcome};
 use crate::pov::NonPov;
@@ -116,6 +116,10 @@ pub fn solve<B: Board>(board: &B, depth: u32, rng: &mut impl Rng) -> MinimaxResu
 
 pub fn solve_all_moves<B: Board>(board: &B, depth: u32) -> MinimaxResult<SolverValue, Vec<B::Move>> {
     minimax_all_moves(board, &SolverHeuristic, depth)
+}
+
+pub fn solve_last_move<B: Board>(board: &B, depth: u32) -> MinimaxResult<SolverValue, B::Move> {
+    minimax_last_move(board, &SolverHeuristic, depth)
 }
 
 pub fn solve_value<B: Board>(board: &B, depth: u32) -> SolverValue {
