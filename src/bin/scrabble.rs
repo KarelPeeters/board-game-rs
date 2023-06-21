@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -34,8 +35,11 @@ S...MIDI....B.T
 ";
 
 fn main() {
-    // gen_fst();
+    gen_fst();
     let set = Arc::new(load_fst());
+
+    // summarize_nodes(&set);
+    // return;
 
     bench(set.clone());
     return;
@@ -211,11 +215,69 @@ fn gen_fst() {
 
     println!("Building set");
     let set = Set::from_iter(expanded.iter()).unwrap();
+    let fst = set.as_fst();
 
     println!("map len: {}", set.len());
-    println!("map bytes: {}", set.as_fst().as_bytes().len());
+    println!("map bytes: {}", fst.as_bytes().len());
 
-    std::fs::write("ignored/fst.bin", set.as_fst().as_bytes()).unwrap();
+    std::fs::write("ignored/fst.bin", fst.as_bytes()).unwrap();
+}
+
+fn summarize_nodes(set: &Set) {
+    let fst = set.as_fst();
+
+    let mut nodes = HashSet::new();
+    let mut todo = vec![fst.root().addr()];
+
+    while let Some(curr) = todo.pop() {
+        if nodes.insert(curr) {
+            let node = fst.node(curr);
+            for trans in node.transitions() {
+                todo.push(trans.addr);
+            }
+        }
+    }
+
+    let mut final_count: u64 = 0;
+    let mut total_transitions: u64 = 0;
+    let mut trans_to_empty_terminal: u64 = 0;
+
+    let mut count_per_trans = vec![0u64; 32];
+
+    for &node in &nodes {
+        let node = fst.node(node);
+        let trans_count = node.transitions().count();
+
+        final_count += node.is_final() as u64;
+        total_transitions += trans_count as u64;
+
+        count_per_trans[trans_count] += 1;
+
+        for trans in node.transitions() {
+            let dest = fst.node(trans.addr);
+            if dest.is_empty() && dest.is_final() {
+                trans_to_empty_terminal += 1;
+            }
+        }
+    }
+
+    println!("Current mem usage:");
+    println!("  bytes: {}", fst.as_bytes().len());
+
+    println!("Node summary:");
+    println!("  total: {}", nodes.len());
+    println!("  final: {}", final_count);
+    println!("  avg transitions: {}", total_transitions as f64 / nodes.len() as f64);
+    println!("  trans_to_empty_terminal: {}", trans_to_empty_terminal);
+
+    println!("  transitions:");
+    for (i, c) in count_per_trans.iter().enumerate() {
+        println!("    #trans {}: {}", i, c);
+    }
+
+    let bytes_for_transitions = 4 * total_transitions;
+    println!("Expected byte usage:");
+    println!("  trans: {}", bytes_for_transitions);
 }
 
 fn rand_deck(len: usize, rng: &mut impl Rng) -> Deck {
