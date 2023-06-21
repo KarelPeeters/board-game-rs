@@ -1,4 +1,7 @@
+#![allow(dead_code)]
+
 use std::collections::HashSet;
+use std::hint::black_box;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -9,7 +12,7 @@ use rand::Rng;
 use board_game::ai::solver::solve_all_moves;
 use board_game::board::{Board, BoardMoves, Player};
 use board_game::games::scrabble::basic::{Deck, Letter, MAX_DECK_SIZE};
-use board_game::games::scrabble::board::ScrabbleBoard;
+use board_game::games::scrabble::board::{Move, ScrabbleBoard};
 use board_game::games::scrabble::grid::ScrabbleGrid;
 use board_game::games::scrabble::movegen::PlaceMove;
 use board_game::util::tiny::consistent_rng;
@@ -35,18 +38,56 @@ S...MIDI....B.T
 ";
 
 fn main() {
-    gen_fst();
+    // gen_fst();
     let set = Arc::new(load_fst());
 
     // summarize_nodes(&set);
-    // return;
+    bench(set);
+    // fuzz(&set);
+    // derp(&set);
+    // test(&set);
+}
 
-    bench(set.clone());
-    return;
+fn test(set: &Arc<Set>) {
+    let board = example_board(set);
 
-    return fuzz(&set);
-    return;
+    let moves: Vec<_> = board.available_moves().unwrap().collect();
 
+    println!("{} moves", moves.len());
+
+    let single_count = moves
+        .iter()
+        .filter(|mv| match mv {
+            Move::Place(mv) => mv.placed.len() == 1,
+            Move::Exchange => false,
+        })
+        .count();
+
+    println!("{} single", single_count);
+
+    assert_eq!(moves.len(), 557);
+    assert_eq!(single_count, 113);
+}
+
+fn example_board(set: &Arc<Set>) -> ScrabbleBoard {
+    let mut grid = ScrabbleGrid::from_str_2d(&set, GRID.trim()).unwrap();
+    grid.copy_multipliers_from(&ScrabbleGrid::default());
+    grid.assert_valid(&set);
+
+    let board = ScrabbleBoard::new(
+        grid,
+        Player::A,
+        Deck::from_letters("DGILOPR").unwrap(),
+        Deck::from_letters("EGNOQR").unwrap(),
+        420,
+        369,
+        0,
+        set.clone(),
+    );
+    board
+}
+
+fn derp(set: &Arc<Set>) {
     let mut grid = ScrabbleGrid::from_str_2d(&set, GRID.trim()).unwrap();
     grid.copy_multipliers_from(&ScrabbleGrid::default());
     grid.assert_valid(&set);
@@ -63,6 +104,8 @@ fn main() {
     );
     println!("{}", board);
 
+    bench_single(&board);
+
     // board.available_moves().unwrap().for_each(|mv| {
     //     println!("{:?}", mv);
     // });
@@ -75,6 +118,26 @@ fn main() {
         println!("depth: {}", depth);
         let result = solve_all_moves(&board, depth);
         println!("  {:?}", result);
+    }
+}
+
+fn bench_single(board: &ScrabbleBoard) -> u64 {
+    let mut total: u64 = 0;
+
+    let mut start = Instant::now();
+    let mut count = 0;
+
+    loop {
+        total += board.available_moves().unwrap().count() as u64;
+        black_box(total);
+
+        count += 1;
+        if count >= 10_000 {
+            let tp = start.elapsed().as_nanos() as f64 / total as f64;
+            println!("{} movegen/s", tp);
+            count = 0;
+            start = Instant::now();
+        }
     }
 }
 
