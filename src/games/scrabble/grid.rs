@@ -35,6 +35,7 @@ pub struct ScrabbleGrid {
     pub cells: Vec<Cell>,
     pub attached_start: Option<(u8, u8)>,
 
+    pub cache_letters_placed: u16,
     pub cache_zobrist: Zobrist,
 }
 
@@ -118,6 +119,7 @@ impl ScrabbleGrid {
             cells: vec![Cell::empty(); height * width],
             cache_zobrist: Zobrist::default(),
             attached_start: None,
+            cache_letters_placed: 0,
         };
         let mut any_letter = false;
 
@@ -210,6 +212,10 @@ impl ScrabbleGrid {
         attached[0] || attached[1]
     }
 
+    pub fn letters_placed(&self) -> u32 {
+        self.cache_letters_placed as u32
+    }
+
     pub fn zobrist(&self) -> Zobrist {
         self.cache_zobrist
     }
@@ -217,11 +223,15 @@ impl ScrabbleGrid {
     /// **Warning**: only partial: this tile and its adjacent tiles should still be updated
     fn set_letter_partial(&mut self, x: u8, y: u8, letter: Letter) {
         let cell = self.cell_mut(x, y);
+
+        assert_eq!(cell.letter, None);
         cell.letter = Some(letter);
 
         cell.cache_allowed_by_dir = [letter.to_mask(), letter.to_mask()];
         cell.cache_score_by_dir = [0, 0];
         cell.cache_attached_by_dir = [false, false];
+
+        self.cache_letters_placed += 1;
     }
 
     pub fn available_moves<'s>(&self, set: &'s Set, deck: Deck) -> MovesIterator<'_, 's> {
@@ -277,6 +287,9 @@ impl ScrabbleGrid {
             "Zobrist mismatch, delta: {:?}",
             zobrist ^ self.cache_zobrist
         );
+
+        let letters_placed = self.cells.iter().filter(|c| c.letter.is_some()).count();
+        assert_eq!(self.cache_letters_placed as usize, letters_placed);
     }
 
     fn neighbor(&self, x: u8, y: u8, dir: Direction, delta: i16) -> Option<(u8, u8)> {

@@ -21,32 +21,17 @@ pub enum Move {
 
 #[derive(Clone)]
 pub struct ScrabbleBoard {
-    pub grid: ScrabbleGrid,
+    grid: ScrabbleGrid,
 
-    pub next_player: Player,
+    next_player: Player,
     // TODO come up with some general per-player storage wrapper
-    pub deck_a: Deck,
-    pub deck_b: Deck,
-    pub score_a: u32,
-    pub score_b: u32,
-    pub exchange_count: u8,
+    deck_a: Deck,
+    deck_b: Deck,
+    score_a: u32,
+    score_b: u32,
+    exchange_count: u8,
 
-    pub set: Arc<Set>,
-}
-
-impl Default for ScrabbleBoard {
-    fn default() -> Self {
-        ScrabbleBoard {
-            grid: ScrabbleGrid::default(),
-            next_player: Player::A,
-            deck_a: Default::default(),
-            deck_b: Default::default(),
-            score_a: 0,
-            score_b: 0,
-            exchange_count: 0,
-            set: Arc::new(Default::default()),
-        }
-    }
+    set: Arc<Set>,
 }
 
 impl ScrabbleBoard {
@@ -85,17 +70,47 @@ impl ScrabbleBoard {
         )
     }
 
-    pub fn next_deck(&self) -> Deck {
+    fn next_deck_score_mut(&mut self) -> (&mut Deck, &mut u32) {
         match self.next_player {
+            Player::A => (&mut self.deck_a, &mut self.score_a),
+            Player::B => (&mut self.deck_b, &mut self.score_b),
+        }
+    }
+
+    pub fn score(&self) -> (u32, u32) {
+        (self.score_a, self.score_b)
+    }
+
+    pub fn set_score(&mut self, score_a: u32, score_b: u32) {
+        // maybe update outcome in the future
+        self.score_a = score_a;
+        self.score_b = score_b;
+    }
+
+    pub fn grid(&self) -> &ScrabbleGrid {
+        &self.grid
+    }
+
+    pub fn set(&self) -> &Arc<Set> {
+        &self.set
+    }
+
+    pub fn deck(&self, player: Player) -> Deck {
+        match player {
             Player::A => self.deck_a,
             Player::B => self.deck_b,
         }
     }
 
-    fn next_deck_score_mut(&mut self) -> (&mut Deck, &mut u32) {
-        match self.next_player {
-            Player::A => (&mut self.deck_a, &mut self.score_a),
-            Player::B => (&mut self.deck_b, &mut self.score_b),
+    pub fn exchange_count(&self) -> u8 {
+        self.exchange_count
+    }
+
+    pub fn set_deck(&mut self, player: Player, deck: Deck) {
+        // maybe update outcome in the future
+        match player {
+            Player::A => self.deck_a = deck,
+            Player::B => self.deck_b = deck,
         }
     }
 }
@@ -112,7 +127,7 @@ impl Board for ScrabbleBoard {
 
         let is_available = match mv {
             Move::Place(mv) => {
-                let deck = self.next_deck();
+                let deck = self.deck(self.next_player);
                 self.grid.simulate_play(mv, deck).is_ok()
             }
             Move::Exchange => true,
@@ -125,7 +140,7 @@ impl Board for ScrabbleBoard {
 
         match mv {
             Move::Place(mv) => {
-                let deck = self.next_deck();
+                let deck = self.deck(self.next_player);
                 match self.grid.play(&self.set, mv, deck) {
                     Ok(new_deck) => {
                         let (deck, score) = self.next_deck_score_mut();
@@ -197,7 +212,7 @@ impl InternalIterator for AvailableMovesIterator<'_, ScrabbleBoard> {
     {
         let board = self.board();
         let set = &board.set;
-        let deck = board.next_deck();
+        let deck = board.deck(board.next_player);
 
         // place moves
         board
@@ -225,8 +240,8 @@ impl Debug for ScrabbleBoard {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "ScrabbleBoard {{ next_player: {:?}, deck_a: {:?}, deck_b: {:?}, score_a: {:?}, score_b: {:?}, exchange_count: {} }}",
-            self.next_player, self.deck_a, self.deck_b, self.score_a, self.score_b, self.exchange_count
+            "ScrabbleBoard {{ next_player: {:?}, deck_a: {:?}, deck_b: {:?}, score_a: {:?}, score_b: {:?}, exchange_count: {}, outcome: {:?} }}",
+            self.next_player, self.deck_a, self.deck_b, self.score_a, self.score_b, self.exchange_count, self.outcome(),
         )
     }
 }

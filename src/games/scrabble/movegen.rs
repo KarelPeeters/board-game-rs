@@ -100,6 +100,8 @@ pub fn movegen<R>(
     deck: Deck,
     mut f: impl FnMut(PlaceMove) -> ControlFlow<R>,
 ) -> ControlFlow<R> {
+    assert!(deck.count() as usize <= MAX_DECK_SIZE);
+
     for curr in 0..cells.len() {
         let cell = &cells[curr];
         if !cell.is_anchor() {

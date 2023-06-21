@@ -134,6 +134,11 @@ impl Deck {
         }
     }
 
+    pub fn count(self) -> u8 {
+        // TODO cache this?
+        self.counts.iter().sum()
+    }
+
     pub fn is_empty(self) -> bool {
         self.mask.is_empty()
     }
