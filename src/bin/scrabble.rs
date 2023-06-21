@@ -2,7 +2,7 @@ use internal_iterator::InternalIterator;
 use rand::seq::{IteratorRandom, SliceRandom};
 use rand::Rng;
 
-use board_game::games::scrabble::basic::{Deck, Letter};
+use board_game::games::scrabble::basic::{Deck, Letter, MAX_DECK_SIZE};
 use board_game::games::scrabble::grid::ScrabbleGrid;
 use board_game::games::scrabble::movegen::Move;
 use board_game::util::tiny::consistent_rng;
@@ -74,7 +74,7 @@ fn fuzz(set: &Set) {
         let mut fails = 0;
 
         loop {
-            let count = rng.gen_range(1..=7);
+            let count = rng.gen_range(1..=MAX_DECK_SIZE);
             let letters = (0..count)
                 .map(|_| Letter::all().choose(&mut rng).unwrap().to_char())
                 .collect::<String>();
@@ -92,14 +92,14 @@ fn fuzz(set: &Set) {
                         break;
                     }
                 }
-                Some(mv) => {
+                Some(&mv) => {
                     fails = 0;
                     mv
                 }
             };
 
             println!("Playing {:?}", mv);
-            let new_deck = grid.play(set, mv.clone(), deck).unwrap();
+            let new_deck = grid.play(set, mv, deck).unwrap();
             println!("Deck after: {:?}", new_deck);
 
             println!("Grid after:");

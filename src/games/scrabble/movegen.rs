@@ -1,8 +1,9 @@
+use std::fmt::{Debug, Formatter};
 use std::ops::ControlFlow;
 
 use fst::raw::Node;
 
-use crate::games::scrabble::basic::{Deck, Letter, Mask};
+use crate::games::scrabble::basic::{Deck, Letter, Mask, MAX_DECK_SIZE};
 
 pub type Set = fst::Set<Vec<u8>>;
 
@@ -12,22 +13,31 @@ pub enum Direction {
     Vertical,
 }
 
-#[derive(Debug, Clone)]
+// TODO this should be some generic stack vec instead
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub struct Placed {
+    inner: [Letter; MAX_DECK_SIZE],
+    len: u8,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Move {
     // TODO encode which tiles use a wildcard tile
     //   does it ever make sense to use a wildcard when not necessary?
     //   does it make sense to place the wildcard on a multiplier tile when possible to avoid?
+
+    // TODO remove obsolete fields
+    // TODO make this struct smaller with a bunch of bit fiddling?
+    //  (or make a separate struct for that)
     pub dir: Direction,
     pub x: u8,
     pub y: u8,
+    pub placed: Placed,
+
+    pub forward_count: usize,
+    pub backward_count: usize,
 
     pub score: u32,
-
-    pub anchor: u8,
-    pub forward_count: u8,
-    pub backward_count: u8,
-    pub raw: String,
-    pub word: String,
 }
 
 #[derive(Debug)]
@@ -118,6 +128,64 @@ struct PartialScore {
     tiles_placed: u8,
 }
 
+impl Default for Placed {
+    fn default() -> Self {
+        Placed {
+            inner: [Letter::from_char('a').unwrap(); MAX_DECK_SIZE],
+            len: 0,
+        }
+    }
+}
+
+impl Placed {
+    pub fn push_back(self, letter: Letter) -> Self {
+        let index = self.len as usize;
+        assert!(index < self.inner.len());
+        let mut inner = self.inner;
+        inner[index] = letter;
+        Placed {
+            inner,
+            len: self.len + 1,
+        }
+    }
+
+    pub fn insert_front(self, letter: Letter) -> Self {
+        assert!((self.len as usize) < (self.inner.len()));
+
+        let mut inner = self.inner;
+        inner.copy_within(0..self.inner.len() - 1, 1);
+        inner[0] = letter;
+
+        Placed {
+            inner,
+            len: self.len + 1,
+        }
+    }
+
+    pub fn len(self) -> u8 {
+        self.len
+    }
+
+    pub fn iter(self) -> impl Iterator<Item = Letter> {
+        (0..self.len).map(move |i| self[i])
+    }
+}
+
+impl std::ops::Index<u8> for Placed {
+    type Output = Letter;
+
+    fn index(&self, index: u8) -> &Self::Output {
+        assert!(index < self.len());
+        &self.inner[index as usize]
+    }
+}
+
+impl Debug for Placed {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_list().entries(self.iter()).finish()
+    }
+}
+
 impl Default for PartialScore {
     fn default() -> Self {
         PartialScore {
@@ -170,11 +238,7 @@ impl PartialScore {
 impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
     fn run(&mut self, deck: Deck) -> ControlFlow<R> {
         let root = self.set.as_fst().root();
-        let mut curr = vec![];
-        self.run_recurse_forward(deck, root, &mut curr, PartialScore::default())?;
-        debug_assert!(curr.is_empty());
-
-        ControlFlow::Continue(())
+        self.run_recurse_forward(deck, root, 0, Placed::default(), PartialScore::default())
     }
 
     #[must_use]
@@ -182,17 +246,18 @@ impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
         &mut self,
         mut deck: Deck,
         node: Node,
-        curr: &mut Vec<u8>,
+        forward_count: usize,
+        placed: Placed,
         score: PartialScore,
     ) -> ControlFlow<R> {
-        let cell = self.anchor + curr.len();
+        let cell = self.anchor + forward_count;
 
         // force direction change when hitting the right edge
         if cell >= self.cells.len() {
             if let Some(index) = node.find_input(b'+') {
                 let trans = node.transition(index);
                 let next = self.set.as_fst().node(trans.addr);
-                self.run_recurse_backward(deck, next, curr, curr.len(), score)?;
+                self.run_recurse_backward(deck, next, placed, forward_count, 0, score)?;
             }
 
             return ControlFlow::Continue(());
@@ -206,13 +271,14 @@ impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
             if char == b'+' {
                 // switch direction if possible
                 if cell.letter.is_none() {
-                    self.run_recurse_backward(deck, next, curr, curr.len(), score)?;
+                    self.run_recurse_backward(deck, next, placed, forward_count, 0, score)?;
                 }
             } else {
                 // place letter if possible
                 let letter = Letter::from_char(char as char).unwrap();
 
                 if cell.allowed.get(letter) {
+                    // TODO clean this up a bit
                     let used_deck = if let Some(actual) = cell.letter {
                         debug_assert_eq!(actual, letter);
                         false
@@ -222,13 +288,12 @@ impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
                         continue;
                     };
 
-                    curr.push(char);
+                    let new_placed = if used_deck { placed.push_back(letter) } else { placed };
                     let new_score = score.add(used_deck, letter, cell);
 
-                    self.run_recurse_forward(deck, next, curr, new_score)?;
-                    let popped = curr.pop();
-                    debug_assert_eq!(popped, Some(char));
+                    self.run_recurse_forward(deck, next, forward_count + 1, new_placed, new_score)?;
 
+                    // TODO maybe just use the old deck instead of undoing changes
                     if used_deck {
                         deck.add(letter);
                     }
@@ -244,19 +309,18 @@ impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
         &mut self,
         mut deck: Deck,
         node: Node,
-        curr: &mut Vec<u8>,
+        placed: Placed,
         forward_count: usize,
+        backward_count: usize,
         score: PartialScore,
     ) -> ControlFlow<R> {
-        debug_assert!(forward_count > 0);
-
-        let back_count = curr.len() - forward_count + 1;
-        let cell = self.anchor.checked_sub(back_count);
+        // add one to skip the anchor itself when starting to move backward
+        let cell = self.anchor.checked_sub(backward_count + 1);
 
         let cell = match cell {
             None => {
                 // adjacent to edge, report and stop
-                self.maybe_report(node, forward_count, curr, score)?;
+                self.maybe_report(node, forward_count, backward_count, placed, score)?;
                 return ControlFlow::Continue(());
             }
             Some(cell) => cell,
@@ -265,7 +329,7 @@ impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
 
         // report if on empty tile
         if cell.letter.is_none() {
-            self.maybe_report(node, forward_count, curr, score)?;
+            self.maybe_report(node, forward_count, backward_count, placed, score)?;
         }
 
         // stop if on previous anchor
@@ -293,11 +357,10 @@ impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
                         continue;
                     };
 
-                    curr.push(char);
                     let new_score = score.add(used_deck, letter, cell);
+                    let new_placed = if used_deck { placed.insert_front(letter) } else { placed };
 
-                    self.run_recurse_backward(deck, next, curr, forward_count, new_score)?;
-                    curr.pop();
+                    self.run_recurse_backward(deck, next, new_placed, forward_count, backward_count + 1, new_score)?;
 
                     if used_deck {
                         deck.add(letter);
@@ -310,37 +373,36 @@ impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
     }
 
     #[must_use]
-    fn maybe_report(&mut self, node: Node, forward_count: usize, word: &[u8], score: PartialScore) -> ControlFlow<R> {
-        if node.is_final() {
-            let backward_count = word.len() - forward_count;
-
-            let prefix = &word[..forward_count];
-            let suffix_rev = &word[forward_count..];
-
-            let mut ordered = vec![];
-            ordered.extend(suffix_rev.iter().copied().rev());
-            ordered.extend_from_slice(prefix);
-
-            let start = (self.anchor - backward_count) as u8;
-
-            let (x, y) = match self.dir {
-                Direction::Horizontal => (start, self.row),
-                Direction::Vertical => (self.row, start),
-            };
-
-            let mv = Move {
-                dir: self.dir,
-                x,
-                y,
-                score: score.total(),
-                backward_count: backward_count as u8,
-                forward_count: forward_count as u8,
-                anchor: self.anchor as u8,
-                raw: String::from_utf8(word.to_owned()).unwrap(),
-                word: String::from_utf8(ordered).unwrap(),
-            };
-            (self.f)(mv)?;
+    fn maybe_report(
+        &mut self,
+        node: Node,
+        forward_count: usize,
+        backward_count: usize,
+        placed: Placed,
+        score: PartialScore,
+    ) -> ControlFlow<R> {
+        if !node.is_final() {
+            return ControlFlow::Continue(());
         }
+
+        let start = (self.anchor - backward_count) as u8;
+
+        let (x, y) = match self.dir {
+            Direction::Horizontal => (start, self.row),
+            Direction::Vertical => (self.row, start),
+        };
+
+        // TODO rearrange placed based on backward_count?
+        let mv = Move {
+            dir: self.dir,
+            x,
+            y,
+            forward_count,
+            backward_count,
+            score: score.total(),
+            placed,
+        };
+        (self.f)(mv)?;
 
         ControlFlow::Continue(())
     }

@@ -43,8 +43,11 @@ pub struct LetterInfo {
 #[derive(Default, Copy, Clone, Eq, PartialEq)]
 pub struct Mask(u32);
 
+pub const MAX_DECK_SIZE: usize = 7;
+
 #[derive(Default, Copy, Clone, Eq, PartialEq)]
 pub struct Deck {
+    // TODO is storing mask and [u8; MAX_DECK_SIZE] faster?
     mask: Mask,
     counts: [u8; LETTER_COUNT],
     // TODO add wildcards
@@ -94,6 +97,8 @@ impl Letter {
 
 impl Deck {
     pub fn from_letters(s: &str) -> Result<Deck, InvalidLetter> {
+        assert!(s.len() <= MAX_DECK_SIZE);
+
         // TODO support wildcard
         let mut result = Deck::default();
         for c in s.chars() {
@@ -158,19 +163,6 @@ impl Mask {
         }
     }
 
-    // TODO remove this sep stuff?
-    pub fn get_sep(self) -> bool {
-        self.0 & (1 << LETTER_COUNT) != 0
-    }
-
-    pub fn set_sep(&mut self, value: bool) {
-        if value {
-            self.0 |= 1 << LETTER_COUNT;
-        } else {
-            self.0 &= !(1 << LETTER_COUNT);
-        }
-    }
-
     pub fn is_empty(self) -> bool {
         self.0 == 0
     }
@@ -181,6 +173,10 @@ impl Mask {
 
     pub fn has_all_letters(self) -> bool {
         self & Self::ALL_LETTERS == Self::ALL_LETTERS
+    }
+
+    pub fn count(self) -> u32 {
+        self.0.count_ones()
     }
 }
 

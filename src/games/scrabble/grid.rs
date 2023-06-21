@@ -240,27 +240,46 @@ impl ScrabbleGrid {
         let mut attached = false;
         let mut placed = false;
 
-        // place new letters
-        for (i, c) in mv.word.bytes().enumerate() {
-            let (x, y) = self
-                .neighbor(mv.x, mv.y, mv.dir, i as i16)
-                .ok_or(InvalidMove::OutOfBounds)?;
-            let c = Letter::from_char(c as char).unwrap();
+        let mut placed_iter = mv.placed.iter();
+        let mut word_len = 0;
+
+        for i in 0.. {
+            word_len = i;
+
+            let (x, y) = match self.neighbor(mv.x, mv.y, mv.dir, i) {
+                Some(pair) => pair,
+                None => {
+                    match placed_iter.next() {
+                        // hit edge but also ran out of letters to place, so okay
+                        None => break,
+                        Some(_) => return Err(InvalidMove::OutOfBounds),
+                    }
+                }
+            };
 
             let cell = self.cell_mut(x, y);
             attached |= cell.attached();
 
             match cell.letter {
-                None => {
-                    placed = true;
-                    if !deck.try_remove(c) {
-                        return Err(InvalidMove::NotInDeck(c));
-                    }
-                    self.set_letter_partial(x, y, c);
+                // TODO we can't double-check any more :(
+                Some(_) => {
+                    // tile already exists, just skip it
                 }
-                Some(prev) => {
-                    if prev != c {
-                        return Err(InvalidMove::ConflictExisting);
+                None => {
+                    // empty tile
+                    match placed_iter.next() {
+                        None => {
+                            // nothing left to place, this is the end of the word
+                            break;
+                        }
+                        Some(c) => {
+                            // place a new tile
+                            placed = true;
+                            if !deck.try_remove(c) {
+                                return Err(InvalidMove::NotInDeck(c));
+                            }
+                            self.set_letter_partial(x, y, c);
+                        }
                     }
                 }
             }
@@ -276,18 +295,19 @@ impl ScrabbleGrid {
 
         // update validness
         // TODO we can could the node between the prefix and suffix search
+        // TODO only update neighbors of tiles that actually changed
 
         // prefix and suffix
         if let Some((nx, ny)) = self.neighbor(mv.x, mv.y, mv.dir, -1) {
             self.update_cell_cached(set, nx, ny, mv.dir);
         }
-        if let Some((nx, ny)) = self.neighbor(mv.x, mv.y, mv.dir, mv.word.len() as i16) {
+        if let Some((nx, ny)) = self.neighbor(mv.x, mv.y, mv.dir, word_len) {
             self.update_cell_cached(set, nx, ny, mv.dir);
         }
 
         // orthogonal
-        for i in 0..mv.word.len() {
-            let (sx, sy) = self.neighbor(mv.x, mv.y, mv.dir, i as i16).unwrap();
+        for i in 0..word_len {
+            let (sx, sy) = self.neighbor(mv.x, mv.y, mv.dir, i).unwrap();
             let orthogonal = mv.dir.orthogonal();
 
             // update first empty square on either side
