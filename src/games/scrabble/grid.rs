@@ -26,7 +26,7 @@ pub struct Cell {
     pub cache_attached_by_dir: [bool; 2],
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ScrabbleGrid {
     pub width: u8,
     pub height: u8,
@@ -234,6 +234,65 @@ impl ScrabbleGrid {
         STEPS
             .iter()
             .filter_map(move |&(dir, delta)| self.neighbor(x, y, dir, delta))
+    }
+
+    pub fn can_play(&self, set: &Set, mv: Move, mut deck: Deck) -> Result<Deck, InvalidMove> {
+        let mut attached = false;
+        let mut placed = false;
+
+        let mut placed_iter = mv.placed.iter();
+        let mut word_len = 0;
+
+        for i in 0.. {
+            word_len = i;
+
+            let (x, y) = match self.neighbor(mv.x, mv.y, mv.dir, i) {
+                Some(pair) => pair,
+                None => {
+                    match placed_iter.next() {
+                        // hit edge but also ran out of letters to place, so okay
+                        None => break,
+                        Some(_) => return Err(InvalidMove::OutOfBounds),
+                    }
+                }
+            };
+
+            let cell = self.cell(x, y);
+            attached |= cell.attached();
+
+            match cell.letter {
+                // TODO we can't double-check any more :(
+                Some(_) => {
+                    // tile already exists, just skip it
+                }
+                None => {
+                    // empty tile
+                    match placed_iter.next() {
+                        None => {
+                            // nothing left to place, this is the end of the word
+                            break;
+                        }
+                        Some(c) => {
+                            // place a new tile
+                            placed = true;
+                            if !deck.try_remove(c) {
+                                return Err(InvalidMove::NotInDeck(c));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // check that we placed something and that it was attached
+        if !attached {
+            return Err(InvalidMove::NotAttached);
+        }
+        if !placed {
+            return Err(InvalidMove::NoNewTiles);
+        }
+
+        Ok(deck)
     }
 
     pub fn play(&mut self, set: &Set, mv: Move, mut deck: Deck) -> Result<Deck, InvalidMove> {

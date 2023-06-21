@@ -128,6 +128,10 @@ impl Deck {
             false
         }
     }
+
+    pub fn is_empty(self) -> bool {
+        self.mask.is_empty()
+    }
 }
 
 impl Mask {

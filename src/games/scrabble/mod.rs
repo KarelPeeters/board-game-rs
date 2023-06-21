@@ -1,5 +1,6 @@
 //! # Resources used:
 //! ## Standards:
+//! - https://users.cs.northwestern.edu/~robby/uc-courses/22001-2008-winter/scrabble.html
 //! - https://www.poslfit.com/scrabble/gcg/
 //!
 //! ## Papers:
@@ -17,5 +18,6 @@
 //! - https://github.com/andy-k/wolges/
 
 pub mod basic;
+pub mod board;
 pub mod grid;
 pub mod movegen;

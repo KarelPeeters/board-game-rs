@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::ops::ControlFlow;
 
 use fst::raw::Node;
@@ -405,5 +405,11 @@ impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
         (self.f)(mv)?;
 
         ControlFlow::Continue(())
+    }
+}
+
+impl Display for Move {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
     }
 }

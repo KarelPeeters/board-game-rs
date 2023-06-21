@@ -1,8 +1,11 @@
+use board_game::board::{Board, BoardMoves, Player};
 use internal_iterator::InternalIterator;
 use rand::seq::{IteratorRandom, SliceRandom};
 use rand::Rng;
+use std::sync::Arc;
 
 use board_game::games::scrabble::basic::{Deck, Letter, MAX_DECK_SIZE};
+use board_game::games::scrabble::board::ScrabbleBoard;
 use board_game::games::scrabble::grid::ScrabbleGrid;
 use board_game::games::scrabble::movegen::Move;
 use board_game::util::tiny::consistent_rng;
@@ -29,39 +32,36 @@ S...MIDI....B.T
 
 fn main() {
     // gen_fst();
-    let set = load_fst();
-    fuzz(&set);
-    return;
+    let set = Arc::new(load_fst());
+
+    // fuzz(&set);
+    // return;
 
     let mut grid = ScrabbleGrid::from_str_2d(&set, GRID.trim()).unwrap();
     grid.copy_multipliers_from(&ScrabbleGrid::default());
-
-    println!("{}", grid);
-
     grid.assert_valid(&set);
 
-    for y in 0..grid.height {
-        for x in 0..grid.width {
-            println!("({}, {}) => {:?}", x, y, grid.cell(x, y));
-        }
-    }
+    let mut board = ScrabbleBoard {
+        grid,
+        next_player: Player::A,
+        deck_a: Deck::from_letters("DGILOPR").unwrap(),
+        deck_b: Deck::from_letters("EGNOQR").unwrap(),
+        score_a: 420,
+        score_b: 369,
+        exchange_count: 0,
+        set: set.clone(),
+    };
+    println!("{}", board);
 
-    // let deck = Deck::from_letters("DGILOPR").unwrap();
-    // let deck = Deck::from_letters("GID").unwrap();
-    let deck = Deck::from_letters("GLID").unwrap();
-
-    grid.available_moves(&set, deck).for_each(|mv| {
+    board.available_moves().unwrap().for_each(|mv| {
         println!("{:?}", mv);
     });
 
-    let mv = grid.available_moves(&set, deck).next().unwrap();
-
+    let mv = board.available_moves().unwrap().max_by_key(|mv| mv.score).unwrap();
     println!("playing {:?}", mv);
+    board.play(mv).unwrap();
 
-    let new_deck = grid.play(&set, mv, deck);
-    grid.assert_valid(&set);
-
-    println!("deck after: {:?}", new_deck);
+    println!("{}", board);
 }
 
 fn fuzz(set: &Set) {
