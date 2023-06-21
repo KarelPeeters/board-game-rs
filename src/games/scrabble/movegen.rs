@@ -4,6 +4,7 @@ use std::ops::ControlFlow;
 use fst::raw::Node;
 
 use crate::games::scrabble::basic::{Deck, Letter, Mask, MAX_DECK_SIZE};
+use crate::games::scrabble::grid::ScrabbleGrid;
 
 pub type Set = fst::Set<Vec<u8>>;
 
@@ -34,21 +35,10 @@ pub struct PlaceMove {
     pub y: u8,
     pub placed: Placed,
 
-    pub forward_count: usize,
-    pub backward_count: usize,
+    pub forward_count: u8,
+    pub backward_count: u8,
 
     pub score: u32,
-}
-
-#[derive(Debug)]
-pub struct Cell {
-    pub letter: Option<Letter>,
-    pub attached: bool,
-    pub allowed: Mask,
-
-    pub score_cross: u32,
-    pub word_multiplier: u8,
-    pub letter_multiplier: u8,
 }
 
 impl Direction {
@@ -76,46 +66,45 @@ impl Direction {
     }
 }
 
-impl Cell {
-    fn is_anchor(&self) -> bool {
-        self.letter.is_none() && self.attached
-    }
-}
-
-struct MoveGen<'a, R, F: FnMut(PlaceMove) -> ControlFlow<R>> {
+struct MoveGen<'a, R, F: FnMut(PlaceMove) -> ControlFlow<R>, const VERTICAL: bool> {
     set: &'a Set,
-    dir: Direction,
-    row: u8,
-    cells: &'a [Cell],
-    anchor: usize,
+    grid: &'a ScrabbleGrid,
+
+    orthogonal_index: u8,
+    anchor: u8,
+    len: u8,
+
     f: F,
 }
 
 #[must_use]
-pub fn movegen<R>(
+pub fn movegen<R, const VERTICAL: bool>(
     set: &Set,
-    dir: Direction,
-    row: u8,
-    cells: &[Cell],
+    grid: &ScrabbleGrid,
+    orthogonal_index: u8,
     deck: Deck,
     mut f: impl FnMut(PlaceMove) -> ControlFlow<R>,
 ) -> ControlFlow<R> {
     assert!(deck.count() as usize <= MAX_DECK_SIZE);
 
-    for curr in 0..cells.len() {
-        let cell = &cells[curr];
-        if !cell.is_anchor() {
+    let len = match VERTICAL {
+        false => grid.width,
+        true => grid.height,
+    };
+
+    for anchor in 0..len {
+        let mut movegen = MoveGen::<_, _, VERTICAL> {
+            grid,
+            set,
+            orthogonal_index,
+            len,
+            anchor,
+            f: &mut f,
+        };
+        if !movegen.cell(anchor).anchor {
             continue;
         }
 
-        let mut movegen = MoveGen {
-            set,
-            dir,
-            row,
-            cells,
-            anchor: curr,
-            f: &mut f,
-        };
         movegen.run(deck)?;
     }
 
@@ -164,6 +153,7 @@ impl Placed {
         }
     }
 
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(self) -> u8 {
         self.len
     }
@@ -200,7 +190,7 @@ impl Default for PartialScore {
 }
 
 impl PartialScore {
-    fn add(mut self, placed: bool, letter: Letter, cell: &Cell) -> Self {
+    fn add(mut self, placed: bool, letter: Letter, cell: &CellInfo) -> Self {
         let letter_mul = cell.letter_multiplier as u32;
         let word_mul = cell.word_multiplier as u32;
 
@@ -214,8 +204,9 @@ impl PartialScore {
             self.total_word_multiplier *= word_mul;
 
             // add cross score if any
-            if cell.score_cross != 0 {
-                self.sum_orthogonal += (letter_value + cell.score_cross) * word_mul;
+            let score_cross = cell.score_orthogonal;
+            if score_cross != 0 {
+                self.sum_orthogonal += (letter_value + score_cross) * word_mul;
             }
         } else {
             // only count letter for word, non-multiplied
@@ -237,7 +228,41 @@ impl PartialScore {
     }
 }
 
-impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>> MoveGen<'_, R, F> {
+#[derive(Debug, Copy, Clone)]
+struct CellInfo {
+    anchor: bool,
+    letter: Option<Letter>,
+    allowed: Mask,
+    score_orthogonal: u32,
+    letter_multiplier: u8,
+    word_multiplier: u8,
+}
+
+impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>, const VERTICAL: bool> MoveGen<'_, R, F, VERTICAL> {
+    fn map_to_xy(&self, cell: u8) -> (u8, u8) {
+        match VERTICAL {
+            false => (cell, self.orthogonal_index),
+            true => (self.orthogonal_index, cell),
+        }
+    }
+
+    fn cell(&self, cell: u8) -> CellInfo {
+        let (x, y) = self.map_to_xy(cell);
+        let cell = self.grid.cell(x, y);
+        let anchor = self.grid.attached(x, y);
+
+        let orthogonal_index = (!VERTICAL) as usize;
+
+        CellInfo {
+            anchor,
+            letter: cell.letter,
+            allowed: cell.cache_allowed_by_dir[orthogonal_index],
+            score_orthogonal: cell.cache_score_by_dir[orthogonal_index],
+            letter_multiplier: cell.letter_multiplier,
+            word_multiplier: cell.word_multiplier,
+        }
+    }
+
     fn run(&mut self, deck: Deck) -> ControlFlow<R> {
         let root = self.set.as_fst().root();
         self.run_recurse_forward(deck, root, 0, Placed::default(), PartialScore::default())
@@ -248,14 +273,14 @@ impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>> MoveGen<'_, R, F> {
         &mut self,
         mut deck: Deck,
         node: Node,
-        forward_count: usize,
+        forward_count: u8,
         placed: Placed,
         score: PartialScore,
     ) -> ControlFlow<R> {
         let cell = self.anchor + forward_count;
 
         // force direction change when hitting the right edge
-        if cell >= self.cells.len() {
+        if cell >= self.len {
             if let Some(index) = node.find_input(b'+') {
                 let trans = node.transition(index);
                 let next = self.set.as_fst().node(trans.addr);
@@ -264,7 +289,7 @@ impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>> MoveGen<'_, R, F> {
 
             return ControlFlow::Continue(());
         }
-        let cell = &self.cells[cell];
+        let cell = self.cell(cell);
 
         for trans in node.transitions() {
             let char = trans.inp;
@@ -291,7 +316,7 @@ impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>> MoveGen<'_, R, F> {
                     };
 
                     let new_placed = if used_deck { placed.push_back(letter) } else { placed };
-                    let new_score = score.add(used_deck, letter, cell);
+                    let new_score = score.add(used_deck, letter, &cell);
 
                     self.run_recurse_forward(deck, next, forward_count + 1, new_placed, new_score)?;
 
@@ -312,14 +337,14 @@ impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>> MoveGen<'_, R, F> {
         mut deck: Deck,
         node: Node,
         placed: Placed,
-        forward_count: usize,
-        backward_count: usize,
+        forward_count: u8,
+        backward_count: u8,
         score: PartialScore,
     ) -> ControlFlow<R> {
         // add one to skip the anchor itself when starting to move backward
-        let cell = self.anchor.checked_sub(backward_count + 1);
+        let cell_i = self.anchor.checked_sub(backward_count + 1);
 
-        let cell = match cell {
+        let cell_i = match cell_i {
             None => {
                 // adjacent to edge, report and stop
                 self.maybe_report(node, forward_count, backward_count, placed, score)?;
@@ -327,7 +352,7 @@ impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>> MoveGen<'_, R, F> {
             }
             Some(cell) => cell,
         };
-        let cell = &self.cells[cell];
+        let cell = self.cell(cell_i);
 
         // report if on empty tile
         if cell.letter.is_none() {
@@ -335,7 +360,7 @@ impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>> MoveGen<'_, R, F> {
         }
 
         // stop if on previous anchor
-        if cell.is_anchor() {
+        if self.cell(cell_i).anchor {
             return ControlFlow::Continue(());
         }
 
@@ -359,7 +384,7 @@ impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>> MoveGen<'_, R, F> {
                         continue;
                     };
 
-                    let new_score = score.add(used_deck, letter, cell);
+                    let new_score = score.add(used_deck, letter, &cell);
                     let new_placed = if used_deck { placed.insert_front(letter) } else { placed };
 
                     self.run_recurse_backward(deck, next, new_placed, forward_count, backward_count + 1, new_score)?;
@@ -378,8 +403,8 @@ impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>> MoveGen<'_, R, F> {
     fn maybe_report(
         &mut self,
         node: Node,
-        forward_count: usize,
-        backward_count: usize,
+        forward_count: u8,
+        backward_count: u8,
         placed: Placed,
         score: PartialScore,
     ) -> ControlFlow<R> {
@@ -387,16 +412,15 @@ impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>> MoveGen<'_, R, F> {
             return ControlFlow::Continue(());
         }
 
-        let start = (self.anchor - backward_count) as u8;
-
-        let (x, y) = match self.dir {
-            Direction::Horizontal => (start, self.row),
-            Direction::Vertical => (self.row, start),
+        let start = self.anchor - backward_count;
+        let (x, y) = self.map_to_xy(start);
+        let dir = match VERTICAL {
+            false => Direction::Horizontal,
+            true => Direction::Vertical,
         };
 
-        // TODO rearrange placed based on backward_count?
         let mv = PlaceMove {
-            dir: self.dir,
+            dir,
             x,
             y,
             forward_count,

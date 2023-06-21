@@ -41,11 +41,12 @@ fn main() {
     // gen_fst();
     let set = Arc::new(load_fst());
 
+    test(&set);
+
     // summarize_nodes(&set);
     bench(set);
     // fuzz(&set);
     // derp(&set);
-    // test(&set);
 }
 
 fn test(set: &Arc<Set>) {

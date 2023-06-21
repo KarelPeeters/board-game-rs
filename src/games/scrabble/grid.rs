@@ -3,10 +3,8 @@ use std::ops::ControlFlow;
 
 use fst::raw::Node;
 use internal_iterator::InternalIterator;
-use itertools::Itertools;
 
 use crate::games::scrabble::basic::{Deck, Letter, Mask};
-use crate::games::scrabble::movegen;
 use crate::games::scrabble::movegen::{movegen, Direction, PlaceMove, Set};
 use crate::games::scrabble::zobrist::Zobrist;
 
@@ -277,6 +275,13 @@ impl ScrabbleGrid {
         for y in 0..self.height {
             for x in 0..self.width {
                 assert_eq!(clone.cell(x, y), self.cell(x, y), "Cell mismatch at ({}, {})", x, y);
+
+                let cell = self.cell(x, y);
+                if let Some(letter) = cell.letter {
+                    assert_eq!(cell.cache_attached_by_dir, [false, false]);
+                    assert_eq!(cell.cache_score_by_dir, [0, 0]);
+                    assert_eq!(cell.cache_allowed_by_dir, [letter.to_mask(), letter.to_mask()]);
+                }
             }
         }
 
@@ -679,39 +684,11 @@ impl InternalIterator for MovesIterator<'_, '_> {
 
         // horizontal
         for y in 0..grid.height {
-            let cells = (0..grid.width)
-                .map(|x| {
-                    let cell = grid.cell(x, y);
-                    movegen::Cell {
-                        letter: cell.letter,
-                        attached: self.grid.attached(x, y),
-                        allowed: cell.cache_allowed_by_dir[Direction::Vertical.index()],
-                        score_cross: cell.cache_score_by_dir[Direction::Vertical.index()],
-                        letter_multiplier: cell.letter_multiplier,
-                        word_multiplier: cell.word_multiplier,
-                    }
-                })
-                .collect_vec();
-
-            movegen(set, Direction::Horizontal, y, &cells, deck, &mut f)?;
+            movegen::<_, false>(set, grid, y, deck, &mut f)?;
         }
-
         // vertical
         for x in 0..grid.width {
-            let cells = (0..grid.height)
-                .map(|y| {
-                    let cell = grid.cell(x, y);
-                    movegen::Cell {
-                        letter: cell.letter,
-                        attached: self.grid.attached(x, y),
-                        allowed: cell.cache_allowed_by_dir[Direction::Horizontal.index()],
-                        score_cross: cell.cache_score_by_dir[Direction::Horizontal.index()],
-                        letter_multiplier: cell.letter_multiplier,
-                        word_multiplier: cell.word_multiplier,
-                    }
-                })
-                .collect_vec();
-            movegen(set, Direction::Vertical, x, &cells, deck, &mut f)?;
+            movegen::<_, true>(set, grid, x, deck, &mut f)?;
         }
 
         ControlFlow::Continue(())
