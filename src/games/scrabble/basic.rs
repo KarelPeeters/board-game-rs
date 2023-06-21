@@ -45,6 +45,7 @@ pub struct Mask(u32);
 
 pub const MAX_DECK_SIZE: usize = 7;
 
+// TODO rename to rack
 #[derive(Default, Copy, Clone, Eq, PartialEq)]
 pub struct Deck {
     // TODO is storing mask and [u8; MAX_DECK_SIZE] faster?
@@ -88,6 +89,10 @@ impl Letter {
 
     pub fn to_mask(self) -> Mask {
         Mask(1 << self.index)
+    }
+
+    pub fn index(self) -> u8 {
+        self.index
     }
 
     pub fn score_value(self) -> u8 {

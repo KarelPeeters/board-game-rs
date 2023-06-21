@@ -113,7 +113,7 @@ impl Board for ScrabbleBoard {
         let is_available = match mv {
             Move::Place(mv) => {
                 let deck = self.next_deck();
-                self.grid.can_play(mv, deck).is_ok()
+                self.grid.simulate_play(mv, deck).is_ok()
             }
             Move::Exchange => true,
         };

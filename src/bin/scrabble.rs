@@ -36,8 +36,8 @@ fn main() {
     // gen_fst();
     let set = Arc::new(load_fst());
 
-    // fuzz(&set);
-    // return;
+    fuzz(&set);
+    return;
 
     let mut grid = ScrabbleGrid::from_str_2d(&set, GRID.trim()).unwrap();
     grid.copy_multipliers_from(&ScrabbleGrid::default());
@@ -105,11 +105,17 @@ fn fuzz(set: &Set) {
             };
 
             println!("Playing {:?}", mv);
+
+            let sim = grid.simulate_play(mv, deck).unwrap();
             let new_deck = grid.play(set, mv, deck).unwrap();
+
             println!("Deck after: {:?}", new_deck);
 
             println!("Grid after:");
             println!("{}", grid);
+
+            assert_eq!(sim.deck, new_deck);
+            assert_eq!(sim.zobrist, grid.zobrist());
 
             grid.assert_valid(set);
 

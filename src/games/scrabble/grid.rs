@@ -8,6 +8,7 @@ use itertools::Itertools;
 use crate::games::scrabble::basic::{Deck, Letter, Mask};
 use crate::games::scrabble::movegen;
 use crate::games::scrabble::movegen::{movegen, Direction, PlaceMove, Set};
+use crate::games::scrabble::zobrist::Zobrist;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Cell {
@@ -17,7 +18,6 @@ pub struct Cell {
     // intrinsic board state
     pub letter_multiplier: u8,
     pub word_multiplier: u8,
-    pub force_attached: bool,
 
     // prepared information for movegen
     pub cache_allowed_by_dir: [Mask; 2],
@@ -28,9 +28,14 @@ pub struct Cell {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ScrabbleGrid {
+    // TODO cache linked list of anchors instead of iterating over all tiles?
+    // TODO also for each tile link to the next empty tile in each dir
     pub width: u8,
     pub height: u8,
     pub cells: Vec<Cell>,
+    pub attached_start: Option<(u8, u8)>,
+
+    pub cache_zobrist: Zobrist,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -50,6 +55,9 @@ pub enum InvalidGridString {
     WidthMismatch,
     UnexpectedChar(char),
     NotAscii,
+
+    MultipleStarts,
+    NoStartOrLetter,
 }
 
 const STANDARD_GRID_STR: &str = r#"
@@ -79,6 +87,12 @@ impl Default for ScrabbleGrid {
     }
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct SimulatedPlay {
+    pub deck: Deck,
+    pub zobrist: Zobrist,
+}
+
 impl ScrabbleGrid {
     // only limited by display impl for now
     pub const MAX_SIZE: u8 = 25;
@@ -102,7 +116,10 @@ impl ScrabbleGrid {
             width: width as u8,
             height: height as u8,
             cells: vec![Cell::empty(); height * width],
+            cache_zobrist: Zobrist::default(),
+            attached_start: None,
         };
+        let mut any_letter = false;
 
         for (y, line) in s.lines().enumerate() {
             let y = y as u8;
@@ -117,7 +134,10 @@ impl ScrabbleGrid {
                     ' ' | '.' => {}
 
                     // letter
-                    'A'..='Z' => grid.set_letter_partial(x, y, Letter::from_char(c).unwrap()),
+                    'A'..='Z' => {
+                        any_letter = true;
+                        grid.set_letter_partial(x, y, Letter::from_char(c).unwrap())
+                    }
 
                     // word multipliers
                     '~' => grid.cell_mut(x, y).word_multiplier = 4,
@@ -132,12 +152,19 @@ impl ScrabbleGrid {
                     // starting square
                     '*' => {
                         grid.cell_mut(x, y).word_multiplier = 2;
-                        grid.cell_mut(x, y).force_attached = true;
+                        if grid.attached_start.is_some() {
+                            return Err(InvalidGridString::MultipleStarts);
+                        }
+                        grid.attached_start = Some((x, y))
                     }
 
                     _ => return Err(InvalidGridString::UnexpectedChar(c)),
                 }
             }
+        }
+
+        if !any_letter && grid.attached_start.is_none() {
+            return Err(InvalidGridString::NoStartOrLetter);
         }
 
         grid.update_all_cached(set);
@@ -163,17 +190,32 @@ impl ScrabbleGrid {
     }
 
     pub fn cell(&self, x: u8, y: u8) -> &Cell {
+        assert!(x < self.width && y < self.height, "Out of bounds: ({}, {})", x, y);
         let index = (y as usize) * (self.width as usize) + (x as usize);
         &self.cells[index]
     }
 
     pub fn cell_mut(&mut self, x: u8, y: u8) -> &mut Cell {
+        assert!(x < self.width && y < self.height, "Out of bounds: ({}, {})", x, y);
         let index = (y as usize) * (self.width as usize) + (x as usize);
         &mut self.cells[index]
     }
 
+    pub fn attached(&self, x: u8, y: u8) -> bool {
+        if self.attached_start == Some((x, y)) {
+            return true;
+        }
+
+        let attached = self.cell(x, y).cache_attached_by_dir;
+        attached[0] || attached[1]
+    }
+
+    pub fn zobrist(&self) -> Zobrist {
+        self.cache_zobrist
+    }
+
     /// **Warning**: only partial: this tile and its adjacent tiles should still be updated
-    pub fn set_letter_partial(&mut self, x: u8, y: u8, letter: Letter) {
+    fn set_letter_partial(&mut self, x: u8, y: u8, letter: Letter) {
         let cell = self.cell_mut(x, y);
         cell.letter = Some(letter);
 
@@ -186,7 +228,7 @@ impl ScrabbleGrid {
         MovesIterator { grid: self, set, deck }
     }
 
-    pub fn update_all_cached(&mut self, set: &Set) {
+    fn update_all_cached(&mut self, set: &Set) {
         for y in 0..self.height {
             for x in 0..self.width {
                 for dir in Direction::ALL {
@@ -194,6 +236,28 @@ impl ScrabbleGrid {
                 }
             }
         }
+        self.cache_zobrist = self.calculate_zobrist();
+    }
+
+    fn calculate_zobrist(&self) -> Zobrist {
+        // TODO include visible multipliers?
+        let mut result = Zobrist::default();
+
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let cell = self.cell(x, y);
+
+                if let Some(letter) = cell.letter {
+                    result ^= Zobrist::for_grid_letter(x, y, letter);
+                }
+            }
+        }
+
+        if let Some((x, y)) = self.attached_start {
+            result ^= Zobrist::for_grid_start(x, y);
+        }
+
+        result
     }
 
     pub fn assert_valid(&self, set: &Set) {
@@ -205,6 +269,14 @@ impl ScrabbleGrid {
                 assert_eq!(clone.cell(x, y), self.cell(x, y), "Cell mismatch at ({}, {})", x, y);
             }
         }
+
+        let zobrist = self.calculate_zobrist();
+        assert_eq!(
+            zobrist,
+            self.cache_zobrist,
+            "Zobrist mismatch, delta: {:?}",
+            zobrist ^ self.cache_zobrist
+        );
     }
 
     fn neighbor(&self, x: u8, y: u8, dir: Direction, delta: i16) -> Option<(u8, u8)> {
@@ -236,9 +308,10 @@ impl ScrabbleGrid {
             .filter_map(move |&(dir, delta)| self.neighbor(x, y, dir, delta))
     }
 
-    pub fn can_play(&self, mv: PlaceMove, mut deck: Deck) -> Result<Deck, InvalidMove> {
+    pub fn simulate_play(&self, mv: PlaceMove, mut deck: Deck) -> Result<SimulatedPlay, InvalidMove> {
         let mut attached = false;
         let mut placed = false;
+        let mut zobrist = self.cache_zobrist;
 
         let mut placed_iter = mv.placed.iter();
         for i in 0.. {
@@ -254,7 +327,7 @@ impl ScrabbleGrid {
             };
 
             let cell = self.cell(x, y);
-            attached |= cell.attached();
+            attached |= self.attached(x, y);
 
             match cell.letter {
                 // TODO we can't double-check any more :(
@@ -271,6 +344,7 @@ impl ScrabbleGrid {
                         Some(c) => {
                             // place a new tile
                             placed = true;
+                            zobrist ^= Zobrist::for_grid_letter(x, y, c);
                             if !deck.try_remove(c) {
                                 return Err(InvalidMove::NotInDeck(c));
                             }
@@ -288,7 +362,11 @@ impl ScrabbleGrid {
             return Err(InvalidMove::NoNewTiles);
         }
 
-        Ok(deck)
+        if let Some((x, y)) = self.attached_start {
+            zobrist ^= Zobrist::for_grid_start(x, y);
+        }
+
+        Ok(SimulatedPlay { deck, zobrist })
     }
 
     pub fn play(&mut self, set: &Set, mv: PlaceMove, mut deck: Deck) -> Result<Deck, InvalidMove> {
@@ -312,8 +390,8 @@ impl ScrabbleGrid {
                 }
             };
 
+            attached |= self.attached(x, y);
             let cell = self.cell_mut(x, y);
-            attached |= cell.attached();
 
             match cell.letter {
                 // TODO we can't double-check any more :(
@@ -330,6 +408,7 @@ impl ScrabbleGrid {
                         Some(c) => {
                             // place a new tile
                             placed = true;
+                            self.cache_zobrist ^= Zobrist::for_grid_letter(x, y, c);
                             if !deck.try_remove(c) {
                                 return Err(InvalidMove::NotInDeck(c));
                             }
@@ -346,6 +425,11 @@ impl ScrabbleGrid {
         }
         if !placed {
             return Err(InvalidMove::NoNewTiles);
+        }
+
+        if let Some((x, y)) = self.attached_start {
+            self.cache_zobrist ^= Zobrist::for_grid_start(x, y);
+            self.attached_start = None;
         }
 
         // update validness
@@ -556,21 +640,11 @@ impl Cell {
             letter: None,
             letter_multiplier: 1,
             word_multiplier: 1,
-            force_attached: false,
 
             cache_allowed_by_dir: [Mask::NONE; 2],
             cache_score_by_dir: [0; 2],
             cache_attached_by_dir: [false, false],
         }
-    }
-
-    fn attached(&self) -> bool {
-        let cache_attached = self.cache_attached_by_dir.iter().any(|&b| b);
-        let tile_empty = self.letter.is_none();
-        if cache_attached {
-            debug_assert!(tile_empty);
-        }
-        cache_attached || (tile_empty && self.force_attached)
     }
 }
 
@@ -597,7 +671,7 @@ impl InternalIterator for MovesIterator<'_, '_> {
                     let cell = grid.cell(x, y);
                     movegen::Cell {
                         letter: cell.letter,
-                        attached: cell.attached(),
+                        attached: self.grid.attached(x, y),
                         allowed: cell.cache_allowed_by_dir[Direction::Vertical.index()],
                         score_cross: cell.cache_score_by_dir[Direction::Vertical.index()],
                         letter_multiplier: cell.letter_multiplier,
@@ -616,7 +690,7 @@ impl InternalIterator for MovesIterator<'_, '_> {
                     let cell = grid.cell(x, y);
                     movegen::Cell {
                         letter: cell.letter,
-                        attached: cell.attached(),
+                        attached: self.grid.attached(x, y),
                         allowed: cell.cache_allowed_by_dir[Direction::Horizontal.index()],
                         score_cross: cell.cache_score_by_dir[Direction::Horizontal.index()],
                         letter_multiplier: cell.letter_multiplier,
@@ -649,11 +723,11 @@ impl Display for ScrabbleGrid {
             write!(f, "{:2}|", y + 1)?;
             for x in 0..self.width {
                 let cell = self.cell(x, y);
+                let is_start = self.attached_start == Some((x, y));
 
-                // TODO print starting square?
                 let c = match cell.letter {
                     Some(letter) => letter.to_char(),
-                    None => match (cell.force_attached, cell.letter_multiplier, cell.word_multiplier) {
+                    None => match (is_start, cell.letter_multiplier, cell.word_multiplier) {
                         // word multipliers
                         (false, 1, 1) => ' ',
                         (false, 1, 2) => '-',

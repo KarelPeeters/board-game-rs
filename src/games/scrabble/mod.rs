@@ -21,3 +21,4 @@ pub mod basic;
 pub mod board;
 pub mod grid;
 pub mod movegen;
+pub mod zobrist;
