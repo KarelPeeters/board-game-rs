@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::ops::ControlFlow;
 
 use internal_iterator::InternalIterator;
@@ -181,12 +180,7 @@ impl AtaxxBoard {
         } else if a_pass && b_pass {
             let count_a = self.tiles_a.count();
             let count_b = self.tiles_b.count();
-
-            let outcome = match count_a.cmp(&count_b) {
-                Ordering::Less => Outcome::WonBy(Player::B),
-                Ordering::Equal => Outcome::Draw,
-                Ordering::Greater => Outcome::WonBy(Player::A),
-            };
+            let outcome = Outcome::from_score(count_a, count_b);
             Some(outcome)
         } else {
             None

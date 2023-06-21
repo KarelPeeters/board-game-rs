@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::ops::ControlFlow;
@@ -44,11 +43,7 @@ impl Score {
     pub fn to_outcome(self, komi: Komi) -> Outcome {
         let score_a = self.a as i32 * 2;
         let total_b = self.b as i32 * 2 + komi.as_int() as i32;
-        match score_a.cmp(&total_b) {
-            Ordering::Less => Outcome::WonBy(Player::B),
-            Ordering::Equal => Outcome::Draw,
-            Ordering::Greater => Outcome::WonBy(Player::A),
-        }
+        Outcome::from_score(score_a, total_b)
     }
 }
 

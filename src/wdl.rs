@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::ops::ControlFlow;
 
 use cast_trait::Cast;
@@ -47,6 +48,14 @@ impl Outcome {
             Outcome::WonBy(Player::A) => ScalarAbs::new(V::one()),
             Outcome::Draw => ScalarAbs::new(V::zero()),
             Outcome::WonBy(Player::B) => ScalarAbs::new(-V::one()),
+        }
+    }
+
+    pub fn from_score<V: Ord>(score_a: V, score_b: V) -> Outcome {
+        match score_a.cmp(&score_b) {
+            Ordering::Less => Outcome::WonBy(Player::B),
+            Ordering::Equal => Outcome::Draw,
+            Ordering::Greater => Outcome::WonBy(Player::A),
         }
     }
 }
