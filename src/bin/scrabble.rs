@@ -10,7 +10,7 @@ use rand::seq::SliceRandom;
 use rand::Rng;
 
 use board_game::ai::solver::solve_all_moves;
-use board_game::board::{Board, BoardMoves, Player};
+use board_game::board::{AvailableMovesIterator, Board, BoardDone, BoardMoves, Player};
 use board_game::games::scrabble::basic::{Deck, Letter, MAX_DECK_SIZE};
 use board_game::games::scrabble::board::{Move, ScrabbleBoard};
 use board_game::games::scrabble::grid::ScrabbleGrid;
@@ -221,10 +221,11 @@ fn bench(set: Arc<Set>) {
             board.set_deck(board.next_player(), deck);
 
             // play available move
-            let mv = match board.random_available_move(&mut rng) {
-                Ok(mv) => mv,
+            let moves: Vec<Move> = match board.available_moves() {
+                Ok(moves) => moves.collect(),
                 Err(_) => break,
             };
+            let mv = *moves.choose(&mut rng).unwrap();
             board.play(mv).unwrap();
             mv_count += 1;
         }
