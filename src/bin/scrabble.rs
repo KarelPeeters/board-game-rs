@@ -1,13 +1,15 @@
-use board_game::board::{Board, BoardMoves, Player};
+use std::sync::Arc;
+
 use internal_iterator::InternalIterator;
 use rand::seq::{IteratorRandom, SliceRandom};
 use rand::Rng;
-use std::sync::Arc;
 
+use board_game::ai::solver::solve_all_moves;
+use board_game::board::{Board, BoardMoves, Player};
 use board_game::games::scrabble::basic::{Deck, Letter, MAX_DECK_SIZE};
 use board_game::games::scrabble::board::ScrabbleBoard;
 use board_game::games::scrabble::grid::ScrabbleGrid;
-use board_game::games::scrabble::movegen::Move;
+use board_game::games::scrabble::movegen::PlaceMove;
 use board_game::util::tiny::consistent_rng;
 
 type Set = fst::Set<Vec<u8>>;
@@ -53,15 +55,19 @@ fn main() {
     };
     println!("{}", board);
 
-    board.available_moves().unwrap().for_each(|mv| {
-        println!("{:?}", mv);
-    });
+    // board.available_moves().unwrap().for_each(|mv| {
+    //     println!("{:?}", mv);
+    // });
+    // let mv = board.available_moves().unwrap().max_by_key(|mv| mv.score).unwrap();
+    // println!("playing {:?}", mv);
+    // board.play(mv).unwrap();
+    // println!("{}", board);
 
-    let mv = board.available_moves().unwrap().max_by_key(|mv| mv.score).unwrap();
-    println!("playing {:?}", mv);
-    board.play(mv).unwrap();
-
-    println!("{}", board);
+    for depth in 0.. {
+        println!("depth: {}", depth);
+        let result = solve_all_moves(&board, depth);
+        println!("  {:?}", result);
+    }
 }
 
 fn fuzz(set: &Set) {
@@ -81,7 +87,7 @@ fn fuzz(set: &Set) {
             let deck = Deck::from_letters(&letters).unwrap();
             println!("Deck: {:?}", deck);
 
-            let moves: Vec<Move> = grid.available_moves(set, deck).collect();
+            let moves: Vec<PlaceMove> = grid.available_moves(set, deck).collect();
 
             let mv = match moves.choose(&mut rng) {
                 None => {

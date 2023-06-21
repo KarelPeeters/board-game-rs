@@ -7,7 +7,7 @@ use itertools::Itertools;
 
 use crate::games::scrabble::basic::{Deck, Letter, Mask};
 use crate::games::scrabble::movegen;
-use crate::games::scrabble::movegen::{movegen, Direction, Move, Set};
+use crate::games::scrabble::movegen::{movegen, Direction, PlaceMove, Set};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Cell {
@@ -236,16 +236,12 @@ impl ScrabbleGrid {
             .filter_map(move |&(dir, delta)| self.neighbor(x, y, dir, delta))
     }
 
-    pub fn can_play(&self, set: &Set, mv: Move, mut deck: Deck) -> Result<Deck, InvalidMove> {
+    pub fn can_play(&self, mv: PlaceMove, mut deck: Deck) -> Result<Deck, InvalidMove> {
         let mut attached = false;
         let mut placed = false;
 
         let mut placed_iter = mv.placed.iter();
-        let mut word_len = 0;
-
         for i in 0.. {
-            word_len = i;
-
             let (x, y) = match self.neighbor(mv.x, mv.y, mv.dir, i) {
                 Some(pair) => pair,
                 None => {
@@ -295,7 +291,7 @@ impl ScrabbleGrid {
         Ok(deck)
     }
 
-    pub fn play(&mut self, set: &Set, mv: Move, mut deck: Deck) -> Result<Deck, InvalidMove> {
+    pub fn play(&mut self, set: &Set, mv: PlaceMove, mut deck: Deck) -> Result<Deck, InvalidMove> {
         let mut attached = false;
         let mut placed = false;
 
@@ -586,7 +582,7 @@ pub struct MovesIterator<'g, 's> {
 }
 
 impl InternalIterator for MovesIterator<'_, '_> {
-    type Item = Move;
+    type Item = PlaceMove;
 
     fn try_for_each<R, F>(self, mut f: F) -> ControlFlow<R>
     where

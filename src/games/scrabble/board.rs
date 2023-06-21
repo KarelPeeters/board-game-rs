@@ -9,8 +9,15 @@ use crate::board::{
 };
 use crate::games::scrabble::basic::Deck;
 use crate::games::scrabble::grid::ScrabbleGrid;
-use crate::games::scrabble::movegen::{Move, Set};
+use crate::games::scrabble::movegen::{PlaceMove, Set};
 use crate::impl_unit_symmetry_board;
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum Move {
+    Place(PlaceMove),
+    // TODO include which letters to exchange
+    Exchange,
+}
 
 #[derive(Clone)]
 pub struct ScrabbleBoard {
@@ -102,26 +109,40 @@ impl Board for ScrabbleBoard {
 
     fn is_available_move(&self, mv: Self::Move) -> Result<bool, BoardDone> {
         self.check_done()?;
-        let deck = self.next_deck();
-        Ok(self.grid.can_play(&self.set, mv, deck).is_ok())
+
+        let is_available = match mv {
+            Move::Place(mv) => {
+                let deck = self.next_deck();
+                self.grid.can_play(mv, deck).is_ok()
+            }
+            Move::Exchange => true,
+        };
+        Ok(is_available)
     }
 
     fn play(&mut self, mv: Self::Move) -> Result<(), PlayError> {
-        // TODO implement letter swapping turn
-
         self.check_done()?;
 
-        let deck = self.next_deck();
-        match self.grid.play(&self.set, mv, deck) {
-            Ok(new_deck) => {
-                let (deck, score) = self.next_deck_score_mut();
-                *deck = new_deck;
-                *score += mv.score;
+        match mv {
+            Move::Place(mv) => {
+                let deck = self.next_deck();
+                match self.grid.play(&self.set, mv, deck) {
+                    Ok(new_deck) => {
+                        let (deck, score) = self.next_deck_score_mut();
+                        *deck = new_deck;
+                        *score += mv.score;
 
-                self.next_player = self.next_player.other();
+                        self.next_player = self.next_player.other();
+                        Ok(())
+                    }
+                    Err(_) => Err(PlayError::UnavailableMove),
+                }
+            }
+            Move::Exchange => {
+                self.exchange_count += 1;
+                assert!(self.exchange_count <= 4);
                 Ok(())
             }
-            Err(_) => Err(PlayError::UnavailableMove),
         }
     }
 
@@ -157,7 +178,7 @@ impl<'a> BoardMoves<'a, ScrabbleBoard> for ScrabbleBoard {
 
 impl InternalIterator for AllMovesIterator<ScrabbleBoard> {
     type Item = Move;
-    fn try_for_each<R, F>(self, f: F) -> ControlFlow<R>
+    fn try_for_each<R, F>(self, _: F) -> ControlFlow<R>
     where
         F: FnMut(Self::Item) -> ControlFlow<R>,
     {
@@ -170,7 +191,7 @@ impl InternalIterator for AllMovesIterator<ScrabbleBoard> {
 impl InternalIterator for AvailableMovesIterator<'_, ScrabbleBoard> {
     type Item = Move;
 
-    fn try_for_each<R, F>(self, f: F) -> ControlFlow<R>
+    fn try_for_each<R, F>(self, mut f: F) -> ControlFlow<R>
     where
         F: FnMut(Self::Item) -> ControlFlow<R>,
     {
@@ -178,7 +199,17 @@ impl InternalIterator for AvailableMovesIterator<'_, ScrabbleBoard> {
         let set = &board.set;
         let deck = board.next_deck();
 
-        board.grid.available_moves(set, deck).try_for_each(f)
+        // place moves
+        board
+            .grid
+            .available_moves(set, deck)
+            .try_for_each(|mv| f(Move::Place(mv)))?;
+
+        // TODO put these first?
+        // exchange moves
+        f(Move::Exchange)?;
+
+        ControlFlow::Continue(())
     }
 }
 
@@ -205,5 +236,11 @@ impl Display for ScrabbleBoard {
         writeln!(f, "{:?}", self)?;
         writeln!(f, "{}", self.grid)?;
         Ok(())
+    }
+}
+
+impl Display for Move {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
     }
 }

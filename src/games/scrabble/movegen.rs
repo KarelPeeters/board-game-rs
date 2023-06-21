@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Formatter};
 use std::ops::ControlFlow;
 
 use fst::raw::Node;
@@ -21,7 +21,7 @@ pub struct Placed {
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct Move {
+pub struct PlaceMove {
     // TODO encode which tiles use a wildcard tile
     //   does it ever make sense to use a wildcard when not necessary?
     //   does it make sense to place the wildcard on a multiplier tile when possible to avoid?
@@ -82,7 +82,7 @@ impl Cell {
     }
 }
 
-struct MoveGen<'a, R, F: FnMut(Move) -> ControlFlow<R>> {
+struct MoveGen<'a, R, F: FnMut(PlaceMove) -> ControlFlow<R>> {
     set: &'a Set,
     dir: Direction,
     row: u8,
@@ -98,7 +98,7 @@ pub fn movegen<R>(
     row: u8,
     cells: &[Cell],
     deck: Deck,
-    mut f: impl FnMut(Move) -> ControlFlow<R>,
+    mut f: impl FnMut(PlaceMove) -> ControlFlow<R>,
 ) -> ControlFlow<R> {
     for curr in 0..cells.len() {
         let cell = &cells[curr];
@@ -235,7 +235,7 @@ impl PartialScore {
     }
 }
 
-impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
+impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>> MoveGen<'_, R, F> {
     fn run(&mut self, deck: Deck) -> ControlFlow<R> {
         let root = self.set.as_fst().root();
         self.run_recurse_forward(deck, root, 0, Placed::default(), PartialScore::default())
@@ -393,7 +393,7 @@ impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
         };
 
         // TODO rearrange placed based on backward_count?
-        let mv = Move {
+        let mv = PlaceMove {
             dir: self.dir,
             x,
             y,
@@ -405,11 +405,5 @@ impl<R, F: FnMut(Move) -> ControlFlow<R>> MoveGen<'_, R, F> {
         (self.f)(mv)?;
 
         ControlFlow::Continue(())
-    }
-}
-
-impl Display for Move {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
     }
 }
