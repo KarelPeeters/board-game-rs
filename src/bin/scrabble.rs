@@ -8,8 +8,9 @@ use std::time::Instant;
 
 use internal_iterator::InternalIterator;
 use itertools::Itertools;
+use rand::rngs::SmallRng;
 use rand::seq::SliceRandom;
-use rand::Rng;
+use rand::{Rng, SeedableRng};
 
 use board_game::ai::solver::solve_all_moves;
 use board_game::board::{Board, BoardMoves, Player};
@@ -45,14 +46,48 @@ fn main() {
     // gen_fst();
     let set = Arc::new(load_fst());
 
-    test(&set);
+    // TODO fix now that exchange moves have been added
+    // test(&set);
 
     // summarize_nodes(&set);
     // bench(set);
     // fuzz(&set);
     // derp(&set);
+    // test_gen();
 
-    solve(&set);
+    loop {
+        random_game(&set);
+    }
+
+    // solve(&set);
+}
+
+fn random_game(set: &Arc<Set>) {
+    let rng = SmallRng::seed_from_u64(0);
+    let mut board = ScrabbleBoard::default(set.clone(), rng);
+
+    let mut rng = SmallRng::seed_from_u64(1);
+    while let Ok(mv) = board.random_available_move(&mut rng) {
+        println!("{}", board);
+        println!("{}", mv);
+        board.play(mv).unwrap();
+    }
+
+    println!("{}", board);
+    println!("{:?}", board.outcome());
+}
+
+fn test_gen() {
+    let mut rng = SmallRng::seed_from_u64(0);
+
+    for _ in 0..128 {
+        let mut deck = Deck::from_letters("AABBBC").unwrap();
+
+        while let Some(c) = deck.remove_sample(&mut rng) {
+            print!("{:?} ", c);
+        }
+        println!();
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -136,7 +171,7 @@ fn negamax(tt: &mut Vec<TTEntry>, board: &ScrabbleBoard, depth: u32, mut a: i64,
     let mut moves: Vec<_> = board.available_moves().unwrap().collect();
     moves.sort_unstable_by_key(|mv| match mv {
         Move::Place(mv) => Reverse(mv.score),
-        Move::Exchange => Reverse(0),
+        Move::Exchange(_) => Reverse(0),
     });
 
     for mv in moves {
@@ -178,7 +213,7 @@ fn test(set: &Arc<Set>) {
         .iter()
         .filter_map(|mv| match mv {
             Move::Place(mv) => Some(mv),
-            Move::Exchange => None,
+            Move::Exchange(_) => None,
         })
         .collect_vec();
 
@@ -194,7 +229,7 @@ fn test(set: &Arc<Set>) {
         .iter()
         .filter(|mv| match mv {
             Move::Place(mv) => mv.placed.len() == 1,
-            Move::Exchange => false,
+            Move::Exchange(_) => false,
         })
         .count();
 
@@ -207,9 +242,9 @@ fn test(set: &Arc<Set>) {
 fn example_board(set: &Arc<Set>) -> ScrabbleBoard {
     let mut grid = ScrabbleGrid::from_str_2d(set, GRID.trim()).unwrap();
     grid.copy_multipliers_from(&ScrabbleGrid::default());
-    grid.assert_valid(&set);
+    grid.assert_valid(set);
 
-    let board = ScrabbleBoard::new(
+    ScrabbleBoard::new(
         grid,
         Player::A,
         PlayerBox::new(
@@ -218,15 +253,16 @@ fn example_board(set: &Arc<Set>) -> ScrabbleBoard {
         ),
         PlayerBox::new(369, 420),
         0,
+        Deck::default(),
+        SmallRng::seed_from_u64(0),
         set.clone(),
-    );
-    board
+    )
 }
 
 fn derp(set: &Arc<Set>) {
-    let mut grid = ScrabbleGrid::from_str_2d(&set, GRID.trim()).unwrap();
+    let mut grid = ScrabbleGrid::from_str_2d(set, GRID.trim()).unwrap();
     grid.copy_multipliers_from(&ScrabbleGrid::default());
-    grid.assert_valid(&set);
+    grid.assert_valid(set);
 
     let board = example_board(set);
     println!("{}", board);
@@ -331,6 +367,8 @@ fn bench(set: Arc<Set>) {
             PlayerBox::new(rand_deck(MAX_DECK_SIZE, &mut rng), rand_deck(MAX_DECK_SIZE, &mut rng)),
             PlayerBox::new(0, 0),
             0,
+            Deck::default(),
+            SmallRng::seed_from_u64(0),
             set.clone(),
         );
         assert!(!board.is_done());
@@ -344,7 +382,7 @@ fn bench(set: Arc<Set>) {
 
             let tiles_to_add = min(tiles_left as usize, MAX_DECK_SIZE - deck.tile_count() as usize);
             for _ in 0..tiles_to_add {
-                deck.add(Letter::from_char(rng.gen_range('A'..='Z')).unwrap());
+                deck.add(Letter::from_char(rng.gen_range('A'..='Z')).unwrap(), 1);
             }
 
             board.set_decks(decks);
@@ -476,7 +514,7 @@ fn summarize_nodes(set: &Set) {
 fn rand_deck(len: usize, rng: &mut impl Rng) -> Deck {
     let mut deck = Deck::default();
     for _ in 0..len {
-        deck.add(Letter::from_char(rng.gen_range('A'..='Z')).unwrap());
+        deck.add(Letter::from_char(rng.gen_range('A'..='Z')).unwrap(), 1);
     }
     deck
 }

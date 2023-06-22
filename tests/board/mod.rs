@@ -24,6 +24,7 @@ mod max_moves;
 mod oware;
 mod sttt;
 mod ttt;
+mod scrabble;
 
 pub fn board_test_main<B: Board>(board: &B)
 where

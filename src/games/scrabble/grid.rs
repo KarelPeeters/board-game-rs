@@ -363,7 +363,7 @@ impl ScrabbleGrid {
                             // place a new tile
                             placed = true;
                             zobrist ^= Zobrist::for_grid_letter(x, y, c);
-                            if !deck.try_remove(c) {
+                            if !deck.try_remove(c, 1) {
                                 return Err(InvalidMove::NotInDeck(c));
                             }
                         }
@@ -427,7 +427,7 @@ impl ScrabbleGrid {
                             // place a new tile
                             placed = true;
                             self.cache_zobrist ^= Zobrist::for_grid_letter(x, y, c);
-                            if !deck.try_remove(c) {
+                            if !deck.try_remove(c, 1) {
                                 return Err(InvalidMove::NotInDeck(c));
                             }
                             self.set_letter_partial(x, y, c);

@@ -3,11 +3,12 @@ use std::ops::ControlFlow;
 use std::sync::Arc;
 
 use internal_iterator::InternalIterator;
+use rand::prelude::SmallRng;
 
 use crate::board::{
     AllMovesIterator, AvailableMovesIterator, Board, BoardDone, BoardMoves, Outcome, PlayError, Player,
 };
-use crate::games::scrabble::basic::Deck;
+use crate::games::scrabble::basic::{Deck, MAX_DECK_SIZE};
 use crate::games::scrabble::grid::ScrabbleGrid;
 use crate::games::scrabble::movegen::{PlaceMove, Set};
 use crate::games::scrabble::zobrist::Zobrist;
@@ -17,10 +18,10 @@ use crate::pov::{NonPov, PlayerBox};
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Move {
     Place(PlaceMove),
-    // TODO include which letters to exchange
-    Exchange,
+    Exchange(Deck),
 }
 
+// TODO should clone preserve the rng or not?
 #[derive(Clone)]
 pub struct ScrabbleBoard {
     grid: ScrabbleGrid,
@@ -30,16 +31,37 @@ pub struct ScrabbleBoard {
     scores: PlayerBox<u32>,
     exchange_count: u8,
 
+    bag: Deck,
+    rng: SmallRng,
+
     set: Arc<Set>,
 }
 
 impl ScrabbleBoard {
+    pub fn default(set: Arc<Set>, rng: SmallRng) -> Self {
+        let mut board = ScrabbleBoard {
+            grid: ScrabbleGrid::default(),
+            next_player: Player::A,
+            decks: PlayerBox::new(Deck::default(), Deck::default()),
+            scores: PlayerBox::new(0, 0),
+            exchange_count: 0,
+            bag: Deck::starting_bag(),
+            rng,
+            set,
+        };
+        board.refill_deck(Player::A);
+        board.refill_deck(Player::B);
+        board
+    }
+
     pub fn new(
         grid: ScrabbleGrid,
         next_player: Player,
         decks: PlayerBox<Deck>,
         scores: PlayerBox<u32>,
         exchange_count: u8,
+        bag: Deck,
+        rng: SmallRng,
         set: Arc<Set>,
     ) -> Self {
         assert!(exchange_count <= 4);
@@ -48,6 +70,8 @@ impl ScrabbleBoard {
             next_player,
             decks,
             scores,
+            bag,
+            rng,
             exchange_count,
             set,
         }
@@ -102,6 +126,14 @@ impl ScrabbleBoard {
 
         result
     }
+
+    fn refill_deck(&mut self, player: Player) {
+        let deck = &mut self.decks[player];
+        while (deck.tile_count() as usize) < MAX_DECK_SIZE && !self.bag.is_empty() {
+            let letter = self.bag.remove_sample(&mut self.rng).unwrap();
+            deck.add(letter, 1);
+        }
+    }
 }
 
 impl Board for ScrabbleBoard {
@@ -114,38 +146,56 @@ impl Board for ScrabbleBoard {
     fn is_available_move(&self, mv: Self::Move) -> Result<bool, BoardDone> {
         self.check_done()?;
 
+        let next_deck = self.decks[self.next_player];
         let is_available = match mv {
             Move::Place(mv) => {
-                let deck = self.decks[self.next_player];
+                let deck = next_deck;
                 self.grid.simulate_play(mv, deck).is_ok()
             }
-            Move::Exchange => true,
+            Move::Exchange(exchanged) => {
+                next_deck.is_superset_of(exchanged) && exchanged.tile_count() < self.bag.tile_count()
+            }
         };
         Ok(is_available)
     }
 
     fn play(&mut self, mv: Self::Move) -> Result<(), PlayError> {
         self.check_done()?;
+        let player = self.next_player;
 
         match mv {
             Move::Place(mv) => {
-                let player = self.next_player;
                 let deck = self.decks[player];
 
                 match self.grid.play(&self.set, mv, deck) {
                     Ok(new_deck) => {
                         self.scores[player] += mv.score;
                         self.decks[player] = new_deck;
+                        self.refill_deck(player);
                         self.next_player = player.other();
+                        self.exchange_count = 0;
                         Ok(())
                     }
                     Err(_) => Err(PlayError::UnavailableMove),
                 }
             }
-            Move::Exchange => {
+            Move::Exchange(exchanged) => {
+                if exchanged.tile_count() > self.bag.tile_count() {
+                    return Err(PlayError::UnavailableMove);
+                }
+
+                let success = self.decks[player].try_remove_all(exchanged);
+                if !success {
+                    return Err(PlayError::UnavailableMove);
+                }
+                // refill first, then return tiles to bag
+                self.refill_deck(player);
+                self.bag.add_all(exchanged);
+
                 self.exchange_count += 1;
                 assert!(self.exchange_count <= 4);
                 self.next_player = self.next_player.other();
+
                 Ok(())
             }
         }
@@ -211,7 +261,8 @@ impl InternalIterator for AvailableMovesIterator<'_, ScrabbleBoard> {
 
         // TODO put these first?
         // exchange moves
-        f(Move::Exchange)?;
+        deck.sub_decks(board.bag.tile_count())
+            .try_for_each(|sub| f(Move::Exchange(sub)))?;
 
         ControlFlow::Continue(())
     }
@@ -229,12 +280,13 @@ impl Debug for ScrabbleBoard {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "ScrabbleBoard {{ next_player: {:?}, decks: {:?}, scores: {:?}, exchange_count: {}, outcome: {:?} }}",
+            "ScrabbleBoard {{ next_player: {:?}, decks: {:?}, scores: {:?}, exchange_count: {}, outcome: {:?}, bag: {:?} }}",
             self.next_player,
             self.decks,
             self.scores,
             self.exchange_count,
             self.outcome(),
+            self.bag,
         )
     }
 }

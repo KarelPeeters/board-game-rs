@@ -317,7 +317,7 @@ impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>, const VERTICAL: bool> MoveGen<'_,
                         let next = fst.node(node.transition_addr(next_index));
 
                         let mut new_deck = deck;
-                        new_deck.remove(letter);
+                        new_deck.remove(letter, 1);
                         let new_placed = placed.push_back(letter);
                         let new_score = score.add(true, letter, &cell);
 
@@ -338,7 +338,7 @@ impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>, const VERTICAL: bool> MoveGen<'_,
                     let next = fst.node(trans.addr);
 
                     let mut new_deck = deck;
-                    new_deck.remove(letter);
+                    new_deck.remove(letter, 1);
                     let new_placed = placed.push_back(letter);
                     let new_score = score.add(true, letter, &cell);
 
@@ -402,7 +402,7 @@ impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>, const VERTICAL: bool> MoveGen<'_,
                         let next = fst.node(node.transition_addr(next_index));
 
                         let mut new_deck = deck;
-                        new_deck.remove(letter);
+                        new_deck.remove(letter, 1);
                         let new_placed = placed.insert_front(letter);
                         let new_score = score.add(true, letter, &cell);
 
@@ -427,7 +427,7 @@ impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>, const VERTICAL: bool> MoveGen<'_,
                     let next = fst.node(trans.addr);
 
                     let mut new_deck = deck;
-                    new_deck.remove(letter);
+                    new_deck.remove(letter, 1);
                     let new_placed = placed.insert_front(letter);
                     let new_score = score.add(true, letter, &cell);
 

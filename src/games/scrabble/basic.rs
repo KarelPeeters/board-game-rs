@@ -1,4 +1,10 @@
+use internal_iterator::InternalIterator;
+use std::ops::ControlFlow;
+
+use rand::Rng;
+
 use crate::util::bits::BitIter;
+use crate::util::iter::IterExt;
 
 pub const LETTERS: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 pub const LETTER_COUNT: usize = LETTERS.len();
@@ -114,30 +120,67 @@ impl Deck {
         // TODO support wildcard
         let mut result = Deck::default();
         for c in s.chars() {
-            result.add(Letter::from_char(c)?);
+            result.add(Letter::from_char(c)?, 1);
         }
         Ok(result)
     }
 
-    pub fn add(&mut self, c: Letter) {
-        self.mask.set(c, true);
-        self.counts[c.index as usize] += 1;
+    pub fn starting_bag() -> Deck {
+        let mut result = Deck::default();
+        for letter in Letter::all() {
+            result.add(letter, LETTER_INFO[letter.index as usize].initial_count);
+        }
+        result
     }
 
-    pub fn remove(&mut self, c: Letter) {
-        debug_assert!(self.counts[c.index as usize] > 0 && self.mask.get(c));
-        self.counts[c.index as usize] -= 1;
-        if self.counts[c.index as usize] == 0 {
+    pub fn add(&mut self, c: Letter, count: u8) {
+        self.mask.set(c, true);
+        self.counts[c.index as usize] += count;
+    }
+
+    pub fn remove(&mut self, c: Letter, count: u8) {
+        let index = c.index as usize;
+        assert!(self.counts[index] >= count);
+
+        self.counts[index] -= count;
+        if self.counts[index] == 0 {
             self.mask.set(c, false);
         }
     }
 
-    pub fn try_remove(&mut self, c: Letter) -> bool {
-        if self.mask.get(c) {
-            self.remove(c);
+    pub fn try_remove(&mut self, c: Letter, count: u8) -> bool {
+        if self.counts[c.index() as usize] >= count {
+            self.remove(c, count);
             true
         } else {
             false
+        }
+    }
+
+    pub fn try_remove_all(&mut self, remove: Deck) -> bool {
+        let mut copy = *self;
+
+        for (c, count) in remove.letter_counts() {
+            let curr = &mut copy.counts[c.index() as usize];
+
+            if *curr < count {
+                return false;
+            }
+
+            *curr -= count;
+            if *curr == 0 {
+                copy.mask.set(c, false);
+            }
+        }
+
+        *self = copy;
+        true
+    }
+
+    pub fn add_all(&mut self, other: Deck) {
+        self.mask |= other.mask;
+        for (c, count) in other.letter_counts() {
+            self.counts[c.index() as usize] += count;
         }
     }
 
@@ -156,6 +199,106 @@ impl Deck {
 
     pub fn usable_mask(self) -> Mask {
         self.mask
+    }
+
+    pub fn is_superset_of(self, other: Deck) -> bool {
+        if !self.mask.is_superset_of(other.mask) {
+            return false;
+        }
+        self.counts.iter().zip(other.counts.iter()).all(|(a, b)| a >= b)
+    }
+
+    pub fn letter_counts(self) -> impl Iterator<Item = (Letter, u8)> {
+        self.mask
+            .letters()
+            .pure_map(move |c| (c, self.counts[c.index() as usize]))
+    }
+
+    pub fn assert_valid(self) {
+        for c in Letter::all() {
+            assert_eq!(
+                self.counts[c.index() as usize] > 0,
+                self.mask.get(c),
+                "Mismatch for letter {c:?}"
+            );
+        }
+        assert_eq!(self.tile_count(), self.counts.iter().copied().sum());
+    }
+
+    pub fn remove_sample(&mut self, rng: &mut impl Rng) -> Option<Letter> {
+        let total_count = self.tile_count();
+        if total_count == 0 {
+            return None;
+        }
+
+        let index = rng.gen_range(0..total_count);
+
+        let mut sum = 0;
+        for (c, count) in self.letter_counts() {
+            sum += count;
+            if sum > index {
+                self.remove(c, 1);
+                return Some(c);
+            }
+        }
+
+        unreachable!()
+    }
+
+    pub fn sub_decks(self, max_count: u8) -> SubDecks {
+        SubDecks { deck: self, max_count }
+    }
+}
+
+#[derive(Debug)]
+pub struct SubDecks {
+    deck: Deck,
+    max_count: u8,
+}
+
+impl SubDecks {
+    fn for_each_sub_deck_impl<R>(
+        &self,
+        skip: usize,
+        mut curr: Deck,
+        f: &mut impl FnMut(Deck) -> ControlFlow<R>,
+    ) -> ControlFlow<R> {
+        if cfg!(debug_assertions) {
+            self.deck.assert_valid();
+            curr.assert_valid();
+        }
+
+        if curr.tile_count() > self.max_count {
+            return ControlFlow::Continue(());
+        }
+
+        if let Some((letter, count)) = self.deck.letter_counts().nth(skip) {
+            debug_assert_eq!(curr.counts[letter.index() as usize], 0);
+
+            // continue recursing on current letter
+            for i in 0..=count {
+                curr.counts[letter.index() as usize] = i;
+                curr.mask.set(letter, i > 0);
+
+                self.for_each_sub_deck_impl(skip + 1, curr, f)?;
+            }
+        } else {
+            // end of the recursion
+            f(curr)?;
+        }
+
+        ControlFlow::Continue(())
+    }
+}
+
+impl InternalIterator for SubDecks {
+    type Item = Deck;
+
+    fn try_for_each<R, F>(self, mut f: F) -> ControlFlow<R>
+    where
+        F: FnMut(Self::Item) -> ControlFlow<R>,
+    {
+        self.for_each_sub_deck_impl(0, Deck::default(), &mut f)
     }
 }
 
@@ -210,6 +353,10 @@ impl Mask {
 
     pub fn letters(self) -> impl Iterator<Item = Letter> {
         BitIter::new(self.0).map(|index| Letter { index })
+    }
+
+    pub fn is_superset_of(self, other: Mask) -> bool {
+        self.0 & other.0 == other.0
     }
 }
 
