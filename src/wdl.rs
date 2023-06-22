@@ -5,7 +5,7 @@ use cast_trait::Cast;
 use internal_iterator::{InternalIterator, IntoInternalIterator};
 
 use crate::board::{Outcome, Player};
-use crate::pov::{NonPov, Pov, ScalarAbs};
+use crate::pov::{NonPov, PlayerBox, Pov, ScalarAbs};
 
 /// The outcome of a game from the POV of a certain player. Usually obtained using [Outcome::pov].
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -57,6 +57,10 @@ impl Outcome {
             Ordering::Equal => Outcome::Draw,
             Ordering::Greater => Outcome::WonBy(Player::A),
         }
+    }
+
+    pub fn from_scores<V: Ord>(scores: PlayerBox<V>) -> Outcome {
+        Self::from_score(scores.a, scores.b)
     }
 }
 

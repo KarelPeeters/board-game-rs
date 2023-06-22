@@ -12,6 +12,7 @@ use crate::games::scrabble::grid::ScrabbleGrid;
 use crate::games::scrabble::movegen::{PlaceMove, Set};
 use crate::games::scrabble::zobrist::Zobrist;
 use crate::impl_unit_symmetry_board;
+use crate::pov::{NonPov, PlayerBox};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Move {
@@ -25,11 +26,8 @@ pub struct ScrabbleBoard {
     grid: ScrabbleGrid,
 
     next_player: Player,
-    // TODO come up with some general per-player storage wrapper
-    deck_a: Deck,
-    deck_b: Deck,
-    score_a: u32,
-    score_b: u32,
+    decks: PlayerBox<Deck>,
+    scores: PlayerBox<u32>,
     exchange_count: u8,
 
     set: Arc<Set>,
@@ -39,10 +37,8 @@ impl ScrabbleBoard {
     pub fn new(
         grid: ScrabbleGrid,
         next_player: Player,
-        deck_a: Deck,
-        deck_b: Deck,
-        score_a: u32,
-        score_b: u32,
+        decks: PlayerBox<Deck>,
+        scores: PlayerBox<u32>,
         exchange_count: u8,
         set: Arc<Set>,
     ) -> Self {
@@ -50,10 +46,8 @@ impl ScrabbleBoard {
         Self {
             grid,
             next_player,
-            deck_a,
-            deck_b,
-            score_a,
-            score_b,
+            decks,
+            scores,
             exchange_count,
             set,
         }
@@ -61,31 +55,28 @@ impl ScrabbleBoard {
 
     fn eq_key(&self) -> impl Eq + '_ {
         (
-            self.deck_a,
-            self.deck_b,
-            self.score_a,
-            self.score_b,
             self.next_player,
+            self.decks,
+            self.scores,
             &self.grid,
             self.set.as_fst().as_bytes(),
         )
     }
 
-    fn next_deck_score_mut(&mut self) -> (&mut Deck, &mut u32) {
-        match self.next_player {
-            Player::A => (&mut self.deck_a, &mut self.score_a),
-            Player::B => (&mut self.deck_b, &mut self.score_b),
-        }
+    pub fn decks(&self) -> PlayerBox<Deck> {
+        self.decks
     }
 
-    pub fn score(&self) -> (u32, u32) {
-        (self.score_a, self.score_b)
+    pub fn set_decks(&mut self, decks: PlayerBox<Deck>) {
+        self.decks = decks;
     }
 
-    pub fn set_score(&mut self, score_a: u32, score_b: u32) {
-        // maybe update outcome in the future
-        self.score_a = score_a;
-        self.score_b = score_b;
+    pub fn scores(&self) -> PlayerBox<u32> {
+        self.scores
+    }
+
+    pub fn set_scores(&mut self, scores: PlayerBox<u32>) {
+        self.scores = scores;
     }
 
     pub fn grid(&self) -> &ScrabbleGrid {
@@ -96,34 +87,17 @@ impl ScrabbleBoard {
         &self.set
     }
 
-    pub fn deck(&self, player: Player) -> Deck {
-        match player {
-            Player::A => self.deck_a,
-            Player::B => self.deck_b,
-        }
-    }
-
     pub fn exchange_count(&self) -> u8 {
         self.exchange_count
     }
 
-    pub fn set_deck(&mut self, player: Player, deck: Deck) {
-        // maybe update outcome in the future
-        match player {
-            Player::A => self.deck_a = deck,
-            Player::B => self.deck_b = deck,
-        }
-    }
-
     pub fn zobrist_pov_without_score(&self) -> Zobrist {
-        let (deck_pov, deck_other) = match self.next_player {
-            Player::A => (self.deck_a, self.deck_b),
-            Player::B => (self.deck_b, self.deck_a),
-        };
-
         let mut result = self.grid.zobrist();
-        result ^= Zobrist::for_deck(true, deck_pov);
-        result ^= Zobrist::for_deck(false, deck_other);
+
+        let decks = self.decks.pov(self.next_player);
+        result ^= Zobrist::for_deck(true, decks.pov);
+        result ^= Zobrist::for_deck(false, decks.other);
+
         result ^= Zobrist::for_exchange_count(self.exchange_count);
 
         result
@@ -142,7 +116,7 @@ impl Board for ScrabbleBoard {
 
         let is_available = match mv {
             Move::Place(mv) => {
-                let deck = self.deck(self.next_player);
+                let deck = self.decks[self.next_player];
                 self.grid.simulate_play(mv, deck).is_ok()
             }
             Move::Exchange => true,
@@ -155,14 +129,14 @@ impl Board for ScrabbleBoard {
 
         match mv {
             Move::Place(mv) => {
-                let deck = self.deck(self.next_player);
+                let player = self.next_player;
+                let deck = self.decks[player];
+
                 match self.grid.play(&self.set, mv, deck) {
                     Ok(new_deck) => {
-                        let (deck, score) = self.next_deck_score_mut();
-                        *deck = new_deck;
-                        *score += mv.score;
-
-                        self.next_player = self.next_player.other();
+                        self.scores[player] += mv.score;
+                        self.decks[player] = new_deck;
+                        self.next_player = player.other();
                         Ok(())
                     }
                     Err(_) => Err(PlayError::UnavailableMove),
@@ -171,15 +145,15 @@ impl Board for ScrabbleBoard {
             Move::Exchange => {
                 self.exchange_count += 1;
                 assert!(self.exchange_count <= 4);
+                self.next_player = self.next_player.other();
                 Ok(())
             }
         }
     }
 
     fn outcome(&self) -> Option<Outcome> {
-        let end = self.exchange_count >= 4 || self.deck_a.is_empty() || self.deck_b.is_empty();
-        if end {
-            Some(Outcome::from_score(self.score_a, self.score_b))
+        if self.exchange_count >= 4 || self.decks.a.is_empty() || self.decks.b.is_empty() {
+            Some(Outcome::from_scores(self.scores))
         } else {
             None
         }
@@ -227,7 +201,7 @@ impl InternalIterator for AvailableMovesIterator<'_, ScrabbleBoard> {
     {
         let board = self.board();
         let set = &board.set;
-        let deck = board.deck(board.next_player);
+        let deck = board.decks[board.next_player];
 
         // place moves
         board
@@ -255,8 +229,12 @@ impl Debug for ScrabbleBoard {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "ScrabbleBoard {{ next_player: {:?}, deck_a: {:?}, deck_b: {:?}, score_a: {:?}, score_b: {:?}, exchange_count: {}, outcome: {:?} }}",
-            self.next_player, self.deck_a, self.deck_b, self.score_a, self.score_b, self.exchange_count, self.outcome(),
+            "ScrabbleBoard {{ next_player: {:?}, decks: {:?}, scores: {:?}, exchange_count: {}, outcome: {:?} }}",
+            self.next_player,
+            self.decks,
+            self.scores,
+            self.exchange_count,
+            self.outcome(),
         )
     }
 }

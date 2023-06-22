@@ -18,6 +18,7 @@ use board_game::games::scrabble::board::{Move, ScrabbleBoard};
 use board_game::games::scrabble::grid::ScrabbleGrid;
 use board_game::games::scrabble::movegen::PlaceMove;
 use board_game::games::scrabble::zobrist::Zobrist;
+use board_game::pov::{NonPov, PlayerBox};
 use board_game::util::tiny::consistent_rng;
 
 type Set = fst::Set<Vec<u8>>;
@@ -90,10 +91,8 @@ fn solve(set: &Arc<Set>) {
 }
 
 fn board_value_pov(board: &ScrabbleBoard) -> i64 {
-    let (score_a, score_b) = board.score();
-    let delta = score_a as i64 - score_b as i64;
-    let sign: i64 = board.next_player().sign(Player::A);
-    sign * delta
+    let scores = board.scores().pov(board.next_player());
+    scores.pov as i64 - scores.other as i64
 }
 
 // TODO unmake move?
@@ -206,17 +205,18 @@ fn test(set: &Arc<Set>) {
 }
 
 fn example_board(set: &Arc<Set>) -> ScrabbleBoard {
-    let mut grid = ScrabbleGrid::from_str_2d(&set, GRID.trim()).unwrap();
+    let mut grid = ScrabbleGrid::from_str_2d(set, GRID.trim()).unwrap();
     grid.copy_multipliers_from(&ScrabbleGrid::default());
     grid.assert_valid(&set);
 
     let board = ScrabbleBoard::new(
         grid,
         Player::A,
-        Deck::from_letters("DGILOPR").unwrap(),
-        Deck::from_letters("EGNOQR").unwrap(),
-        369,
-        420,
+        PlayerBox::new(
+            Deck::from_letters("DGILOPR").unwrap(),
+            Deck::from_letters("EGNOQR").unwrap(),
+        ),
+        PlayerBox::new(369, 420),
         0,
         set.clone(),
     );
@@ -328,10 +328,8 @@ fn bench(set: Arc<Set>) {
         let mut board = ScrabbleBoard::new(
             ScrabbleGrid::default(),
             Player::A,
-            rand_deck(MAX_DECK_SIZE, &mut rng),
-            rand_deck(MAX_DECK_SIZE, &mut rng),
-            0,
-            0,
+            PlayerBox::new(rand_deck(MAX_DECK_SIZE, &mut rng), rand_deck(MAX_DECK_SIZE, &mut rng)),
+            PlayerBox::new(0, 0),
             0,
             set.clone(),
         );
@@ -340,12 +338,16 @@ fn bench(set: Arc<Set>) {
         loop {
             // fill deck if possible
             let tiles_left = 100 - board.grid().letters_placed();
-            let mut deck = board.deck(board.next_player());
+
+            let mut decks = board.decks();
+            let deck = &mut decks[board.next_player()];
+
             let tiles_to_add = min(tiles_left as usize, MAX_DECK_SIZE - deck.tile_count() as usize);
             for _ in 0..tiles_to_add {
                 deck.add(Letter::from_char(rng.gen_range('A'..='Z')).unwrap());
             }
-            board.set_deck(board.next_player(), deck);
+
+            board.set_decks(decks);
 
             // play available move
             let moves: Vec<Move> = match board.available_moves() {

@@ -5,7 +5,6 @@ use lazy_static::lazy_static;
 use rand::distributions::{Distribution, Standard};
 use rand::Rng;
 
-use crate::board::Player;
 use crate::games::scrabble::basic::{Deck, Letter, LETTER_COUNT, MAX_DECK_SIZE};
 use crate::games::scrabble::grid::ScrabbleGrid;
 use crate::util::tiny::consistent_rng;
@@ -21,8 +20,6 @@ pub struct ZobristData {
     grid_start: Vec<Zobrist>,
 
     exchange_counter: [Zobrist; 4],
-    // TODO remove turn from zobrist and always view as pov?
-    turn: [Zobrist; 2],
 }
 
 impl Zobrist {
@@ -86,7 +83,6 @@ impl ZobristData {
             ],
             grid_start: gen_vec(max_size * max_size, &mut rng),
             exchange_counter: gen_array(&mut rng),
-            turn: gen_array(&mut rng),
         }
     }
 }

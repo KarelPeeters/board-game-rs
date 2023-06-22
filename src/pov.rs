@@ -1,4 +1,19 @@
 use crate::board::Player;
+use std::ops::{Index, IndexMut};
+
+/// Structure to hold a value for each player.
+#[derive(Default, Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct PlayerBox<T> {
+    pub a: T,
+    pub b: T,
+}
+
+/// Structure to hold a value for the pov and non-pov player.
+#[derive(Default, Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct PovBox<T> {
+    pub pov: T,
+    pub other: T,
+}
 
 /// Trait to convert an absolute outcome to a relative one.
 pub trait NonPov: Sized {
@@ -80,6 +95,97 @@ impl<V: std::ops::Neg<Output = V>> Pov for ScalarPov<V> {
         match pov {
             Player::A => ScalarAbs::new(self.value),
             Player::B => ScalarAbs::new(-self.value),
+        }
+    }
+}
+
+impl<T> PlayerBox<T> {
+    pub fn new(a: T, b: T) -> Self {
+        Self { a, b }
+    }
+
+    pub fn as_ref(&self) -> PlayerBox<&T> {
+        PlayerBox { a: &self.a, b: &self.b }
+    }
+
+    pub fn as_ref_mut(&mut self) -> PlayerBox<&mut T> {
+        PlayerBox {
+            a: &mut self.a,
+            b: &mut self.b,
+        }
+    }
+}
+
+impl<T> PovBox<T> {
+    pub fn new(pov: T, other: T) -> Self {
+        Self { pov, other }
+    }
+
+    pub fn as_ref(&self) -> PovBox<&T> {
+        PovBox {
+            pov: &self.pov,
+            other: &self.other,
+        }
+    }
+
+    pub fn as_ref_mut(&mut self) -> PovBox<&mut T> {
+        PovBox {
+            pov: &mut self.pov,
+            other: &mut self.other,
+        }
+    }
+}
+
+impl<T> Pov for PovBox<T> {
+    type Output = PlayerBox<T>;
+
+    fn un_pov(self, pov: Player) -> Self::Output {
+        match pov {
+            Player::A => PlayerBox {
+                a: self.pov,
+                b: self.other,
+            },
+            Player::B => PlayerBox {
+                a: self.other,
+                b: self.pov,
+            },
+        }
+    }
+}
+
+impl<T> NonPov for PlayerBox<T> {
+    type Output = PovBox<T>;
+
+    fn pov(self, pov: Player) -> Self::Output {
+        match pov {
+            Player::A => PovBox {
+                pov: self.a,
+                other: self.b,
+            },
+            Player::B => PovBox {
+                pov: self.b,
+                other: self.a,
+            },
+        }
+    }
+}
+
+impl<T> Index<Player> for PlayerBox<T> {
+    type Output = T;
+
+    fn index(&self, index: Player) -> &Self::Output {
+        match index {
+            Player::A => &self.a,
+            Player::B => &self.b,
+        }
+    }
+}
+
+impl<T> IndexMut<Player> for PlayerBox<T> {
+    fn index_mut(&mut self, index: Player) -> &mut Self::Output {
+        match index {
+            Player::A => &mut self.a,
+            Player::B => &mut self.b,
         }
     }
 }
