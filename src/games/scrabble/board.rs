@@ -10,6 +10,7 @@ use crate::board::{
 use crate::games::scrabble::basic::Deck;
 use crate::games::scrabble::grid::ScrabbleGrid;
 use crate::games::scrabble::movegen::{PlaceMove, Set};
+use crate::games::scrabble::zobrist::Zobrist;
 use crate::impl_unit_symmetry_board;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -112,6 +113,20 @@ impl ScrabbleBoard {
             Player::A => self.deck_a = deck,
             Player::B => self.deck_b = deck,
         }
+    }
+
+    pub fn zobrist_pov_without_score(&self) -> Zobrist {
+        let (deck_pov, deck_other) = match self.next_player {
+            Player::A => (self.deck_a, self.deck_b),
+            Player::B => (self.deck_b, self.deck_a),
+        };
+
+        let mut result = self.grid.zobrist();
+        result ^= Zobrist::for_deck(true, deck_pov);
+        result ^= Zobrist::for_deck(false, deck_other);
+        result ^= Zobrist::for_exchange_count(self.exchange_count);
+
+        result
     }
 }
 

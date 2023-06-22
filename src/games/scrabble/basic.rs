@@ -141,9 +141,13 @@ impl Deck {
         }
     }
 
-    pub fn count(self) -> u8 {
+    pub fn tile_count(self) -> u8 {
         // TODO cache this?
         self.counts.iter().sum()
+    }
+
+    pub fn count_for(self, letter: Letter) -> u8 {
+        self.counts[letter.index() as usize]
     }
 
     pub fn is_empty(self) -> bool {

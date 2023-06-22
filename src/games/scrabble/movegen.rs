@@ -85,7 +85,7 @@ pub fn movegen<R, const VERTICAL: bool>(
     deck: Deck,
     mut f: impl FnMut(PlaceMove) -> ControlFlow<R>,
 ) -> ControlFlow<R> {
-    assert!(deck.count() as usize <= MAX_DECK_SIZE);
+    assert!(deck.tile_count() as usize <= MAX_DECK_SIZE);
 
     let len = match VERTICAL {
         false => grid.width,

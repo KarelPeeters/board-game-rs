@@ -6,7 +6,7 @@ use rand::distributions::{Distribution, Standard};
 use rand::Rng;
 
 use crate::board::Player;
-use crate::games::scrabble::basic::{Letter, LETTER_COUNT, MAX_DECK_SIZE};
+use crate::games::scrabble::basic::{Deck, Letter, LETTER_COUNT, MAX_DECK_SIZE};
 use crate::games::scrabble::grid::ScrabbleGrid;
 use crate::util::tiny::consistent_rng;
 
@@ -33,11 +33,11 @@ impl Zobrist {
         ZOBRIST_DATA.grid_letter[index]
     }
 
-    pub fn for_deck_letter(player: Player, letter: Letter, count: u8) -> Zobrist {
+    pub fn for_deck_letter_count(pov: bool, letter: Letter, count: u8) -> Zobrist {
         let count = count as usize;
-        assert!(count <= MAX_DECK_SIZE);
+        assert!(0 < count && count <= MAX_DECK_SIZE);
         let index = letter.index() as usize * MAX_DECK_SIZE + count;
-        ZOBRIST_DATA.deck_letter[player.index() as usize][index]
+        ZOBRIST_DATA.deck_letter[pov as usize][index]
     }
 
     pub fn for_grid_start(x: u8, y: u8) -> Zobrist {
@@ -47,12 +47,21 @@ impl Zobrist {
         ZOBRIST_DATA.grid_start[index]
     }
 
-    pub fn for_exchange_counter(counter: u8) -> Zobrist {
+    pub fn for_exchange_count(counter: u8) -> Zobrist {
         ZOBRIST_DATA.exchange_counter[counter as usize]
     }
 
-    pub fn for_turn(player: Player) -> Zobrist {
-        ZOBRIST_DATA.turn[player.index() as usize]
+    pub fn for_deck(pov: bool, deck: Deck) -> Zobrist {
+        let mut result = Zobrist::default();
+        // TODO wildcard
+        for letter in deck.usable_mask().letters() {
+            result ^= Zobrist::for_deck_letter_count(pov, letter, deck.count_for(letter))
+        }
+        result
+    }
+
+    pub fn inner(self) -> Inner {
+        self.0
     }
 }
 

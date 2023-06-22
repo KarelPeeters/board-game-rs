@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use std::cmp::{max, min, Reverse};
 use std::collections::HashSet;
 use std::hint::black_box;
 use std::sync::Arc;
@@ -16,6 +17,7 @@ use board_game::games::scrabble::basic::{Deck, Letter, MAX_DECK_SIZE};
 use board_game::games::scrabble::board::{Move, ScrabbleBoard};
 use board_game::games::scrabble::grid::ScrabbleGrid;
 use board_game::games::scrabble::movegen::PlaceMove;
+use board_game::games::scrabble::zobrist::Zobrist;
 use board_game::util::tiny::consistent_rng;
 
 type Set = fst::Set<Vec<u8>>;
@@ -45,9 +47,127 @@ fn main() {
     test(&set);
 
     // summarize_nodes(&set);
-    bench(set);
+    // bench(set);
     // fuzz(&set);
     // derp(&set);
+
+    solve(&set);
+}
+
+#[derive(Debug, Copy, Clone)]
+struct TTEntry {
+    hash: Zobrist,
+    kind: TTEntryKind,
+    value: i64,
+    depth: u32,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+enum TTEntryKind {
+    Exact,
+    Lower,
+    Upper,
+    Empty,
+}
+
+fn solve(set: &Arc<Set>) {
+    let tt_size = 16 * 1024 * 1024;
+
+    let board = example_board(set);
+    let empty_entry = TTEntry {
+        hash: Default::default(),
+        kind: TTEntryKind::Empty,
+        value: 0,
+        depth: 0,
+    };
+
+    for depth in 0.. {
+        let mut tt = vec![empty_entry; tt_size];
+
+        let value = negamax(&mut tt, &board, depth, -1, 1);
+        println!("depth {}: {}", depth, value);
+    }
+}
+
+fn board_value_pov(board: &ScrabbleBoard) -> i64 {
+    let (score_a, score_b) = board.score();
+    let delta = score_a as i64 - score_b as i64;
+    let sign: i64 = board.next_player().sign(Player::A);
+    sign * delta
+}
+
+// TODO unmake move?
+fn negamax(tt: &mut Vec<TTEntry>, board: &ScrabbleBoard, depth: u32, mut a: i64, mut b: i64) -> i64 {
+    // TODO do this after the is_done check?
+    let a_orig = a;
+
+    // leaf eval
+    let board_eval = board_value_pov(board);
+    if depth == 0 || board.is_done() {
+        return board_eval;
+    }
+
+    // tt lookup
+    let hash = board.zobrist_pov_without_score();
+    let tt_index = hash.inner() as usize % tt.len();
+    let entry = &tt[tt_index];
+
+    if entry.kind != TTEntryKind::Empty && entry.hash == hash && entry.depth >= depth {
+        let entry_value = board_eval + entry.value;
+
+        match entry.kind {
+            TTEntryKind::Exact => return entry_value,
+            TTEntryKind::Lower => {
+                a = max(a, entry_value);
+            }
+            TTEntryKind::Upper => {
+                b = min(b, entry_value);
+            }
+            TTEntryKind::Empty => unreachable!(),
+        }
+
+        if a >= b {
+            return entry.value;
+        }
+    }
+
+    // iterate over children
+    let mut value = i64::MIN;
+
+    let mut moves: Vec<_> = board.available_moves().unwrap().collect();
+    moves.sort_unstable_by_key(|mv| match mv {
+        Move::Place(mv) => Reverse(mv.score),
+        Move::Exchange => Reverse(0),
+    });
+
+    for mv in moves {
+        let next = board.clone_and_play(mv).unwrap();
+        let next_value = -negamax(tt, &next, depth - 1, -b, -a);
+        value = max(value, next_value);
+        a = max(a, next_value);
+        if a >= b {
+            break;
+        }
+    }
+
+    // tt insert
+    let kind = if value <= a_orig {
+        TTEntryKind::Upper
+    } else if value >= b {
+        TTEntryKind::Lower
+    } else {
+        TTEntryKind::Exact
+    };
+    let entry = TTEntry {
+        hash,
+        kind,
+        value: value - board_eval,
+        depth,
+    };
+    tt[tt_index] = entry;
+
+    // final return
+    value
 }
 
 fn test(set: &Arc<Set>) {
@@ -95,8 +215,8 @@ fn example_board(set: &Arc<Set>) -> ScrabbleBoard {
         Player::A,
         Deck::from_letters("DGILOPR").unwrap(),
         Deck::from_letters("EGNOQR").unwrap(),
-        420,
         369,
+        420,
         0,
         set.clone(),
     );
@@ -108,16 +228,7 @@ fn derp(set: &Arc<Set>) {
     grid.copy_multipliers_from(&ScrabbleGrid::default());
     grid.assert_valid(&set);
 
-    let mut board = ScrabbleBoard::new(
-        grid,
-        Player::A,
-        Deck::from_letters("DGILOPR").unwrap(),
-        Deck::from_letters("EGNOQR").unwrap(),
-        420,
-        369,
-        0,
-        set.clone(),
-    );
+    let board = example_board(set);
     println!("{}", board);
 
     bench_single(&board);
@@ -230,7 +341,7 @@ fn bench(set: Arc<Set>) {
             // fill deck if possible
             let tiles_left = 100 - board.grid().letters_placed();
             let mut deck = board.deck(board.next_player());
-            let tiles_to_add = std::cmp::min(tiles_left as usize, MAX_DECK_SIZE - deck.count() as usize);
+            let tiles_to_add = min(tiles_left as usize, MAX_DECK_SIZE - deck.tile_count() as usize);
             for _ in 0..tiles_to_add {
                 deck.add(Letter::from_char(rng.gen_range('A'..='Z')).unwrap());
             }
