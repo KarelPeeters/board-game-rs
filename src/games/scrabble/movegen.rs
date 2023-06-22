@@ -271,19 +271,20 @@ impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>, const VERTICAL: bool> MoveGen<'_,
     #[must_use]
     fn run_recurse_forward(
         &mut self,
-        mut deck: Deck,
+        deck: Deck,
         node: Node,
         forward_count: u8,
         placed: Placed,
         score: PartialScore,
     ) -> ControlFlow<R> {
+        let fst = self.set.as_fst();
         let cell = self.anchor + forward_count;
 
         // force direction change when hitting the right edge
         if cell >= self.len {
             if let Some(index) = node.find_input(b'+') {
-                let trans = node.transition(index);
-                let next = self.set.as_fst().node(trans.addr);
+                let trans_addr = node.transition_addr(index);
+                let next = fst.node(trans_addr);
                 self.run_recurse_backward(deck, next, placed, forward_count, 0, score)?;
             }
 
@@ -291,39 +292,57 @@ impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>, const VERTICAL: bool> MoveGen<'_,
         }
         let cell = self.cell(cell);
 
-        for trans in node.transitions() {
-            let char = trans.inp;
-            let next = self.set.as_fst().node(trans.addr);
+        if let Some(letter) = cell.letter {
+            // forcibly follow the given letter
+            if let Some(next_index) = node.find_input(letter.to_ascii()) {
+                let next = fst.node(node.transition_addr(next_index));
 
-            if char == b'+' {
-                // switch direction if possible
-                if cell.letter.is_none() {
-                    self.run_recurse_backward(deck, next, placed, forward_count, 0, score)?;
+                let new_score = score.add(false, letter, &cell);
+                self.run_recurse_forward(deck, next, forward_count + 1, placed, new_score)?;
+            }
+        } else {
+            // empty space, we can switch direction
+            if let Some(next) = node.find_input(b'+') {
+                let next = fst.node(node.transition_addr(next));
+
+                self.run_recurse_backward(deck, next, placed, forward_count, 0, score)?;
+            }
+
+            // handle placing new letter
+            let allowed = cell.allowed & deck.usable_mask();
+
+            if (allowed.count() as usize) < node.len() {
+                for letter in allowed.letters() {
+                    if let Some(next_index) = node.find_input(letter.to_ascii()) {
+                        let next = fst.node(node.transition_addr(next_index));
+
+                        let mut new_deck = deck;
+                        new_deck.remove(letter);
+                        let new_placed = placed.push_back(letter);
+                        let new_score = score.add(true, letter, &cell);
+
+                        self.run_recurse_forward(new_deck, next, forward_count + 1, new_placed, new_score)?;
+                    }
                 }
             } else {
-                // place letter if possible
-                let letter = Letter::from_char(char as char).unwrap();
-
-                if cell.allowed.get(letter) {
-                    // TODO clean this up a bit
-                    let used_deck = if let Some(actual) = cell.letter {
-                        debug_assert_eq!(actual, letter);
-                        false
-                    } else if deck.try_remove(letter) {
-                        true
-                    } else {
+                for trans in node.transitions() {
+                    let char = trans.inp;
+                    if char == b'+' {
                         continue;
-                    };
-
-                    let new_placed = if used_deck { placed.push_back(letter) } else { placed };
-                    let new_score = score.add(used_deck, letter, &cell);
-
-                    self.run_recurse_forward(deck, next, forward_count + 1, new_placed, new_score)?;
-
-                    // TODO maybe just use the old deck instead of undoing changes
-                    if used_deck {
-                        deck.add(letter);
                     }
+                    let letter = Letter::from_char(char as char).unwrap();
+                    if !allowed.get(letter) {
+                        continue;
+                    }
+
+                    let next = fst.node(trans.addr);
+
+                    let mut new_deck = deck;
+                    new_deck.remove(letter);
+                    let new_placed = placed.push_back(letter);
+                    let new_score = score.add(true, letter, &cell);
+
+                    self.run_recurse_forward(new_deck, next, forward_count + 1, new_placed, new_score)?;
                 }
             }
         }
@@ -334,25 +353,26 @@ impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>, const VERTICAL: bool> MoveGen<'_,
     #[must_use]
     fn run_recurse_backward(
         &mut self,
-        mut deck: Deck,
+        deck: Deck,
         node: Node,
         placed: Placed,
         forward_count: u8,
         backward_count: u8,
         score: PartialScore,
     ) -> ControlFlow<R> {
-        // add one to skip the anchor itself when starting to move backward
-        let cell_i = self.anchor.checked_sub(backward_count + 1);
+        let fst = self.set.as_fst();
 
-        let cell_i = match cell_i {
+        // add one to skip the anchor itself when starting to move backward
+        let cell = self.anchor.checked_sub(backward_count + 1);
+        let cell = match cell {
             None => {
-                // adjacent to edge, report and stop
+                // hit edge, report and stop
                 self.maybe_report(node, forward_count, backward_count, placed, score)?;
                 return ControlFlow::Continue(());
             }
             Some(cell) => cell,
         };
-        let cell = self.cell(cell_i);
+        let cell = self.cell(cell);
 
         // report if on empty tile
         if cell.letter.is_none() {
@@ -360,38 +380,65 @@ impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>, const VERTICAL: bool> MoveGen<'_,
         }
 
         // stop if on previous anchor
-        if self.cell(cell_i).anchor {
+        if cell.anchor {
             return ControlFlow::Continue(());
         }
 
-        // append next tile
-        for trans in node.transitions() {
-            let char = trans.inp;
-            let next = self.set.as_fst().node(trans.addr);
+        if let Some(letter) = cell.letter {
+            // forcibly follow the given letter
+            if let Some(next_index) = node.find_input(letter.to_ascii()) {
+                let next = fst.node(node.transition_addr(next_index));
 
-            if char == b'+' {
-                unreachable!()
-            } else {
-                let letter = Letter::from_char(char as char).unwrap();
+                let new_score = score.add(false, letter, &cell);
+                self.run_recurse_backward(deck, next, placed, forward_count, backward_count + 1, new_score)?;
+            }
+        } else {
+            // handle placing new letter
+            let allowed = cell.allowed & deck.usable_mask();
 
-                if cell.allowed.get(letter) {
-                    let used_deck = if let Some(actual) = cell.letter {
-                        debug_assert_eq!(actual, letter);
-                        false
-                    } else if deck.try_remove(letter) {
-                        true
-                    } else {
-                        continue;
-                    };
+            if (allowed.count() as usize) < node.len() {
+                for letter in allowed.letters() {
+                    if let Some(next_index) = node.find_input(letter.to_ascii()) {
+                        let next = fst.node(node.transition_addr(next_index));
 
-                    let new_score = score.add(used_deck, letter, &cell);
-                    let new_placed = if used_deck { placed.insert_front(letter) } else { placed };
+                        let mut new_deck = deck;
+                        new_deck.remove(letter);
+                        let new_placed = placed.insert_front(letter);
+                        let new_score = score.add(true, letter, &cell);
 
-                    self.run_recurse_backward(deck, next, new_placed, forward_count, backward_count + 1, new_score)?;
-
-                    if used_deck {
-                        deck.add(letter);
+                        self.run_recurse_backward(
+                            new_deck,
+                            next,
+                            new_placed,
+                            forward_count,
+                            backward_count + 1,
+                            new_score,
+                        )?;
                     }
+                }
+            } else {
+                for trans in node.transitions() {
+                    let char = trans.inp;
+                    let letter = Letter::from_char(char as char).unwrap();
+                    if !allowed.get(letter) {
+                        continue;
+                    }
+
+                    let next = fst.node(trans.addr);
+
+                    let mut new_deck = deck;
+                    new_deck.remove(letter);
+                    let new_placed = placed.insert_front(letter);
+                    let new_score = score.add(true, letter, &cell);
+
+                    self.run_recurse_backward(
+                        new_deck,
+                        next,
+                        new_placed,
+                        forward_count,
+                        backward_count + 1,
+                        new_score,
+                    )?;
                 }
             }
         }

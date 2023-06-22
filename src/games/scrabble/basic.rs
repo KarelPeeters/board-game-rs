@@ -1,3 +1,5 @@
+use crate::util::bits::BitIter;
+
 pub const LETTERS: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 pub const LETTER_COUNT: usize = LETTERS.len();
 pub const LETTER_INFO: [LetterInfo; LETTER_COUNT] = [
@@ -79,6 +81,11 @@ impl Letter {
         }
     }
 
+    pub fn from_index(index: u8) -> Letter {
+        assert!((index as usize) < LETTER_COUNT);
+        Letter { index }
+    }
+
     pub fn to_ascii(self) -> u8 {
         self.index + b'A'
     }
@@ -142,6 +149,10 @@ impl Deck {
     pub fn is_empty(self) -> bool {
         self.mask.is_empty()
     }
+
+    pub fn usable_mask(self) -> Mask {
+        self.mask
+    }
 }
 
 impl Mask {
@@ -191,6 +202,10 @@ impl Mask {
 
     pub fn count(self) -> u32 {
         self.0.count_ones()
+    }
+
+    pub fn letters(self) -> impl Iterator<Item = Letter> {
+        BitIter::new(self.0).map(|index| Letter { index })
     }
 }
 
