@@ -31,7 +31,7 @@ pub const LETTER_INFO: [LetterInfo; LETTER_COUNT] = [
     LetterInfo::new(10, 1), // Z
 ];
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Letter {
     index: u8,
 }

@@ -8,14 +8,14 @@ use crate::games::scrabble::grid::ScrabbleGrid;
 
 pub type Set = fst::Set<Vec<u8>>;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Direction {
     Horizontal,
     Vertical,
 }
 
 // TODO this should be some generic stack vec instead
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Placed {
     inner: [Letter; MAX_DECK_SIZE],
     len: u8,
@@ -122,7 +122,7 @@ struct PartialScore {
 impl Default for Placed {
     fn default() -> Self {
         Placed {
-            inner: [Letter::from_char('a').unwrap(); MAX_DECK_SIZE],
+            inner: [Letter::from_index(0); MAX_DECK_SIZE],
             len: 0,
         }
     }

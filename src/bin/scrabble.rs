@@ -6,11 +6,12 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use internal_iterator::InternalIterator;
+use itertools::Itertools;
 use rand::seq::SliceRandom;
 use rand::Rng;
 
 use board_game::ai::solver::solve_all_moves;
-use board_game::board::{AvailableMovesIterator, Board, BoardDone, BoardMoves, Player};
+use board_game::board::{Board, BoardMoves, Player};
 use board_game::games::scrabble::basic::{Deck, Letter, MAX_DECK_SIZE};
 use board_game::games::scrabble::board::{Move, ScrabbleBoard};
 use board_game::games::scrabble::grid::ScrabbleGrid;
@@ -53,6 +54,20 @@ fn test(set: &Arc<Set>) {
     let board = example_board(set);
 
     let moves: Vec<_> = board.available_moves().unwrap().collect();
+
+    let place_moves = moves
+        .iter()
+        .filter_map(|mv| match mv {
+            Move::Place(mv) => Some(mv),
+            Move::Exchange => None,
+        })
+        .collect_vec();
+
+    let place_moves_unique = place_moves
+        .iter()
+        .unique_by(|mv| (mv.dir, mv.x, mv.y, mv.placed))
+        .collect_vec();
+    assert_eq!(place_moves.len(), place_moves_unique.len());
 
     println!("{} moves", moves.len());
 
