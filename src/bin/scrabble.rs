@@ -55,26 +55,56 @@ fn main() {
     // derp(&set);
     // test_gen();
 
-    loop {
-        random_game(&set);
+    let mut max_moves = 0;
+    let mut max_score = 0;
+
+    let mut rng = consistent_rng();
+    for _ in 0..16 * 1024 {
+        random_game(&set, &mut rng, &mut max_moves, &mut max_score);
     }
+    println!("max moves: {}", max_moves);
 
     // solve(&set);
 }
 
-fn random_game(set: &Arc<Set>) {
-    let rng = SmallRng::seed_from_u64(0);
-    let mut board = ScrabbleBoard::default(set.clone(), rng);
+fn random_game(set: &Arc<Set>, rng: &mut impl Rng, max_moves: &mut usize, max_score: &mut u32) {
+    let board_rng = SmallRng::seed_from_u64(rng.gen());
+    let mut board = ScrabbleBoard::default(set.clone(), board_rng);
 
     let mut rng = SmallRng::seed_from_u64(1);
     while let Ok(mv) = board.random_available_move(&mut rng) {
-        println!("{}", board);
-        println!("{}", mv);
+        let mv_count = board.available_moves().unwrap().count();
+
+        if mv_count > *max_moves {
+            *max_moves = mv_count;
+            println!("{}", board);
+            println!("has {} moves:", mv_count);
+
+            board.available_moves().unwrap().for_each(|mv| {
+                println!("  {}", mv);
+            });
+
+            println!("({} moves)", mv_count);
+        }
+
+        board.available_moves().unwrap().for_each(|mv| match mv {
+            Move::Place(mv) => {
+                if mv.score > *max_score {
+                    *max_score = mv.score;
+                    println!("{}", board);
+                    println!("has high scoring move {:?}", mv);
+                }
+            }
+            Move::Exchange(_) => {}
+        });
+
+        // println!("{}", board);
+        // println!("{}", mv);
         board.play(mv).unwrap();
     }
 
-    println!("{}", board);
-    println!("{:?}", board.outcome());
+    // println!("{}", board);
+    // println!("{:?}", board.outcome());
 }
 
 fn test_gen() {
