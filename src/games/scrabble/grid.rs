@@ -359,7 +359,7 @@ impl ScrabbleGrid {
                             // nothing left to place, this is the end of the word
                             break;
                         }
-                        Some(c) => {
+                        Some(&c) => {
                             // place a new tile
                             placed = true;
                             zobrist ^= Zobrist::for_grid_letter(x, y, c);
@@ -423,7 +423,7 @@ impl ScrabbleGrid {
                             // nothing left to place, this is the end of the word
                             break;
                         }
-                        Some(c) => {
+                        Some(&c) => {
                             // place a new tile
                             placed = true;
                             self.cache_zobrist ^= Zobrist::for_grid_letter(x, y, c);

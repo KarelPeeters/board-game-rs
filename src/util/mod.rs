@@ -13,3 +13,5 @@ pub mod rating;
 
 pub mod iter;
 pub mod tiny;
+
+pub mod stack_vec;

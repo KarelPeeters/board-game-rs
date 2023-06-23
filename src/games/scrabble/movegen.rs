@@ -1,10 +1,11 @@
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
 use std::ops::ControlFlow;
 
 use fst::raw::Node;
 
 use crate::games::scrabble::basic::{Deck, Letter, Mask, MAX_DECK_SIZE};
 use crate::games::scrabble::grid::ScrabbleGrid;
+use crate::util::stack_vec::StackVec;
 
 pub type Set = fst::Set<Vec<u8>>;
 
@@ -14,12 +15,7 @@ pub enum Direction {
     Vertical,
 }
 
-// TODO this should be some generic stack vec instead
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
-pub struct Placed {
-    inner: [Letter; MAX_DECK_SIZE],
-    len: u8,
-}
+type Placed = StackVec<Letter, MAX_DECK_SIZE>;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct PlaceMove {
@@ -33,6 +29,7 @@ pub struct PlaceMove {
     pub dir: Direction,
     pub x: u8,
     pub y: u8,
+
     pub placed: Placed,
 
     pub forward_count: u8,
@@ -117,65 +114,6 @@ struct PartialScore {
     sum_word: u32,
     total_word_multiplier: u32,
     tiles_placed: u8,
-}
-
-impl Default for Placed {
-    fn default() -> Self {
-        Placed {
-            inner: [Letter::from_index(0); MAX_DECK_SIZE],
-            len: 0,
-        }
-    }
-}
-
-impl Placed {
-    pub fn push_back(self, letter: Letter) -> Self {
-        let index = self.len as usize;
-        assert!(index < self.inner.len());
-        let mut inner = self.inner;
-        inner[index] = letter;
-        Placed {
-            inner,
-            len: self.len + 1,
-        }
-    }
-
-    pub fn insert_front(self, letter: Letter) -> Self {
-        assert!((self.len as usize) < (self.inner.len()));
-
-        let mut inner = self.inner;
-        inner.copy_within(0..self.inner.len() - 1, 1);
-        inner[0] = letter;
-
-        Placed {
-            inner,
-            len: self.len + 1,
-        }
-    }
-
-    #[allow(clippy::len_without_is_empty)]
-    pub fn len(self) -> u8 {
-        self.len
-    }
-
-    pub fn iter(self) -> impl Iterator<Item = Letter> {
-        (0..self.len).map(move |i| self[i])
-    }
-}
-
-impl std::ops::Index<u8> for Placed {
-    type Output = Letter;
-
-    fn index(&self, index: u8) -> &Self::Output {
-        assert!(index < self.len());
-        &self.inner[index as usize]
-    }
-}
-
-impl Debug for Placed {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_list().entries(self.iter()).finish()
-    }
 }
 
 impl Default for PartialScore {
@@ -265,7 +203,8 @@ impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>, const VERTICAL: bool> MoveGen<'_,
 
     fn run(&mut self, deck: Deck) -> ControlFlow<R> {
         let root = self.set.as_fst().root();
-        self.run_recurse_forward(deck, root, 0, Placed::default(), PartialScore::default())
+        let placed_empty = Placed::default_with(Letter::from_index(0));
+        self.run_recurse_forward(deck, root, 0, placed_empty, PartialScore::default())
     }
 
     #[must_use]
@@ -318,7 +257,8 @@ impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>, const VERTICAL: bool> MoveGen<'_,
 
                         let mut new_deck = deck;
                         new_deck.remove(letter, 1);
-                        let new_placed = placed.push_back(letter);
+                        let mut new_placed = placed;
+                        new_placed.push_back(letter);
                         let new_score = score.add(true, letter, &cell);
 
                         self.run_recurse_forward(new_deck, next, forward_count + 1, new_placed, new_score)?;
@@ -339,7 +279,8 @@ impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>, const VERTICAL: bool> MoveGen<'_,
 
                     let mut new_deck = deck;
                     new_deck.remove(letter, 1);
-                    let new_placed = placed.push_back(letter);
+                    let mut new_placed = placed;
+                    new_placed.push_back(letter);
                     let new_score = score.add(true, letter, &cell);
 
                     self.run_recurse_forward(new_deck, next, forward_count + 1, new_placed, new_score)?;
@@ -403,7 +344,8 @@ impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>, const VERTICAL: bool> MoveGen<'_,
 
                         let mut new_deck = deck;
                         new_deck.remove(letter, 1);
-                        let new_placed = placed.insert_front(letter);
+                        let mut new_placed = placed;
+                        new_placed.insert_front(letter);
                         let new_score = score.add(true, letter, &cell);
 
                         self.run_recurse_backward(
@@ -428,7 +370,8 @@ impl<R, F: FnMut(PlaceMove) -> ControlFlow<R>, const VERTICAL: bool> MoveGen<'_,
 
                     let mut new_deck = deck;
                     new_deck.remove(letter, 1);
-                    let new_placed = placed.insert_front(letter);
+                    let mut new_placed = placed;
+                    new_placed.insert_front(letter);
                     let new_score = score.add(true, letter, &cell);
 
                     self.run_recurse_backward(

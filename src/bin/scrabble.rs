@@ -50,21 +50,26 @@ fn main() {
     // test(&set);
 
     // summarize_nodes(&set);
-    // bench(set);
+    bench(set);
     // fuzz(&set);
     // derp(&set);
     // test_gen();
 
+    // estimate_max();
+    // bench_single()
+
+    // solve(&set);
+}
+
+fn estimate_max(set: &Arc<Set>) {
     let mut max_moves = 0;
     let mut max_score = 0;
 
     let mut rng = consistent_rng();
     for _ in 0..16 * 1024 {
-        random_game(&set, &mut rng, &mut max_moves, &mut max_score);
+        random_game(set, &mut rng, &mut max_moves, &mut max_score);
     }
     println!("max moves: {}", max_moves);
-
-    // solve(&set);
 }
 
 fn random_game(set: &Arc<Set>, rng: &mut impl Rng, max_moves: &mut usize, max_score: &mut u32) {
