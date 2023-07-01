@@ -77,9 +77,6 @@
 //! # use board_game::games::ataxx::AtaxxBoard;
 //! # use board_game::ai::Bot;
 //! # use rand::thread_rng;
-//!
-//!
-//!
 //! let board = AtaxxBoard::default();
 //! println!("{}", board);
 //!
