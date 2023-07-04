@@ -13,7 +13,7 @@ pub struct Rules {
 impl Rules {
     const NAMED_RULES: &'static [(&'static str, Rules)] = &[("TT", Rules::tromp_taylor()), ("CGOS", Rules::cgos())];
 
-    /// Tromp-Taylor rules, see https://tromp.github.io/go.html.
+    /// Tromp-Taylor rules, see <https://tromp.github.io/go.html>.
     pub const fn tromp_taylor() -> Self {
         Rules {
             allow_multi_stone_suicide: true,

@@ -170,7 +170,7 @@ impl GoBoard {
     }
 
     /// The territory map computed using Tromp-Taylor rules.
-    /// The returned vec can be indexed by [FlatTile::index].
+    /// The returned vec can be indexed by [`FlatTile::index`](crate::games::go::tile::FlatTile).
     pub fn territory(&self) -> Vec<Territory> {
         self.chains().territory()
     }

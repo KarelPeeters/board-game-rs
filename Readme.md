@@ -19,11 +19,11 @@ Currently, the implemented games are:
 * [Chess](https://en.wikipedia.org/wiki/Chess) as [ChessBoard](https://docs.rs/board-game/latest/board_game/games/chess/struct.ChessBoard.html),
     implemented as a simple wrapper around the [chess](https://crates.io/crates/chess) crate.
 * [Go/Baduk](https://en.wikipedia.org/wiki/Go_(game))
-    as [GoBoard](https://docs.rs/board-game/latest/board_game/games/go/board/struct.GoBoard.html).
+    as [GoBoard](https://docs.rs/board-game/latest/board_game/games/go/struct.GoBoard.html).
 * [Super/Ultimate tic-tac-toe](https://en.wikipedia.org/wiki/Ultimate_tic-tac-toe)
     as [STTTBoard](https://docs.rs/board-game/latest/board_game/games/sttt/struct.STTTBoard.html).
 * [Ataxx](https://en.wikipedia.org/wiki/Ataxx)
-    as [AtaxxBoard](https://docs.rs/board-game/latest/board_game/games/ataxx/board/struct.AtaxxBoard.html).
+    as [AtaxxBoard](https://docs.rs/board-game/latest/board_game/games/ataxx/struct.AtaxxBoard.html).
 * [Oware](https://en.wikipedia.org/wiki/Oware) as [OwareBoard](https://docs.rs/board-game/latest/board_game/games/oware/struct.OwareBoard.html).
 * [Connect4](https://en.wikipedia.org/wiki/Connect_Four) as [Connect4](https://docs.rs/board-game/latest/board_game/games/connect4/struct.Connect4.html).
 * [Tic Tac Toe](https://en.wikipedia.org/wiki/Tic-tac-toe) as [TTTBoard](https://docs.rs/board-game/latest/board_game/games/ttt/struct.TTTBoard.html).

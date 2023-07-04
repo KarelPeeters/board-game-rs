@@ -37,7 +37,7 @@ pub struct PureMap<I, F> {
 
 pub trait IterExt: Iterator {
     /// Pure version of [Iterator::map] that assumes the mapping function does not have side effects.
-    /// This means that implemented functions (like [Self::count], [Self::nth], ...) are allowed to skip calling the mapping function if possible.
+    /// This means that iterator functions (like [Iterator::count], [Iterator::nth], ...) are allowed to skip calling the mapping function if possible.
     /// [Iterator::map] already does this do some extend, but only for a limited set of functions.
     fn pure_map<B, F: Fn(Self::Item) -> B>(self, f: F) -> PureMap<Self, F>
     where

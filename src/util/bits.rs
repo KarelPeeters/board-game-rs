@@ -53,8 +53,8 @@ pub fn get_nth_set_bit<N: PrimInt + Unsigned + WrappingSub>(mut x: N, n: u32) ->
 ///
 /// If the mask has `N` set bits this yields `2 ** N` values.
 ///
-/// Implementation based on https://analog-hors.github.io/writing/magic-bitboards/
-/// and https://www.chessprogramming.org/Traversing_Subsets_of_a_Set#All_Subsets_of_any_Set
+/// Implementation based on <https://analog-hors.github.io/writing/magic-bitboards/>
+/// and <https://www.chessprogramming.org/Traversing_Subsets_of_a_Set#All_Subsets_of_any_Set>
 #[derive(Debug)]
 pub struct SubSetIterator {
     start: bool,
@@ -92,7 +92,7 @@ impl Iterator for SubSetIterator {
 /// If the mask has `N` set bits this yields `nCr(N, M)` values.
 /// Only yields any values if `N >= M`.
 ///
-/// Implementation based on https://www.chessprogramming.org/Traversing_Subsets_of_a_Set#Snoobing_any_Sets
+/// Implementation based on <https://www.chessprogramming.org/Traversing_Subsets_of_a_Set#Snoobing_any_Sets>
 #[derive(Debug)]
 pub struct SubSetCountIterator {
     mask: u64,

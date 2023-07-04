@@ -39,7 +39,7 @@ pub struct TimeInfo {
     pub time_left_opponent: TimeLeft,
 }
 
-/// See http://www.lysator.liu.se/~gunnar/gtp/gtp2-spec-draft2/gtp2-spec.html#sec:time-handling
+/// See <http://www.lysator.liu.se/~gunnar/gtp/gtp2-spec-draft2/gtp2-spec.html#sec:time-handling>
 #[derive(Debug, Copy, Clone)]
 pub struct TimeSettings {
     pub main_time: u32,
