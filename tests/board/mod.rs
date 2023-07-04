@@ -14,6 +14,7 @@ use board_game::util::tiny::consistent_rng;
 
 use crate::util::test_sampler_uniform;
 
+#[cfg(feature = "game-arimaa")]
 mod arimaa;
 mod ataxx;
 mod chess;

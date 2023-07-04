@@ -13,7 +13,7 @@ DO NOT EDIT MANUALLY
 A [Board](https://docs.rs/board-game/latest/board_game/board/trait.Board.html) abstraction for deterministic two player games.
 This allows for code to be generic over the actual game, so it only needs to written once.
 
-## Features
+## Content
 
 Currently, the implemented games are:
 * [Chess](https://en.wikipedia.org/wiki/Chess) as [ChessBoard](https://docs.rs/board-game/latest/board_game/games/chess/struct.ChessBoard.html),

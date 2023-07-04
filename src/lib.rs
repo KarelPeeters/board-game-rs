@@ -8,7 +8,7 @@
 //! A [Board](crate::board::Board) abstraction for deterministic two player games.
 //! This allows for code to be generic over the actual game, so it only needs to written once.
 //!
-//! # Features
+//! # Content
 //!
 //! Currently, the implemented games are:
 //! * [Chess](https://en.wikipedia.org/wiki/Chess) as [ChessBoard](crate::games::chess::ChessBoard),
@@ -85,6 +85,7 @@
 //! ```
 
 // export used game crates
+#[cfg(feature = "game-arimaa")]
 pub use arimaa_engine_step;
 pub use cozy_chess;
 

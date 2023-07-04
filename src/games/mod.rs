@@ -1,3 +1,4 @@
+#[cfg(feature = "game-arimaa")]
 pub mod arimaa;
 pub mod ataxx;
 pub mod chess;

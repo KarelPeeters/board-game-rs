@@ -13,6 +13,7 @@ repository = "https://github.com/KarelPeeters/board-game-rs"
 # TODO check cargo tree and try to shorten
 [features]
 default = []
+game-arimaa = ["dep:arimaa_engine_step"]
 
 [dependencies]
 rand = { version = "0.8.5", features = ["small_rng"] }
@@ -26,7 +27,7 @@ cast_trait = "0.1.2"
 num_cpus = "1.15.0"
 
 cozy-chess = "0.3.2"
-arimaa_engine_step = { version = "1.0.1" } # , path = "../arimaa-engine-step"
+arimaa_engine_step = { version = "1.0.1", optional=true } # , path = "../arimaa-engine-step"
 once_cell = "1.18.0"
 lazy_static = "1.4.0"
 static_assertions = "1.1.0"
