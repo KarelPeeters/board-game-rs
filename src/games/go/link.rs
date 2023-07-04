@@ -67,7 +67,7 @@ impl LinkHead {
             Some(first_id) => first_id,
         };
 
-        let first = &mut storage[first_id as usize].link_mut();
+        let first = storage[first_id as usize].link_mut();
         let next_id = first.next;
 
         // update first
@@ -192,6 +192,7 @@ impl LinkHead {
         seen
     }
 
+    #[must_use]
     pub fn map_index(&self, mut f: impl FnMut(u16) -> u16) -> Self {
         LinkHead {
             first: self.first.map(&mut f),
@@ -228,6 +229,7 @@ impl LinkNode {
         self.prev.is_none() && self.next.is_none()
     }
 
+    #[must_use]
     pub fn map_index(&self, mut f: impl FnMut(u16) -> u16) -> Self {
         LinkNode {
             prev: self.prev.map(&mut f),

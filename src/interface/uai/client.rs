@@ -159,7 +159,7 @@ pub fn run_inner(
 
                 let start = Instant::now();
                 let (best_move, info) = bot(curr_board, time_to_use);
-                let time_used = (Instant::now() - start).as_secs_f32();
+                let time_used = start.elapsed().as_secs_f32();
 
                 output.info(&format!("time used {}s", time_used))?;
                 if !info.is_empty() {

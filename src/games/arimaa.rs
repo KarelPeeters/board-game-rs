@@ -168,7 +168,7 @@ impl InternalIterator for AvailableMovesIterator<'_, ArimaaBoard> {
 
 impl Hash for ArimaaBoard {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write_u64(self.state.transposition_hash())
+        state.write_u64(self.state.transposition_hash());
     }
 }
 

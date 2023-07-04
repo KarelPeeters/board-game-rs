@@ -65,7 +65,7 @@ fn solver_ttt_consistent() {
                 "child {:?} cannot be better then parent {:?}",
                 child_eval,
                 eval.value,
-            )
+            );
         });
 
         println!();

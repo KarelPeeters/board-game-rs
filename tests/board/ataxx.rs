@@ -14,7 +14,7 @@ use crate::board::{board_perft_main, board_test_main};
 fn ataxx_empty() {
     for size in 0..AtaxxBoard::MAX_SIZE {
         println!("Size: {}", size);
-        board_test_main(&AtaxxBoard::empty(size))
+        board_test_main(&AtaxxBoard::empty(size));
     }
 }
 
@@ -70,7 +70,7 @@ fn ataxx_check_tile_count() {
 fn ataxx_diag() {
     for size in 2..AtaxxBoard::MAX_SIZE {
         println!("Size: {}", size);
-        board_test_main(&AtaxxBoard::diagonal(size))
+        board_test_main(&AtaxxBoard::diagonal(size));
     }
 }
 
@@ -83,14 +83,14 @@ fn ataxx_few() {
 fn ataxx_close() {
     let board = AtaxxBoard::from_fen("ooooooo/xxxxooo/oxxxoo1/oxxxooo/ooxoooo/xxxxxoo/xxxxxxx x 0 1").unwrap();
     assert!(!board.is_done());
-    board_test_main(&board)
+    board_test_main(&board);
 }
 
 #[test]
 fn ataxx_done_clear() {
     let board = AtaxxBoard::from_fen("4x2/4xx1/xxx4/1x5/4x2/7/7 o 2 1").unwrap();
     assert_eq!(Some(Outcome::WonBy(Player::A)), board.outcome());
-    board_test_main(&board)
+    board_test_main(&board);
 }
 
 #[test]
@@ -98,7 +98,7 @@ fn ataxx_done_full() {
     let board = AtaxxBoard::from_fen("xxxoxxx/ooooxxx/ooooxxx/xxxooox/xxxooox/xxxxxxx/ooooxxx o 0 1").unwrap();
     assert_eq!(Some(Outcome::WonBy(Player::A)), board.outcome());
     assert!(!board.must_pass());
-    board_test_main(&board)
+    board_test_main(&board);
 }
 
 #[test]
@@ -107,7 +107,7 @@ fn ataxx_forced_pass() {
     assert!(!board.is_done(), "Board is not done, player B can still play");
     assert!(board.must_pass());
     assert_eq!(board.available_moves().unwrap().collect::<Vec<_>>(), vec![Move::Pass]);
-    board_test_main(&board)
+    board_test_main(&board);
 }
 
 #[test]

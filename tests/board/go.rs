@@ -389,7 +389,7 @@ fn score_outcome_komi_failed_draw_b() {
 
 // TODO add profiling
 // TODO unify with board_perft_main
-fn go_perft_main(board: GoBoard, all_expected: &[u64]) {
+fn go_perft_main(board: &GoBoard, all_expected: &[u64]) {
     println!("Running perft with {:?} for:", board.rules());
     println!("{}", board);
 
@@ -397,7 +397,7 @@ fn go_perft_main(board: GoBoard, all_expected: &[u64]) {
 
     for (depth, &expected) in all_expected.iter().enumerate() {
         let start = Instant::now();
-        let value = perft_naive(&board, depth as u32);
+        let value = perft_naive(board, depth as u32);
         let elapsed = start.elapsed();
         let nps = value as f32 / elapsed.as_secs_f32();
 
@@ -417,11 +417,11 @@ fn go_perft_main(board: GoBoard, all_expected: &[u64]) {
 #[ignore]
 fn go_perft_3() {
     go_perft_main(
-        GoBoard::new(3, Komi::zero(), Rules::tromp_taylor()),
+        &GoBoard::new(3, Komi::zero(), Rules::tromp_taylor()),
         &[1, 10, 91, 738, 5281, 33384, 180768, 857576, 3474312, 12912040, 44019568],
     );
     go_perft_main(
-        GoBoard::new(3, Komi::zero(), Rules::cgos()),
+        &GoBoard::new(3, Komi::zero(), Rules::cgos()),
         &[
             1, 10, 91, 738, 5281, 33384, 179712, 842696, 3271208, 11279096, 33786208, 98049080, 276391080, 783708048,
         ],
@@ -432,11 +432,11 @@ fn go_perft_3() {
 #[ignore]
 fn go_perft_5() {
     go_perft_main(
-        GoBoard::new(5, Komi::zero(), Rules::tromp_taylor()),
+        &GoBoard::new(5, Komi::zero(), Rules::tromp_taylor()),
         &[1, 26, 651, 15650, 361041, 7984104, 168759376, 3407616216],
     );
     go_perft_main(
-        GoBoard::new(5, Komi::zero(), Rules::cgos()),
+        &GoBoard::new(5, Komi::zero(), Rules::cgos()),
         &[1, 26, 651, 15650, 361041, 7984104, 168755200, 3407394696],
     );
 }
@@ -445,11 +445,11 @@ fn go_perft_5() {
 #[ignore]
 fn go_perft_19() {
     go_perft_main(
-        GoBoard::new(19, Komi::zero(), Rules::tromp_taylor()),
+        &GoBoard::new(19, Komi::zero(), Rules::tromp_taylor()),
         &[1, 362, 130683, 47046242, 16889859009],
     );
     go_perft_main(
-        GoBoard::new(19, Komi::zero(), Rules::cgos()),
+        &GoBoard::new(19, Komi::zero(), Rules::cgos()),
         &[1, 362, 130683, 47046242, 16889859009],
     );
 }
@@ -458,27 +458,27 @@ fn go_perft_19() {
 fn go_perft_fast() {
     // 5x5 empty
     go_perft_main(
-        GoBoard::new(5, Komi::zero(), Rules::tromp_taylor()),
+        &GoBoard::new(5, Komi::zero(), Rules::tromp_taylor()),
         &[1, 26, 651, 15650, 361041],
     );
 
     // 5x5 pocket
     go_perft_main(
-        GoBoard::from_fen("...../...../...../...b./..b.b w 0", Rules::tromp_taylor()).unwrap(),
+        &GoBoard::from_fen("...../...../...../...b./..b.b w 0", Rules::tromp_taylor()).unwrap(),
         &[1, 22, 485, 9745, 195728],
     );
     go_perft_main(
-        GoBoard::from_fen("...../...../...../...b./..b.b w 0", Rules::cgos()).unwrap(),
+        &GoBoard::from_fen("...../...../...../...b./..b.b w 0", Rules::cgos()).unwrap(),
         &[1, 22, 485, 9745, 195728],
     );
 
     // 5x5 triple ko
     go_perft_main(
-        GoBoard::from_fen(".w.bw/wbbbw/w.bww/bbbw./wwww. b 0", Rules::tromp_taylor()).unwrap(),
+        &GoBoard::from_fen(".w.bw/wbbbw/w.bww/bbbw./wwww. b 0", Rules::tromp_taylor()).unwrap(),
         &[1, 5, 26, 121, 925, 8451, 87647],
     );
     go_perft_main(
-        GoBoard::from_fen(".w.bw/wbbbw/w.bww/bbbw./wwww. b 0", Rules::cgos()).unwrap(),
+        &GoBoard::from_fen(".w.bw/wbbbw/w.bww/bbbw./wwww. b 0", Rules::cgos()).unwrap(),
         &[1, 5, 26, 109, 739, 6347, 62970],
     );
 }

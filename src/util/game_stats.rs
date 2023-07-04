@@ -134,7 +134,7 @@ fn all_possible_boards_impl<B: Board + Hash>(
     start
         .children()
         .unwrap()
-        .for_each(|(_, child)| all_possible_boards_impl(&child, depth - 1, include_done, result, set))
+        .for_each(|(_, child)| all_possible_boards_impl(&child, depth - 1, include_done, result, set));
 }
 
 /// Collect all available moves form `n` games played until the end with random moves.

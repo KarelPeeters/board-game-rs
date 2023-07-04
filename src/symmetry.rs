@@ -12,8 +12,11 @@ use crate::util::coord::Coord;
 /// about the board and its state is invariant under this mapping.
 /// The [Default] value is the identity element.
 pub trait Symmetry: 'static + Default + Debug + Copy + Clone + Eq + PartialEq + Send + Sync {
+    #[must_use]
     fn all() -> &'static [Self];
+    #[must_use]
     fn inverse(self) -> Self;
+    #[must_use]
     fn is_unit() -> bool {
         Self::all().len() == 1
     }
@@ -109,13 +112,13 @@ impl D4Symmetry {
         let max = size - V::one();
 
         if self.transpose {
-            std::mem::swap(&mut x, &mut y)
+            std::mem::swap(&mut x, &mut y);
         };
         if self.flip_x {
-            x = max - x
+            x = max - x;
         };
         if self.flip_y {
-            y = max - y
+            y = max - y;
         };
 
         (x, y)

@@ -30,14 +30,14 @@ pub fn board_test_main<B: Board>(board: &B)
 where
     B::Move: Hash,
 {
-    board_test_main_impl(board, true)
+    board_test_main_impl(board, true);
 }
 
 pub fn board_test_main_without_uniform<B: Board>(board: &B)
 where
     B::Move: Hash,
 {
-    board_test_main_impl(board, false)
+    board_test_main_impl(board, false);
 }
 
 fn board_test_main_impl<B: Board>(board: &B, random_uniform: bool)
@@ -89,7 +89,7 @@ pub fn board_perft_main<S: Debug + ?Sized, T: Debug, B: Board + Hash>(
                 elapsed,
                 perft as f32 / elapsed.as_secs_f32(),
             );
-            assert_eq!(expected_perft, perft)
+            assert_eq!(expected_perft, perft);
         }
     }
 
@@ -151,7 +151,7 @@ where
         if board.is_available_move(mv).unwrap() {
             assert!(available.contains(&mv), "available move {:?} was not generated", mv);
         } else {
-            assert!(!available.contains(&mv), "non-available move {:?} was generated", mv)
+            assert!(!available.contains(&mv), "non-available move {:?} was generated", mv);
         }
     }
 

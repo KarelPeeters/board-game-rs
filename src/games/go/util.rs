@@ -34,6 +34,7 @@ impl OptionU16 {
         }
     }
 
+    #[must_use]
     pub fn or(self, other: Self) -> Self {
         if self.value == u16::MAX {
             other
@@ -42,10 +43,12 @@ impl OptionU16 {
         }
     }
 
+    #[must_use]
     pub fn map(self, f: impl FnMut(u16) -> u16) -> Self {
         Self::from_option(self.to_option().map(f))
     }
 
+    #[must_use]
     pub fn take(&mut self) -> Self {
         std::mem::take(self)
     }

@@ -188,9 +188,11 @@ pub trait BoardSymmetry<B: Board>: Sized {
     type CanonicalKey: Ord;
 
     /// Map this board under the given symmetry.
+    #[must_use]
     fn map(&self, sym: Self::Symmetry) -> Self;
 
     /// Map a move under the given symmetry.
+    #[must_use]
     fn map_move(&self, sym: Self::Symmetry, mv: B::Move) -> B::Move;
 
     /// Extract **all** of the state from this board that can potentially change when calling [Self::map].
@@ -204,11 +206,12 @@ pub trait BoardSymmetry<B: Board>: Sized {
     /// which can be useful for deduplication in things like transposition takes.
     ///
     /// Implementations are free to override this function if they can provide a faster one.
+    #[must_use]
     fn canonicalize(&self) -> Self {
         Self::Symmetry::all()
             .iter()
             .map(|&sym| self.map(sym))
-            .min_by_key(|cand| cand.canonical_key())
+            .min_by_key(Self::canonical_key)
             .unwrap()
     }
 }
@@ -216,6 +219,7 @@ pub trait BoardSymmetry<B: Board>: Sized {
 impl Player {
     pub const BOTH: [Player; 2] = [Player::A, Player::B];
 
+    #[must_use]
     pub fn other(self) -> Player {
         match self {
             Player::A => Player::B,

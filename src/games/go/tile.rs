@@ -78,6 +78,7 @@ impl Tile {
         self.x < size && self.y < size
     }
 
+    #[must_use]
     pub fn map_symmetry(&self, sym: D4Symmetry, size: u8) -> Tile {
         let (x, y) = sym.map_xy(self.x(), self.y(), size);
         Tile::new(x, y)

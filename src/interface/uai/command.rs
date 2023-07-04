@@ -157,7 +157,7 @@ mod tests {
                 moves: None,
             }),
             Command::parse("position fen x5o/2o2o1/7/7/4x2/5xx/o6 x 1 4")
-        )
+        );
     }
 
     #[test]
@@ -176,6 +176,6 @@ mod tests {
                 moves: Some("a b c"),
             }),
             Command::parse("position fen x5o/2o2o1/7/7/4x2/5xx/o6 x 1 4 moves a b c")
-        )
+        );
     }
 }

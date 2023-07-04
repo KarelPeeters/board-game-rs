@@ -298,7 +298,7 @@ impl Chains {
             });
             if reach_a || reach_b {
                 state[tile.index() as usize] = Territory::from_reach(reach_a, reach_b);
-                todo.push_back(tile)
+                todo.push_back(tile);
             }
         }
 
@@ -720,7 +720,7 @@ impl Chains {
             color: group.color,
             stones: LinkHead::empty(),
             liberty_edge_count: 0,
-            zobrist: Default::default(),
+            zobrist: Zobrist::default(),
             dead_link: LinkNode::single(),
         };
 
@@ -728,6 +728,7 @@ impl Chains {
         self.dead_groups.insert_front(id, &mut self.groups);
     }
 
+    #[must_use]
     pub fn map_symmetry(&self, sym: D4Symmetry) -> Chains {
         let size = self.size();
         let map_tile_index = |index: u16| {

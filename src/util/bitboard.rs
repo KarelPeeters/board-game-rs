@@ -38,7 +38,7 @@ impl BitBoard8 {
 
     #[must_use]
     pub fn from_coords(coords: impl IntoIterator<Item = Coord8>) -> BitBoard8 {
-        coords.into_iter().fold(BitBoard8::EMPTY, |b, c| b.set(c))
+        coords.into_iter().fold(BitBoard8::EMPTY, BitBoard8::set)
     }
 
     #[must_use]
@@ -238,19 +238,19 @@ mod operations {
 
     impl std::ops::BitOrAssign for BitBoard8 {
         fn bitor_assign(&mut self, rhs: Self) {
-            self.0 |= rhs.0
+            self.0 |= rhs.0;
         }
     }
 
     impl std::ops::BitAndAssign for BitBoard8 {
         fn bitand_assign(&mut self, rhs: Self) {
-            self.0 &= rhs.0
+            self.0 &= rhs.0;
         }
     }
 
     impl std::ops::BitXorAssign for BitBoard8 {
         fn bitxor_assign(&mut self, rhs: Self) {
-            self.0 ^= rhs.0
+            self.0 ^= rhs.0;
         }
     }
 }
@@ -319,11 +319,11 @@ mod tests {
     }
 
     fn assert_board_eq(expected: BitBoard8, actual: BitBoard8) {
-        if expected != actual {
+        if expected == actual {
+            println!("ok");
+        } else {
             assert_eq!(expected.to_string(), actual.to_string());
             assert_eq!(expected, actual);
-        } else {
-            println!("ok");
         }
     }
 

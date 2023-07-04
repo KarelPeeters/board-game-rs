@@ -62,7 +62,7 @@ impl Board for TTTBoard {
                 self.tiles[li] == Some(self.next_player)
             })
         });
-        let draw = self.tiles.iter().all(|tile| tile.is_some());
+        let draw = self.tiles.iter().all(Option::is_some);
 
         self.outcome = if won {
             Some(Outcome::WonBy(self.next_player))

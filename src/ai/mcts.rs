@@ -104,7 +104,7 @@ impl<M> Node<M> {
                 *wdl += outcome.to_wdl();
             }
             SNodeKind::Solved(_) => {
-                panic!("Cannot increment solved node")
+                panic!("Cannot increment solved node");
             }
         }
     }
@@ -161,7 +161,7 @@ impl<B: AltBoard> Tree<B> {
     pub fn new(root_board: B) -> Self {
         Tree {
             root_board,
-            nodes: Default::default(),
+            nodes: vec![],
         }
     }
 
@@ -202,7 +202,7 @@ impl<B: AltBoard> Tree<B> {
         let node = &self[node];
 
         for _ in 0..depth {
-            print!("  ")
+            print!("  ");
         }
         print!("{:?}: {}, {:.3} <- ", node.last_move, node.visits, node.wdl().value());
 
@@ -226,7 +226,7 @@ impl<B: AltBoard> Tree<B> {
             for child in children {
                 let next_max_depth = if child == best_child { max_depth } else { depth + 1 };
 
-                self.print_impl(child, depth + 1, next_max_depth)
+                self.print_impl(child, depth + 1, next_max_depth);
             }
         }
     }
@@ -301,9 +301,9 @@ fn mcts_solver_step<B: AltBoard>(
             if let Some(outcome) = outcome.flip() {
                 tree[curr_node].mark_solved(outcome);
                 return (outcome, true);
-            } else {
-                children
             }
+
+            children
         }
     };
 

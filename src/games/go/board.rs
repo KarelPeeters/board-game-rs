@@ -132,6 +132,7 @@ impl GoBoard {
         self.history.clear();
     }
 
+    #[must_use]
     pub fn clone_without_history(&self) -> Self {
         Self::from_parts(
             self.rules,
@@ -204,7 +205,7 @@ impl GoBoard {
         self.chains().assert_valid();
 
         if !self.rules().needs_history() {
-            assert!(self.history.is_empty())
+            assert!(self.history.is_empty());
         }
     }
 }
@@ -244,14 +245,14 @@ impl Board for GoBoard {
         let result = match mv {
             Move::Pass => true,
             Move::Place(tile) => {
-                if !tile.exists(self.size()) {
-                    false
-                } else {
+                if tile.exists(self.size()) {
                     let tile = tile.to_flat(self.size());
                     match self.chains.simulate_place_stone_minimal(tile, self.next_player) {
                         Ok(sim) => is_available_move_sim(&self.rules, &self.history, sim.kind, sim.next_zobrist),
                         Err(TileOccupied) => false,
                     }
+                } else {
+                    false
                 }
             }
         };

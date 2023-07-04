@@ -86,7 +86,7 @@ impl Board for Connect4 {
             }
         }
         if self.outcome.is_none() && self.tiles_occupied.count_ones() == (Self::WIDTH * Self::HEIGHT) as u32 {
-            self.outcome = Some(Outcome::Draw)
+            self.outcome = Some(Outcome::Draw);
         }
 
         Ok(())

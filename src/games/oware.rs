@@ -16,7 +16,6 @@
 //! Objective is to capture as many seeds as possible and so the game will conclude early if a
 //! player captures more than half the seeds
 use std::fmt::{Debug, Display, Formatter};
-use std::ops::Range;
 
 use itertools::join;
 
@@ -157,7 +156,7 @@ impl<const PITS: usize> Board for OwareBoard<PITS> {
         if self.pl_pits().all(|x| self.at(x) == 0) && !self.opp_pits().any(|x| self.can_overflow(x)) {
             self.opp_pits().for_each(|x| {
                 self.scores[(player + 1) % 2] += self.capture(x);
-            })
+            });
         }
 
         // Stalemate endgame
@@ -214,7 +213,7 @@ impl<const PITS: usize> crate::board::BoardSymmetry<OwareBoard<PITS>> for OwareB
 }
 
 impl<'a, const PITS: usize> BoardMoves<'a, OwareBoard<PITS>> for OwareBoard<PITS> {
-    type AllMovesIterator = ClonableInternal<Range<usize>>;
+    type AllMovesIterator = ClonableInternal<std::ops::Range<usize>>;
     type AvailableMovesIterator = BruteforceMoveIterator<'a, OwareBoard<PITS>>;
 
     fn all_possible_moves() -> Self::AllMovesIterator {

@@ -1,6 +1,6 @@
 #![allow(clippy::assertions_on_constants)]
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use itertools::Itertools;
 use rand::rngs::SmallRng;
@@ -50,7 +50,7 @@ fn bench(name: &str, mut f: impl FnMut()) {
     }
 
     // print results
-    let timings = timings.iter().map(|d| d.as_secs_f32()).collect_vec();
+    let timings = timings.iter().map(Duration::as_secs_f32).collect_vec();
     let mean = timings.iter().sum::<f32>() / timings.len() as f32;
     let stddev = (timings.iter().map(|&f| (f - mean).powi(2)).sum::<f32>() / timings.len() as f32).sqrt();
 

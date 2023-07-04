@@ -102,7 +102,7 @@ impl ChessBoard {
         self.check_can_play(mv)?;
 
         let piece = match self.inner.piece_on(mv.from).unwrap() {
-            Piece::Pawn => "".to_string(),
+            Piece::Pawn => String::new(),
             Piece::King => match (mv.from.file(), mv.to.file()) {
                 (File::E, File::G) => return Ok("O-O".to_string()),
                 (File::E, File::C) => return Ok("O-O-O".to_string()),
@@ -191,17 +191,17 @@ impl Board for ChessBoard {
 
         // update move counter
         if was_capture || was_pawn_move {
-            self.non_pawn_or_capture_moves = 0
+            self.non_pawn_or_capture_moves = 0;
         } else {
-            self.non_pawn_or_capture_moves += 1
+            self.non_pawn_or_capture_moves += 1;
         };
 
         // update history
         let reset_history = was_capture || was_pawn_move || removed_castle || self.rules.max_repetitions.is_none();
         if reset_history {
-            self.history.clear()
+            self.history.clear();
         } else {
-            self.history.push(prev)
+            self.history.push(prev);
         }
 
         // update repetition counter based on history

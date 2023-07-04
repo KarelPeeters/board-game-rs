@@ -181,6 +181,7 @@ impl<V: num_traits::Float> WDL<V> {
         }
     }
 
+    #[must_use]
     pub fn normalized(self) -> WDL<V> {
         self / self.sum()
     }

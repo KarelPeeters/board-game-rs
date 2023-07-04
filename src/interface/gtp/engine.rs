@@ -145,37 +145,37 @@ impl GtpEngineState {
         Ok(())
     }
 
-    fn handle_command(&mut self, command: Command, engine: &mut impl GtpBot, log: &mut impl Write) -> ResponseInner {
+    fn handle_command(&mut self, command: &Command, engine: &mut impl GtpBot, log: &mut impl Write) -> ResponseInner {
         let kind = CommandKind::from_str(&command.name);
         // TODO find nice way to handle command arg length checking
 
         match kind {
             Ok(CommandKind::Name) => {
-                check_arg_count(&command, 0)?;
+                check_arg_count(command, 0)?;
                 Ok(Some("kZero".to_string()))
             }
             Ok(CommandKind::ProtocolVersion) => {
-                check_arg_count(&command, 0)?;
+                check_arg_count(command, 0)?;
                 Ok(Some("2".to_string()))
             }
             Ok(CommandKind::Version) => {
-                check_arg_count(&command, 0)?;
+                check_arg_count(command, 0)?;
                 Ok(Some("0.1.0".to_string()))
             }
             Ok(CommandKind::KnownCommand) => {
-                check_arg_count(&command, 1)?;
+                check_arg_count(command, 1)?;
                 let command_name = &command.args[0];
                 let known = CommandKind::from_str(command_name).is_ok();
                 Ok(Some(known.to_string()))
             }
             Ok(CommandKind::ListCommands) => {
-                check_arg_count(&command, 0)?;
+                check_arg_count(command, 0)?;
                 let list = CommandKind::ALL.iter().map(|c| format!("{}", c)).join("\n");
                 Ok(Some(list))
             }
             Ok(CommandKind::Quit) => unreachable!(),
             Ok(CommandKind::BoardSize) => {
-                check_arg_count(&command, 1)?;
+                check_arg_count(command, 1)?;
                 let new_size = &command.args[0];
 
                 if let Ok(new_size) = u8::from_str(new_size) {
@@ -189,12 +189,12 @@ impl GtpEngineState {
                 Err("unacceptable size".to_string())
             }
             Ok(CommandKind::ClearBoard) => {
-                check_arg_count(&command, 0)?;
+                check_arg_count(command, 0)?;
                 self.clear();
                 Ok(None)
             }
             Ok(CommandKind::Komi) => {
-                check_arg_count(&command, 1)?;
+                check_arg_count(command, 1)?;
                 let new_komi = &command.args[0];
                 match Komi::from_str(new_komi) {
                     Ok(new_komi) => {
@@ -205,7 +205,7 @@ impl GtpEngineState {
                 }
             }
             Ok(CommandKind::Play) => {
-                check_arg_count(&command, 2)?;
+                check_arg_count(command, 2)?;
                 let color = &command.args[0];
                 let vertex = &command.args[1];
 
@@ -221,7 +221,7 @@ impl GtpEngineState {
                 }
             }
             Ok(CommandKind::GenMove) => {
-                check_arg_count(&command, 1)?;
+                check_arg_count(command, 1)?;
                 let color = &command.args[0];
                 let player = player_from_color(color)?;
 
@@ -245,7 +245,7 @@ impl GtpEngineState {
                 Ok(Some(vertex))
             }
             Ok(CommandKind::Undo) => {
-                check_arg_count(&command, 0)?;
+                check_arg_count(command, 0)?;
                 if let Some(old_state) = self.stack.pop() {
                     self.state = old_state;
                     Ok(None)
@@ -254,7 +254,7 @@ impl GtpEngineState {
                 }
             }
             Ok(CommandKind::TimeSettings) => {
-                check_arg_count(&command, 3)?;
+                check_arg_count(command, 3)?;
 
                 let main_time = u32::from_str(&command.args[0]).map_err(|_| "syntax error".to_string())?;
                 let byo_yomi_time = u32::from_str(&command.args[1]).map_err(|_| "syntax error".to_string())?;
@@ -267,7 +267,7 @@ impl GtpEngineState {
                 Ok(None)
             }
             Ok(CommandKind::TimeLeft) => {
-                check_arg_count(&command, 3)?;
+                check_arg_count(command, 3)?;
 
                 let color = &command.args[0];
                 let player = player_from_color(color)?;
@@ -293,7 +293,7 @@ impl GtpEngineState {
                 Ok(Some(str))
             }
             Ok(CommandKind::FinalStatusList) => {
-                check_arg_count(&command, 1)?;
+                check_arg_count(command, 1)?;
                 let kind = &command.args[0];
                 let kind = match FinalStatusKind::from_str(kind) {
                     Ok(kind) => kind,
@@ -351,7 +351,7 @@ impl GtpEngineState {
                 }
 
                 let id = command.id;
-                let inner = self.handle_command(command, &mut engine, &mut log);
+                let inner = self.handle_command(&command, &mut engine, &mut log);
                 let response = Response::new(id, inner);
 
                 // the output stream disconnecting is not really an error

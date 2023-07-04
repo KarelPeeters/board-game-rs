@@ -30,7 +30,7 @@ impl StackVec4 {
 
         for v in self.values {
             if v != u16::MAX {
-                f(v)
+                f(v);
             }
         }
     }

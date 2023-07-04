@@ -98,7 +98,7 @@ impl FromStr for Tile {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         check(s.len() >= 2 && s.is_ascii(), InvalidTile)?;
-        let split = s.bytes().take_while(|c| c.is_ascii_alphabetic()).count();
+        let split = s.bytes().take_while(u8::is_ascii_alphabetic).count();
 
         let x = TileX::from_str(&s[..split]).map_err(|_| InvalidTile)?.0;
 

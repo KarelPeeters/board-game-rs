@@ -221,6 +221,6 @@ mod tests {
             name: OptionName::OpponentRating,
             value: Some("1325".to_owned()),
         };
-        assert_eq!(parsed, Ok(expected))
+        assert_eq!(parsed, Ok(expected));
     }
 }

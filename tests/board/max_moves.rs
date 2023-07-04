@@ -11,7 +11,7 @@ fn basic_draw() {
     let dummy = DummyGame::from_str("((((A))))").unwrap();
     let board = MaxMovesBoard::new(dummy, 2);
 
-    test_outcomes(board, &[None, None, Some(Outcome::Draw)])
+    test_outcomes(board, &[None, None, Some(Outcome::Draw)]);
 }
 
 #[test]
@@ -19,7 +19,7 @@ fn basic_finished() {
     let dummy = DummyGame::from_str("((((A))))").unwrap();
     let board = MaxMovesBoard::new(dummy, 10);
 
-    test_outcomes(board, &[None, None, None, None, Some(Outcome::WonBy(Player::A))])
+    test_outcomes(board, &[None, None, None, None, Some(Outcome::WonBy(Player::A))]);
 }
 
 fn test_outcomes(mut board: MaxMovesBoard<DummyGame>, outcomes: &[Option<Outcome>]) {

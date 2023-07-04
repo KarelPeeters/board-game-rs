@@ -89,7 +89,7 @@ impl Tree {
         if let Tree::Node(boards) = self {
             *self = boards.swap_remove(i);
         } else {
-            panic!()
+            panic!();
         }
     }
 }

@@ -8,6 +8,7 @@ pub trait NonPov: Sized {
     fn pov(self, pov: Player) -> Self::Output;
 
     /// Flip this outcome.
+    #[must_use]
     fn flip(self) -> Self {
         // this is kind of cursed
         self.pov(Player::A).un_pov(Player::B)
@@ -22,6 +23,7 @@ pub trait Pov: Sized {
     fn un_pov(self, pov: Player) -> Self::Output;
 
     /// Flip this outcome.
+    #[must_use]
     fn flip(self) -> Self {
         // this is kind of cursed
         self.un_pov(Player::A).pov(Player::B)

@@ -179,7 +179,7 @@ impl BoardSymmetry<STTTBoard> for STTTBoard {
     fn map(&self, sym: D4Symmetry) -> STTTBoard {
         let mut grids = [0; 9];
         for oo in 0..9 {
-            grids[map_oo(sym, oo) as usize] = map_grid(sym, self.grids[oo as usize])
+            grids[map_oo(sym, oo) as usize] = map_grid(sym, self.grids[oo as usize]);
         }
 
         STTTBoard {
@@ -323,12 +323,12 @@ fn map_grid(sym: D4Symmetry, grid: u32) -> u32 {
 }
 
 fn is_win_grid(grid: u32) -> bool {
-    debug_assert!(has_mask(STTTBoard::FULL_MASK, grid));
-
     const WIN_GRIDS: [u32; 16] = [
         2155905152, 4286611584, 4210076288, 4293962368, 3435954304, 4291592320, 4277971584, 4294748800, 2863300736,
         4294635760, 4210731648, 4294638320, 4008607872, 4294897904, 4294967295, 4294967295,
     ];
+
+    debug_assert!(has_mask(STTTBoard::FULL_MASK, grid));
     has_bit(WIN_GRIDS[(grid / 32) as usize], (grid % 32) as u8)
 }
 
@@ -451,7 +451,7 @@ pub fn board_from_compact_string(s: &str) -> STTTBoard {
     if let Some((last_player, last_coord)) = last_move {
         board.set_tile_and_update(last_player, last_coord);
         board.last_move = Some(last_coord);
-        board.next_player = last_player.other()
+        board.next_player = last_player.other();
     }
 
     board

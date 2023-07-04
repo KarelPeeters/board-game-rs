@@ -171,7 +171,7 @@ impl<M, R: Rng> MoveSelector<M> for RandomMoveSelector<M, R> {
     fn accept(&mut self, mv: M) {
         self.count += 1;
         if self.rng.gen_range(0..self.count) == 0 {
-            self.picked = Some(mv)
+            self.picked = Some(mv);
         }
     }
 
@@ -187,9 +187,7 @@ struct AllMoveSelector<M> {
 
 impl<M> AllMoveSelector<M> {
     pub fn new() -> Self {
-        AllMoveSelector {
-            moves: Default::default(),
-        }
+        AllMoveSelector { moves: vec![] }
     }
 }
 
@@ -201,7 +199,7 @@ impl<M> MoveSelector<M> for AllMoveSelector<M> {
     }
 
     fn accept(&mut self, mv: M) {
-        self.moves.push(mv)
+        self.moves.push(mv);
     }
 
     fn finish(self) -> Self::Result {
@@ -236,10 +234,10 @@ fn negamax_recurse<B: Board, H: Heuristic<B>, S: MoveSelector<B::Move>>(
         let child_heuristic = heuristic.value_update(board, board_heuristic, length, mv, &child);
 
         let maybe_neg = |v: H::V| {
-            if child.next_player() != board.next_player() {
-                -v
-            } else {
+            if child.next_player() == board.next_player() {
                 v
+            } else {
+                -v
             }
         };
 

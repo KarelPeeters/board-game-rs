@@ -121,7 +121,7 @@ impl FromStr for Command {
         };
 
         let name = tokens.pop_front().ok_or(InvalidCommand)?.to_owned();
-        let args = tokens.into_iter().map(|s| s.to_owned()).collect_vec();
+        let args = tokens.into_iter().map(str::to_owned).collect_vec();
 
         Ok(Command { id, name, args })
     }
@@ -175,7 +175,7 @@ mod test {
     #[test]
     fn parse_all() {
         for &kind in CommandKind::ALL {
-            assert_eq!(Ok(kind), CommandKind::from_str(&kind.to_string()))
+            assert_eq!(Ok(kind), CommandKind::from_str(&kind.to_string()));
         }
     }
 }

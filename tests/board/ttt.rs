@@ -6,7 +6,7 @@ use crate::board::board_test_main;
 
 #[test]
 fn empty() {
-    board_test_main(&TTTBoard::default())
+    board_test_main(&TTTBoard::default());
 }
 
 #[test]
@@ -14,7 +14,7 @@ fn one_move() {
     let mut board = TTTBoard::default();
     board.play(Coord3::from_xy(1, 0)).unwrap();
 
-    board_test_main(&TTTBoard::default())
+    board_test_main(&TTTBoard::default());
 }
 
 #[test]
