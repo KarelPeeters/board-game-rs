@@ -1,7 +1,3 @@
-use std::str::FromStr;
-
-use chess::ChessMove;
-
 use board_game::board::Board;
 use board_game::games::chess::{ChessBoard, Rules};
 
@@ -21,10 +17,10 @@ fn chess_en_passant() {
     let mut board = ChessBoard::default();
     for &mv in &moves {
         println!("{}", board);
-        board.play(ChessMove::from_san(board.inner(), mv).unwrap()).unwrap();
+        board.play(board.parse_move(mv).unwrap()).unwrap();
     }
 
-    let capture = ChessMove::from_san(board.inner(), "ed6").unwrap();
+    let capture = board.parse_move("ed6").unwrap();
     assert!(board.is_available_move(capture).unwrap());
 
     board_test_main(&board);
@@ -33,7 +29,8 @@ fn chess_en_passant() {
 #[test]
 fn test_parse_castle_white() {
     let board =
-        ChessBoard::new_without_history_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1", Rules::default());
+        ChessBoard::new_without_history_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1", Rules::default())
+            .unwrap();
 
     let short = board.parse_move("O-O").unwrap();
     assert_eq!(short, board.parse_move("e1h1").unwrap());
@@ -44,7 +41,8 @@ fn test_parse_castle_white() {
 #[test]
 fn test_parse_castle_black() {
     let board =
-        ChessBoard::new_without_history_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQkq - 0 1", Rules::default());
+        ChessBoard::new_without_history_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQkq - 0 1", Rules::default())
+            .unwrap();
 
     let short = board.parse_move("O-O").unwrap();
     assert_eq!(short, board.parse_move("e8h8").unwrap());
@@ -57,7 +55,7 @@ fn test_parse_castle_black() {
 fn chess_perft() {
     #[rustfmt::skip]
         board_perft_main(
-        |s| ChessBoard::new_without_history(chess::Board::from_str(s).unwrap(), Rules::default()),
+        |s| ChessBoard::new_without_history_fen(s, Rules::default()).unwrap(),
         Some(|b: &ChessBoard| b.inner().to_string()),
         vec![
             ("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", vec![1, 20, 400, 8902, 197281, 4865609]),

@@ -1,6 +1,6 @@
 use std::cmp::{max, Ordering};
 
-use chess::{Piece, ALL_PIECES};
+use cozy_chess::{Color, Piece};
 
 use crate::ai::minimax::Heuristic;
 use crate::ai::solver::SolverHeuristic;
@@ -20,7 +20,7 @@ impl Heuristic<ChessBoard> for ChessPieceValueHeuristic {
 
         let mut total = 0;
 
-        for piece in ALL_PIECES {
+        for piece in Piece::ALL {
             let value = match piece {
                 Piece::Pawn => 1,
                 Piece::Knight | Piece::Bishop => 3,
@@ -29,14 +29,10 @@ impl Heuristic<ChessBoard> for ChessPieceValueHeuristic {
                 Piece::King => 0,
             };
 
-            for square in *board.inner().pieces(piece) {
-                // we can unwrap here since we're iterating over the squares that contain the current piece,
-                //   so we know the square must also have a color
-                if board.inner().color_on(square).unwrap() == board.inner().side_to_move() {
-                    total += value;
-                } else {
-                    total -= value;
-                }
+            for color in Color::ALL {
+                let sign = if color == board.inner().side_to_move() { 1 } else { -1 };
+                let count = board.inner().colored_pieces(color, piece).len();
+                total += sign * value * (count as i32);
             }
         }
 

@@ -86,7 +86,7 @@
 
 // export used game crates
 pub use arimaa_engine_step;
-pub use chess;
+pub use cozy_chess;
 
 pub mod board;
 pub mod symmetry;

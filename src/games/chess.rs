@@ -1,19 +1,19 @@
-use std::borrow::Cow;
 use std::fmt::{Debug, Write};
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 use std::ops::ControlFlow;
 use std::str::FromStr;
 
-use chess::{BoardStatus, ChessMove, Color, File, MoveGen, Piece, Square};
+use cozy_chess::{BitBoard, Color, FenParseError, File, GameStatus, Move, Piece};
 use internal_iterator::InternalIterator;
-use rand::Rng;
 
 use crate::board::{
     AllMovesIterator, Alternating, AvailableMovesIterator, Board, BoardDone, BoardMoves, Outcome, PlayError, Player,
 };
 use crate::impl_unit_symmetry_board;
 use crate::util::bot_game::Replay;
+
+type InnerBoard = cozy_chess::Board;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Rules {
@@ -25,8 +25,10 @@ pub struct Rules {
 pub struct ChessBoard {
     rules: Rules,
 
-    inner: chess::Board,
-    history: Vec<chess::Board>,
+    // we don't use the half-move counter in the inner board, since it's hardcoded to stop at 100
+    //   while we have to support arbitrary rules
+    inner: InnerBoard,
+    history: Vec<InnerBoard>,
 
     // cached values
     non_pawn_or_capture_moves: u16,
@@ -44,22 +46,28 @@ pub struct ParseMoveError {
 #[derive(Debug)]
 pub enum ParseMoveErrorKind {
     BoardDone,
-    ParseError(chess::Error),
-    Unavailable(ChessMove),
+    Unavailable(Move),
+    ParseError,
 }
 
 impl ChessBoard {
     pub fn default_with_rules(rules: Rules) -> Self {
-        Self::new_without_history(chess::Board::default(), rules)
+        Self::new_without_history(InnerBoard::default(), rules)
     }
 
-    pub fn new_without_history_fen(fen: &str, rules: Rules) -> Self {
-        Self::new_without_history(chess::Board::from_str(fen).unwrap(), rules)
+    pub fn new_without_history_fen(fen: &str, rules: Rules) -> Result<Self, FenParseError> {
+        Ok(Self::new_without_history(InnerBoard::from_fen(fen, false)?, rules))
     }
 
     /// Construct a new board from an inner chess board, without any history (including repetition and reset counters).
     /// To get a board _with_ history start from the initial board and play the moves on it instead.
-    pub fn new_without_history(inner: chess::Board, rules: Rules) -> Self {
+    pub fn new_without_history(inner: InnerBoard, rules: Rules) -> Self {
+        // TODO get this working correctly
+        assert_eq!(
+            rules.max_moves_without_pawn_or_capture,
+            Some(100),
+            "for now only exact 50-move rule is supported"
+        );
         ChessBoard {
             rules,
             inner,
@@ -70,87 +78,69 @@ impl ChessBoard {
         }
     }
 
-    pub fn parse_move(&self, mv_str: &str) -> Result<ChessMove, Box<ParseMoveError>> {
-        self.check_done().map_err(|_| ParseMoveError {
+    pub fn parse_move(&self, mv_str: &str) -> Result<Move, Box<ParseMoveError>> {
+        let err = |kind| ParseMoveError {
             board: self.clone(),
             mv: mv_str.to_owned(),
-            kind: ParseMoveErrorKind::BoardDone,
-        })?;
-
-        let mv = parse_move_inner_impl(self, mv_str)?;
-
-        // fix alternative castling move representation
-        let current = &self.inner;
-        let from = mv.get_source();
-        let to = mv.get_dest();
-        let next = current.side_to_move();
-        let is_alternative_castling_format = current.piece_on(from) == Some(Piece::King)
-            && current.piece_on(to) == Some(Piece::Rook)
-            && current.color_on(from) == Some(next)
-            && current.color_on(to) == Some(next);
-        let mv = if is_alternative_castling_format {
-            assert!(from.get_rank() == to.get_rank() && mv.get_promotion().is_none());
-            let from_file = from.get_file().to_index() as i8;
-            let direction = (to.get_file().to_index() as i8 - from_file).signum();
-            let to_file = File::from_index((from_file + 2 * direction) as usize);
-            let actual_to = Square::make_square(to.get_rank(), to_file);
-            ChessMove::new(from, actual_to, None)
-        } else {
-            mv
+            kind,
         };
+        self.check_done().map_err(|_| err(ParseMoveErrorKind::BoardDone))?;
+
+        // this already ignored any extra characters for us (which is a bit sketchy)
+        let mv = Move::from_str(mv_str).map_err(|_| err(ParseMoveErrorKind::ParseError))?;
 
         // ensure the move is actually available
-        //   we can unwrap here since we already checked the board is not done
+        //   we can unwrap here since we already checked that the board is not done
         if self.is_available_move(mv).unwrap() {
             Ok(mv)
         } else {
-            Err(Box::new(ParseMoveError {
-                board: self.clone(),
-                mv: mv_str.to_owned(),
-                kind: ParseMoveErrorKind::Unavailable(mv),
-            }))
+            Err(Box::new(err(ParseMoveErrorKind::Unavailable(mv))))
         }
     }
 
-    pub fn to_san(&self, mv: ChessMove) -> Result<String, PlayError> {
+    pub fn to_san(&self, mv: Move) -> Result<String, PlayError> {
         self.check_can_play(mv)?;
 
-        let piece = match self.inner.piece_on(mv.get_source()).unwrap() {
+        let piece = match self.inner.piece_on(mv.from).unwrap() {
             Piece::Pawn => "".to_string(),
-            Piece::King => match (mv.get_source().get_file(), mv.get_dest().get_file()) {
+            Piece::King => match (mv.from.file(), mv.to.file()) {
                 (File::E, File::G) => return Ok("O-O".to_string()),
                 (File::E, File::C) => return Ok("O-O-O".to_string()),
                 _ => "K".to_string(),
             },
-            piece => piece.to_string(Color::White),
+            piece => {
+                let c: char = piece.into();
+                c.to_ascii_uppercase().to_string()
+            }
         };
 
         let mut result = String::new();
         let f = &mut result;
 
-        write!(f, "{}{}{}", piece, mv.get_source(), mv.get_dest()).unwrap();
-        if let Some(promotion) = mv.get_promotion() {
-            write!(f, "={}", promotion.to_string(Color::White)).unwrap();
+        write!(f, "{}{}{}", piece, mv.from, mv.to).unwrap();
+        if let Some(promotion) = mv.promotion {
+            let c: char = promotion.into();
+            write!(f, "={}", c.to_ascii_uppercase()).unwrap();
         }
 
         Ok(result)
     }
 
     /// Count how often the given position occurs in this boards history.
-    pub fn repetitions_for(&self, board: &chess::Board) -> usize {
+    pub fn repetitions_for(&self, board: &InnerBoard) -> usize {
         // TODO we only need to check half of the history, depending on the color xor
-        self.history.iter().filter(|&h| h == board).count()
+        self.history.iter().filter(|&h| h.same_position(board)).count()
     }
 
     pub fn rules(&self) -> Rules {
         self.rules
     }
 
-    pub fn inner(&self) -> &chess::Board {
+    pub fn inner(&self) -> &InnerBoard {
         &self.inner
     }
 
-    pub fn history(&self) -> &Vec<chess::Board> {
+    pub fn history(&self) -> &Vec<InnerBoard> {
         &self.history
     }
 
@@ -163,36 +153,6 @@ impl ChessBoard {
     }
 }
 
-fn parse_move_inner_impl(board: &ChessBoard, mv_str: &str) -> Result<ChessMove, Box<ParseMoveError>> {
-    // first try parsing it as a pgn move
-    if let Ok(mv) = ChessMove::from_str(mv_str) {
-        return Ok(mv);
-    }
-
-    // the chess crate move parsing is kind of strange, so we need to help it a bit
-    let removed_chars: &[char] = &['=', '+', '#'];
-    let mv_norm = if mv_str.contains(removed_chars) {
-        Cow::from(mv_str.replace(removed_chars, ""))
-    } else {
-        Cow::from(mv_str)
-    };
-
-    match ChessMove::from_san(board.inner(), &mv_norm) {
-        Ok(mv) => Ok(mv),
-        Err(original_err) => {
-            // try appending e.p. to get it to parse an en passant move
-            let mv_ep = mv_norm.clone() + " e.p.";
-            ChessMove::from_san(board.inner(), &mv_ep).map_err(|_ep_err| {
-                Box::new(ParseMoveError {
-                    board: board.clone(),
-                    mv: mv_str.to_owned(),
-                    kind: ParseMoveErrorKind::ParseError(original_err),
-                })
-            })
-        }
-    }
-}
-
 impl Default for ChessBoard {
     fn default() -> Self {
         ChessBoard::default_with_rules(Rules::default())
@@ -200,7 +160,7 @@ impl Default for ChessBoard {
 }
 
 impl Board for ChessBoard {
-    type Move = ChessMove;
+    type Move = Move;
 
     fn next_player(&self) -> Player {
         color_to_player(self.inner.side_to_move())
@@ -208,30 +168,23 @@ impl Board for ChessBoard {
 
     fn is_available_move(&self, mv: Self::Move) -> Result<bool, BoardDone> {
         self.check_done()?;
-        Ok(self.inner.legal(mv))
-    }
-
-    fn random_available_move(&self, rng: &mut impl Rng) -> Result<Self::Move, BoardDone> {
-        self.check_done()?;
-        let mut move_gen = MoveGen::new_legal(&self.inner);
-        let picked = rng.gen_range(0..move_gen.len());
-        Ok(move_gen.nth(picked).unwrap())
+        Ok(self.inner.is_legal(mv))
     }
 
     fn play(&mut self, mv: Self::Move) -> Result<(), PlayError> {
-        self.check_can_play(mv)?;
+        self.check_done()?;
 
         // keep track of stats for reversible moves
-        let prev = self.inner;
+        let prev = self.inner.clone();
         let old_side_to_move = prev.side_to_move();
         let old_castle_rights = prev.castle_rights(old_side_to_move);
 
-        let moved_piece = prev.piece_on(mv.get_source()).unwrap();
-        let was_capture = prev.color_on(mv.get_dest()).is_some();
+        let moved_piece = prev.piece_on(mv.from).unwrap();
+        let was_capture = prev.color_on(mv.to).is_some();
         let was_pawn_move = moved_piece == Piece::Pawn;
 
         // make the move
-        self.inner = prev.make_move_new(mv);
+        self.inner.try_play(mv).map_err(|_| PlayError::UnavailableMove)?;
 
         // collect more stats
         let removed_castle = old_castle_rights != self.inner.castle_rights(old_side_to_move);
@@ -259,9 +212,9 @@ impl Board for ChessBoard {
             Some(Outcome::Draw)
         } else {
             match self.inner.status() {
-                BoardStatus::Ongoing => None,
-                BoardStatus::Stalemate => Some(Outcome::Draw),
-                BoardStatus::Checkmate => Some(Outcome::WonBy(self.next_player().other())),
+                GameStatus::Won => Some(Outcome::WonBy(self.next_player().other())),
+                GameStatus::Drawn => Some(Outcome::Draw),
+                GameStatus::Ongoing => None,
             }
         };
 
@@ -295,16 +248,24 @@ impl<'a> BoardMoves<'a, ChessBoard> for ChessBoard {
 }
 
 impl InternalIterator for AllMovesIterator<ChessBoard> {
-    type Item = ChessMove;
+    type Item = Move;
 
     fn try_for_each<R, F: FnMut(Self::Item) -> ControlFlow<R>>(self, mut f: F) -> ControlFlow<R> {
         //TODO we're yielding a *lot* of impossible moves here
-        for from in chess::ALL_SQUARES {
-            for to in chess::ALL_SQUARES {
-                f(ChessMove::new(from, to, None))?;
+        for from in BitBoard::FULL {
+            for to in BitBoard::FULL {
+                f(Move {
+                    from,
+                    to,
+                    promotion: None,
+                })?;
 
-                for piece in chess::PROMOTION_PIECES {
-                    f(ChessMove::new(from, to, Some(piece)))?;
+                for piece in Piece::ALL {
+                    f(Move {
+                        from,
+                        to,
+                        promotion: Some(piece),
+                    })?;
                 }
             }
         }
@@ -314,15 +275,39 @@ impl InternalIterator for AllMovesIterator<ChessBoard> {
 }
 
 impl InternalIterator for AvailableMovesIterator<'_, ChessBoard> {
-    type Item = ChessMove;
+    type Item = Move;
 
-    fn try_for_each<R, F>(self, f: F) -> ControlFlow<R>
+    fn try_for_each<R, F>(self, mut f: F) -> ControlFlow<R>
     where
         F: FnMut(Self::Item) -> ControlFlow<R>,
     {
-        // TODO ideally we'd cache this MoveGen instance so cloning this iterator doesn't need to recreate it
-        //   unfortunately MoveGen does not implement Clone and has private fields
-        MoveGen::new_legal(self.board().inner()).try_for_each(f)
+        let mut break_value = None;
+        let did_break = self
+            .board()
+            .inner
+            .generate_moves(|piece| match piece.into_iter().try_for_each(&mut f) {
+                ControlFlow::Continue(()) => false,
+                ControlFlow::Break(value) => {
+                    debug_assert!(break_value.is_none());
+                    break_value = Some(value);
+                    true
+                }
+            });
+
+        debug_assert_eq!(break_value.is_some(), did_break);
+        match break_value {
+            None => ControlFlow::Continue(()),
+            Some(value) => ControlFlow::Break(value),
+        }
+    }
+
+    fn count(self) -> usize {
+        let mut result = 0;
+        self.board().inner.generate_moves(|piece| {
+            result += piece.len();
+            false
+        });
+        result
     }
 }
 
@@ -353,7 +338,7 @@ impl Rules {
         let draw_reversible = self
             .max_moves_without_pawn_or_capture
             .map_or(false, |m| board.non_pawn_or_capture_moves >= m);
-        let only_kings = board.inner.combined().popcnt() == 2;
+        let only_kings = board.inner.colors(Color::Black).len() == 1 && board.inner.colors(Color::White).len() == 1;
         draw_repetitions || draw_reversible || only_kings
     }
 }
@@ -387,7 +372,7 @@ impl Display for ChessBoard {
     }
 }
 
-pub fn chess_game_to_pgn(white: &str, black: &str, start: &ChessBoard, moves: &[ChessMove]) -> String {
+pub fn chess_game_to_pgn(white: &str, black: &str, start: &ChessBoard, moves: &[Move]) -> String {
     let mut result = String::new();
     let f = &mut result;
 
