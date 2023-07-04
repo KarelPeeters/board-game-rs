@@ -21,9 +21,7 @@ num-traits = "0.2.15"
 nom = "7.1.3"
 rand_xoshiro = "0.6.0"
 cast_trait = "0.1.2"
-
-# TODO rayon is only used in bot_game, maybe we can move that into a separate crate?
-rayon = "1.7.0"
+num_cpus = "1.15.0"
 
 # TODO the chess crate is heavy (and takes a long time to build, see below "temp fix"), maybe replace it with
 #  cozy-chess or shakmaty

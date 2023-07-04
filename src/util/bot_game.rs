@@ -1,12 +1,12 @@
 //! Utilities to run bots against each other and report the results.
 use std::fmt::Write;
 use std::fmt::{Debug, Formatter};
+use std::sync::atomic::AtomicU32;
+use std::sync::mpsc::channel;
 use std::sync::Mutex;
 use std::time::Instant;
 
 use itertools::Itertools;
-use rayon::iter::IntoParallelIterator;
-use rayon::iter::ParallelIterator;
 
 use crate::ai::Bot;
 use crate::board::{Board, Outcome, Player};
@@ -27,6 +27,7 @@ pub fn run<B: Board, L: Bot<B> + Debug, R: Bot<B> + Debug>(
     bot_r: impl Fn() -> R + Sync,
     games_per_side: u32,
     both_sides: bool,
+    cores: Option<usize>,
     callback: impl Fn(WDL<u32>, &Replay<B>) + Sync,
 ) -> BotGameResult<B> {
     let callback = &callback;
@@ -40,23 +41,19 @@ pub fn run<B: Board, L: Bot<B> + Debug, R: Bot<B> + Debug>(
 
     let partial_wdl = Mutex::new(WDL::<u32>::default());
 
-    let replays: Vec<Replay<B>> = (0..game_count)
-        .into_par_iter()
-        .panic_fuse()
-        .map(|game_i| {
-            let flip = if both_sides { game_i % 2 == 1 } else { false };
-            let pair_i = if both_sides { game_i / 2 } else { game_i };
-            let start = &starts[pair_i as usize];
+    let replays: Vec<Replay<B>> = parallel_map_unordered(cores, game_count, |game_i| {
+        let flip = if both_sides { game_i % 2 == 1 } else { false };
+        let pair_i = if both_sides { game_i / 2 } else { game_i };
+        let start = &starts[pair_i as usize];
 
-            let replay = play_single_game(start, flip, &mut bot_l(), &mut bot_r());
+        let replay = play_single_game(start, flip, &mut bot_l(), &mut bot_r());
 
-            let mut partial_wdl = partial_wdl.lock().unwrap();
-            *partial_wdl += replay.outcome.pov(replay.player_l).to_wdl();
-            callback(*partial_wdl, &replay);
+        let mut partial_wdl = partial_wdl.lock().unwrap();
+        *partial_wdl += replay.outcome.pov(replay.player_l).to_wdl();
+        callback(*partial_wdl, &replay);
 
-            replay
-        })
-        .collect();
+        replay
+    });
 
     let total_time_l = replays.iter().map(|r| r.total_time_l).sum::<f32>();
     let total_time_r = replays.iter().map(|r| r.total_time_r).sum::<f32>();
@@ -73,6 +70,51 @@ pub fn run<B: Board, L: Bot<B> + Debug, R: Bot<B> + Debug>(
         debug_r,
         replays,
     }
+}
+
+fn parallel_map_unordered<R: Send>(cores: Option<usize>, len: u32, f: impl Fn(u32) -> R + Sync) -> Vec<R> {
+    let cores = cores.unwrap_or_else(num_cpus::get);
+
+    let next = AtomicU32::new(0);
+    let f = &f;
+
+    std::thread::scope(|s| {
+        let (sender, receiver) = channel();
+
+        // generators
+        for thread in 0..cores {
+            let sender = sender.clone();
+            let next = &next;
+
+            std::thread::Builder::new()
+                .name(format!("bot_game_{}", thread))
+                .spawn_scoped(s, move || loop {
+                    let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    if i >= len {
+                        break;
+                    }
+
+                    let result = f(i);
+                    sender.send(result).unwrap();
+                })
+                .unwrap();
+        }
+        drop(sender);
+
+        // collector
+        std::thread::Builder::new()
+            .name("bot_game_collector".to_string())
+            .spawn_scoped(s, move || {
+                let mut results = Vec::with_capacity(len as usize);
+                for _ in 0..len {
+                    results.push(receiver.recv().unwrap());
+                }
+                results
+            })
+            .unwrap()
+            .join()
+    })
+    .unwrap()
 }
 
 fn play_single_game<B: Board, L: Bot<B> + Debug, R: Bot<B> + Debug>(
