@@ -28,6 +28,8 @@ rand = { version = "0.8.5", features = ["small_rng"] }
 rand_xoshiro = "0.6.0"
 static_assertions = "1.1.0"
 
+regex-lite = "0.1.0"
+
 cozy-chess = "0.3.2"
 arimaa_engine_step = { version = "1.0.1", optional=true } # , path = "../arimaa-engine-step"
 
