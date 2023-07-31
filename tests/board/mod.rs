@@ -78,13 +78,15 @@ pub fn board_perft_main<S: Debug + ?Sized, T: Debug, B: Board + Hash>(
 
         for (depth, &expected_perft) in expected_perfts.iter().enumerate() {
             let curr_start = Instant::now();
-            let perft = game_stats::perft(&board, depth as u32);
+            let perft = game_stats::perft_naive(&board, depth as u32);
+            let elapsed = curr_start.elapsed();
             println!(
-                "   depth {} -> {} =? {}, took {:?}",
+                "   depth {} -> {} =? {}, took {:?}, {} nps",
                 depth,
                 expected_perft,
                 perft,
-                curr_start.elapsed()
+                elapsed,
+                perft as f32 / elapsed.as_secs_f32(),
             );
             assert_eq!(expected_perft, perft)
         }

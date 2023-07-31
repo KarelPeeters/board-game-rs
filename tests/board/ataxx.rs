@@ -224,3 +224,16 @@ fn ataxx_perft() {
         ],
     );
 }
+
+#[test]
+#[ignore]
+fn ataxx_big_perft() {
+    board_perft_main(
+        |s| AtaxxBoard::from_fen(s).unwrap(),
+        Some(AtaxxBoard::to_fen),
+        vec![(
+            "x5o/7/7/7/7/7/o5x x 0 1",
+            vec![1, 16, 256, 6460, 155888, 4752668, 141865520, 5023479496, 176821532236],
+        )],
+    );
+}
