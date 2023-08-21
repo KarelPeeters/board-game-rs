@@ -55,6 +55,7 @@ fn main() {
     println!();
     println!("{:?}", board);
     println!("{}", board);
+    println!();
 
     let depth = full_depth.saturating_sub(moves.len() as u32);
     if depth == 0 {
@@ -76,6 +77,8 @@ fn main() {
 
     println!();
     println!("Total: {}", total);
+
+    println!();
 }
 
 fn error(str: &str) -> ! {
