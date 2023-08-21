@@ -23,6 +23,11 @@ pub struct Rules {
     max_moves_without_pawn_or_capture: Option<u16>,
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum ChessMove {
+    Normal { piece: Piece, from: Square, to: Square },
+}
+
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct ChessBoard {
     rules: Rules,
