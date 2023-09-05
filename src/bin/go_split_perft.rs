@@ -1,6 +1,6 @@
-use internal_iterator::InternalIterator;
 use std::str::FromStr;
 
+use internal_iterator::InternalIterator;
 use itertools::Itertools;
 
 use board_game::board::Board;
@@ -53,26 +53,30 @@ fn main() {
     println!("  depth: {}", depth);
 
     println!();
-    println!("{:?}", board);
+    println!("FEN: {:?}", board.to_fen());
     println!("{}", board);
-    println!();
-
-    let depth = full_depth.saturating_sub(moves.len() as u32);
-    if depth == 0 {
-        println!("Warning: remaining depth is 0");
-    }
 
     let mut total = 0;
 
-    if let Ok(children) = board.children() {
-        println!("Results:");
-        children.for_each(|(mv, child)| {
-            let count = perft(&child, depth.saturating_sub(1));
-            println!("{}: {}", mv, count);
-            total += count;
-        });
+    if moves.len() > full_depth as usize {
+        println!("Warning: more moves than depth, so no children are visited");
     } else {
-        println!("Warning: board is done");
+        let depth = full_depth - (moves.len() as u32);
+        println!("Remaining depth: {}", depth);
+
+        if depth == 0 {
+            println!("Warning: remaining depth is 0, so no children are visited");
+        } else if let Ok(children) = board.children() {
+            println!("Children:");
+            children.for_each(|(mv, child)| {
+                let count = perft(&child, depth - 1);
+
+                println!("{}: {}", mv, count);
+                total += count;
+            });
+        } else {
+            println!("Warning: board is done");
+        }
     }
 
     println!();
