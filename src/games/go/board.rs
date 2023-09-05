@@ -8,12 +8,12 @@ use nohash_hasher::IntSet;
 use rand::Rng;
 
 use crate::board::{
-    AllMovesIterator, AvailableMovesIterator, Board, BoardDone, BoardMoves, BoardSymmetry, Outcome, PlayError, Player,
+    AllMovesIterator, AvailableMovesIterator, Board, BoardDone, BoardMoves, Outcome, PlayError, Player,
 };
 use crate::games::go::chains::Chains;
 use crate::games::go::tile::Tile;
 use crate::games::go::{PlacementKind, Rules, Territory, TileOccupied, Zobrist, GO_MAX_SIZE};
-use crate::symmetry::D4Symmetry;
+use crate::impl_unit_symmetry_board;
 use crate::util::iter::IterExt;
 
 // TODO add must_pass function? maybe even cache the result of that function in board
@@ -405,33 +405,8 @@ impl InternalIterator for AvailableMovesIterator<'_, GoBoard> {
     // TODO add optimized count implementation?
 }
 
-impl BoardSymmetry<GoBoard> for GoBoard {
-    type Symmetry = D4Symmetry;
-    type CanonicalKey = Zobrist;
-
-    fn map(&self, sym: D4Symmetry) -> Self {
-        GoBoard {
-            rules: self.rules,
-            chains: self.chains.map_symmetry(sym),
-            next_player: self.next_player,
-            state: self.state,
-            history: self.history.clone(),
-            komi: self.komi,
-        }
-    }
-
-    fn map_move(&self, sym: D4Symmetry, mv: Move) -> Move {
-        match mv {
-            Move::Pass => Move::Pass,
-            Move::Place(tile) => Move::Place(tile.map_symmetry(sym, self.size())),
-        }
-    }
-
-    fn canonical_key(&self) -> Zobrist {
-        // we don't care about the full zobrist here, other fields are not affected by the symmetry
-        self.chains().zobrist()
-    }
-}
+// TODO implement D4Symmetry again, but how to handle history hashes?
+impl_unit_symmetry_board!(GoBoard);
 
 impl Hash for GoBoard {
     // TODO include history (or just len?)

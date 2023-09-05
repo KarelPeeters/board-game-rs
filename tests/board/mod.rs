@@ -25,6 +25,7 @@ mod oware;
 mod sttt;
 mod ttt;
 
+// TODO add test for symmetry after playing moves
 pub fn board_test_main<B: Board>(board: &B)
 where
     B::Move: Hash,
@@ -193,6 +194,8 @@ fn test_symmetry<B: Board>(board: &B)
 where
     B::Move: Hash,
 {
+    // TODO test that maps, plays move, then maps back
+    //  this checks that moves and board state are really mapped correctly
     println!("symmetries:");
 
     let all = B::Symmetry::all();
