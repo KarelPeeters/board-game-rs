@@ -32,6 +32,7 @@ pub struct Chains {
 
     // derived data
     stones_a: u16,
+    // TODO see if keeping this sorted slows things down a lot
     empty_list: LinkHead,
     dead_groups: LinkHead,
     zobrist: Zobrist,

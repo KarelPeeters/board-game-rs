@@ -187,6 +187,7 @@ impl GoBoard {
         result
     }
 
+    // TODO implement random-available-place-move similarly
     pub fn random_available_place_move(&self, rng: &mut impl Rng) -> Result<Option<Move>, BoardDone> {
         self.check_done()?;
 
@@ -389,6 +390,7 @@ impl InternalIterator for AvailableMovesIterator<'_, GoBoard> {
         //     we only check tiles that are actually in the board
         //   we don't need to keep the move order consistent according to the docs,
         //     ensure that's right and then switch to using the empty list
+        // TODO maybe we can keep the empty tile list sorted? or should we just sort it here?
 
         let board = self.board();
 
@@ -403,6 +405,7 @@ impl InternalIterator for AvailableMovesIterator<'_, GoBoard> {
     }
 
     // TODO add optimized count implementation?
+    //   we don't need ordered tiles to just count!
 }
 
 // TODO implement D4Symmetry again, but how to handle history hashes?
