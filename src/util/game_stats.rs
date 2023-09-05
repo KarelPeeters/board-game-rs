@@ -29,7 +29,7 @@ fn perft_recurse<B: Board + Hash>(map: &mut HashMap<(B, u32), u64>, board: B, de
     }
 
     // we need keys (B, depth) because otherwise we risk miscounting if the same board is encountered at different depths
-    let key = (board, depth);
+    let key = (board.canonicalize(), depth);
     let board = &key.0;
 
     if let Some(&p) = map.get(&key) {
@@ -138,7 +138,7 @@ fn all_possible_boards_impl<B: Board + Hash>(
 }
 
 /// Collect all available moves form `n` games played until the end with random moves.
-/// Also returns the number of time each move was availalbe.
+/// Also returns the number of time each move was available.
 pub fn all_available_moves_sampled<B: Board>(start: &B, n: u64, rng: &mut impl Rng) -> HashMap<B::Move, u64>
 where
     B::Move: Hash,
