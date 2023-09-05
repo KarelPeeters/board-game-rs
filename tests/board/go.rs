@@ -1,12 +1,14 @@
+use std::str::FromStr;
+use std::time::Instant;
+
+use internal_iterator::InternalIterator;
+
 use board_game::board::{Board, BoardMoves, BoardSymmetry, Outcome, PlayError, Player};
 use board_game::games::go::{Direction, FlatTile, GoBoard, Komi, Move, Rules, Score, Tile, GO_MAX_SIZE};
 use board_game::symmetry::Symmetry;
 use board_game::util::board_gen::board_with_moves;
-use board_game::util::game_stats::perft_naive;
+use board_game::util::game_stats::perft;
 use board_game::util::tiny::consistent_rng;
-use internal_iterator::InternalIterator;
-use std::str::FromStr;
-use std::time::Instant;
 
 use crate::board::go_chains::{chains_test_main, chains_test_simulate};
 use crate::board::print_board_with_moves;
@@ -397,13 +399,13 @@ fn go_perft_main(board: GoBoard, all_expected: &[u64]) {
 
     for (depth, &expected) in all_expected.iter().enumerate() {
         let start = Instant::now();
-        let value = perft_naive(&board, depth as u32);
+        let value = perft(&board, depth as u32);
         let elapsed = start.elapsed();
         let nps = value as f32 / elapsed.as_secs_f32();
 
         let suffix = if value == expected { "" } else { " -> wrong!" };
         println!(
-            "Perft depth {}: took {:?} {}, expected {} got {}{}",
+            "Perft depth {}: took {:?}, nps {}, expected {} got {}{}",
             depth, elapsed, nps, expected, value, suffix
         );
 
@@ -411,6 +413,18 @@ fn go_perft_main(board: GoBoard, all_expected: &[u64]) {
     }
 
     assert!(all_correct);
+}
+
+#[test]
+#[ignore]
+fn go_perft_2() {
+    // TT and CGOS are the same for 2x2 :)
+    let values = [
+        1, 5, 21, 68, 156, 316, 604, 1088, 2184, 4184, 8024, 13800, 23560, 42784, 80000, 146904, 257848, 442776,
+        788000, 1419664, 2571096, 4479232, 7707800, 13215656,
+    ];
+    // go_perft_main(GoBoard::new(2, Komi::zero(), Rules::tromp_taylor()), &values);
+    go_perft_main(GoBoard::new(2, Komi::zero(), Rules::cgos()), &values);
 }
 
 #[test]
