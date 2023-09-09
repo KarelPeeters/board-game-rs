@@ -10,15 +10,15 @@ use board_game::util::game_stats::perft;
 fn main() {
     let args = std::env::args().skip(1).collect_vec();
 
-    let (size, depth, rules, moves): (&str, &str, &str, &str) = match args.as_slice() {
+    let (size_or_fen, depth, rules, moves): (&str, &str, &str, &str) = match args.as_slice() {
         [size, depth, rules] => (size, depth, rules, ""),
         [size, depth, rules, moves] => (size, depth, rules, moves),
         _ => usage(),
     };
 
-    let size = size
+    let size_or_fen = size_or_fen
         .parse::<u8>()
-        .unwrap_or_else(|_| error(&format!("Invalid size {:?}", size)));
+        .map_or(SizeOrFen::Fen(size_or_fen.to_string()), SizeOrFen::Size);
     let full_depth = depth
         .parse::<u32>()
         .unwrap_or_else(|_| error(&format!("Invalid depth {:?}", depth)));
@@ -41,7 +41,12 @@ fn main() {
         })
         .collect_vec();
 
-    let mut board = GoBoard::new(size, Komi::zero(), rules);
+    let mut board = match size_or_fen {
+        SizeOrFen::Size(size) => GoBoard::new(size, Komi::zero(), rules),
+        SizeOrFen::Fen(fen) => GoBoard::from_fen(&fen, rules)
+            .unwrap_or_else(|e| error(&format!("Invalid size or fen {:?}, fen error: {:?}", fen, e))),
+    };
+
     for &mv in &moves {
         board
             .play(mv)
@@ -49,7 +54,7 @@ fn main() {
     }
 
     println!("Settings");
-    println!("  size {}, rules {:?}, moves {:?}", size, rules, moves);
+    println!("  size {}, rules {:?}, moves {:?}", board.size(), rules, moves);
     println!("  depth: {}", depth);
 
     println!();
@@ -91,9 +96,14 @@ fn error(str: &str) -> ! {
 }
 
 fn usage() -> ! {
-    eprintln!("Usage: split_perft <size> <depth> <rules> [moves]");
+    eprintln!("Usage: split_perft <size or fen> <depth> <rules> [moves]");
     eprintln!("  rules can be 'cgos' or 'tt'");
     eprintln!("  moves is a comma separated list of moves, eg. A4,B3,PASS");
     eprintln!("  the moves are subtracted from the effective depth");
     std::process::exit(1);
+}
+
+enum SizeOrFen {
+    Size(u8),
+    Fen(String),
 }
