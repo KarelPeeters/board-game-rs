@@ -3,9 +3,8 @@ use std::time::Instant;
 
 use internal_iterator::InternalIterator;
 
-use board_game::board::{Board, BoardMoves, BoardSymmetry, Outcome, PlayError, Player};
+use board_game::board::{Board, BoardMoves, Outcome, PlayError, Player};
 use board_game::games::go::{Direction, FlatTile, GoBoard, Komi, Move, Rules, Score, Tile, GO_MAX_SIZE};
-use board_game::symmetry::Symmetry;
 use board_game::util::board_gen::board_with_moves;
 use board_game::util::game_stats::perft;
 use board_game::util::tiny::consistent_rng;
