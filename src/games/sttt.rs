@@ -61,9 +61,19 @@ impl STTTBoard {
         has_bit(self.macro_open, om)
     }
 
+    pub fn last_move(&self) -> Option<Coord> {
+        self.last_move
+    }
+
     /// Return the number of non-empty tiles.
     pub fn count_tiles(&self) -> u32 {
         self.grids.iter().map(|tile| tile.count_ones()).sum()
+    }
+
+    pub fn pass(&mut self) -> Result<(), BoardDone> {
+        self.check_done()?;
+        self.next_player = self.next_player.other();
+        Ok(())
     }
 
     fn set_tile_and_update(&mut self, player: Player, coord: Coord) {
