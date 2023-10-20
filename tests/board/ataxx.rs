@@ -102,8 +102,17 @@ fn ataxx_done_full() {
 }
 
 #[test]
-fn ataxx_forced_pass() {
+fn ataxx_forced_pass_wall() {
     let board = AtaxxBoard::from_fen("xxxxxxx/-------/-------/o6/7/7/7 x 0 0").unwrap();
+    assert!(!board.is_done(), "Board is not done, player B can still play");
+    assert!(board.must_pass());
+    assert_eq!(board.available_moves().unwrap().collect::<Vec<_>>(), vec![Move::Pass]);
+    board_test_main(&board)
+}
+
+#[test]
+fn ataxx_forced_pass_opponent() {
+    let board = AtaxxBoard::from_fen("xxxxxxx/ooooooo/ooooooo/7/7/7/7 x 0 0").unwrap();
     assert!(!board.is_done(), "Board is not done, player B can still play");
     assert!(board.must_pass());
     assert_eq!(board.available_moves().unwrap().collect::<Vec<_>>(), vec![Move::Pass]);
@@ -193,7 +202,6 @@ fn ataxx_jump_move_counter() {
     board_test_main(&board);
 }
 
-///Test cases from <https://github.com/kz04px/libataxx/blob/master/tests/perft.cpp>, edited to remove move counters.
 #[test]
 fn ataxx_perft() {
     #[rustfmt::skip]
@@ -201,6 +209,7 @@ fn ataxx_perft() {
         |s| AtaxxBoard::from_fen(s).unwrap(),
         Some(AtaxxBoard::to_fen),
         vec![
+            // cases from <https://github.com/kz04px/libataxx/blob/master/tests/perft.cpp>, edited to remove move counters.
             ("7/7/7/7/7/7/7 x 0 1", vec![1, 0, 0, 0, 0]),
             ("7/7/7/7/7/7/7 o 0 1", vec![1, 0, 0, 0, 0]),
             ("x5o/7/7/7/7/7/o5x x 0 1", vec![1, 16, 256, 6460, 155888, 4752668]),
@@ -221,6 +230,9 @@ fn ataxx_perft() {
             ("x5o/7/7/7/7/7/o5x o 100 1", vec![1, 0, 0, 0, 0]),
             ("7/7/7/7/-------/-------/x5o x 0 1", vec![1, 2, 4, 13, 30, 73, 174]),
             ("7/7/7/7/-------/-------/x5o o 0 1", vec![1, 2, 4, 13, 30, 73, 174]),
+            // must pass case
+            ("xxxxxxx/-------/-------/o6/7/7/7 x 0 1", vec![1, 1, 8, 8, 127, 127, 2626, 2626]),
+            ("xxxxxxx/ooooooo/ooooooo/7/7/7/7 x 0 1", vec![1, 1, 75, 249, 14270, 452980]),
         ],
     );
 }
