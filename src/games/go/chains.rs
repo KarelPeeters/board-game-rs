@@ -44,6 +44,9 @@ pub struct Chains {
 pub struct TileContent {
     pub group_id: OptionU16,
     pub link: LinkNode,
+    /// Whether a tile of the given color has ever been present at the current position.
+    /// Bitset with indices corresponding to [Player::index].
+    pub has_had_stone: u8,
 }
 
 // TODO compact? we can at least force player into one of the other fields
@@ -125,6 +128,7 @@ impl Chains {
             .map(|i| TileContent {
                 group_id: OptionU16::None,
                 link: LinkNode::full(area, i),
+                has_had_stone: 0,
             })
             .collect_vec();
 
@@ -178,6 +182,10 @@ impl Chains {
 
     pub fn stone_at(&self, tile: FlatTile) -> Option<Player> {
         self.group_at(tile).map(|group| group.color)
+    }
+
+    pub fn has_had_stone_at(&self, tile: FlatTile, color: Player) -> bool {
+        (self.content_at(tile).has_had_stone & (1 << color.index())) != 0
     }
 
     pub fn zobrist(&self) -> Zobrist {
@@ -568,7 +576,9 @@ impl Chains {
                     };
 
                     // set tile itself
-                    self.tiles[tile_index as usize].group_id = OptionU16::Some(group_id);
+                    let content = &mut self.tiles[tile_index as usize];
+                    content.group_id = OptionU16::Some(group_id);
+                    content.has_had_stone |= 1 << color.index();
 
                     // decrement adjacent liberties
                     change_liberty_edges_at(
@@ -651,7 +661,9 @@ impl Chains {
 
         // mark tiles as part of new group
         new_group_stones.for_each_mut(&mut self.tiles, |tiles, tile_index| {
-            tiles[tile_index as usize].group_id = OptionU16::Some(new_group_id);
+            let content = &mut tiles[tile_index as usize];
+            content.group_id = OptionU16::Some(new_group_id);
+            content.has_had_stone |= 1 << color.index();
         });
 
         new_group_id
@@ -748,6 +760,7 @@ impl Chains {
                 TileContent {
                     group_id: old_content.group_id,
                     link: old_content.link.map_index(map_tile_index),
+                    has_had_stone: old_content.has_had_stone,
                 }
             })
             .collect_vec();
@@ -808,6 +821,16 @@ impl Chains {
 
                 // group must be alive
                 assert!(!group.is_dead());
+
+                // has_had_stone must at least cover the current stones
+                assert_ne!(
+                    content.has_had_stone & (1 << group.color.index()),
+                    0,
+                    "Tile {:?} has history {:0b} but group {:?}",
+                    tile,
+                    content.has_had_stone,
+                    group
+                );
 
                 // track info
                 let group_zobrist = group_info.entry(id).or_insert((Zobrist::default(), HashSet::default()));

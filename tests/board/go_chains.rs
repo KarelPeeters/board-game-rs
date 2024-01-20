@@ -160,6 +160,14 @@ fn capture_corner() {
     println!("{}", chains);
     assert_eq!(chains.to_fen(), "...../...../...../w..../b....");
 
+    let tile_dead = Tile::new(0, 0).to_flat(chains.size());
+    let tile_final = Tile::new(1, 0).to_flat(chains.size());
+
+    assert!(chains.has_had_stone_at(tile_dead, Player::A));
+    assert!(!chains.has_had_stone_at(tile_dead, Player::B));
+    assert!(!chains.has_had_stone_at(tile_final, Player::A));
+    assert!(!chains.has_had_stone_at(tile_final, Player::B));
+
     let sim = chains
         .place_stone(Tile::new(1, 0).to_flat(chains.size()), Player::B)
         .unwrap();
@@ -174,6 +182,11 @@ fn capture_corner() {
     };
     expected.assert_eq(chains.group_at(Tile::new(1, 0).to_flat(chains.size())));
     expected.assert_eq(chains.group_at(Tile::new(0, 1).to_flat(chains.size())));
+
+    assert!(chains.has_had_stone_at(tile_dead, Player::A));
+    assert!(!chains.has_had_stone_at(tile_dead, Player::B));
+    assert!(!chains.has_had_stone_at(tile_final, Player::A));
+    assert!(chains.has_had_stone_at(tile_final, Player::B));
 
     chains_test_main(&chains);
 }

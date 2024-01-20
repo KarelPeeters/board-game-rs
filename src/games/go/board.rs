@@ -210,7 +210,13 @@ impl GoBoard {
     }
 }
 
-fn is_available_move_sim(rules: &Rules, history: &IntSet<Zobrist>, kind: PlacementKind, next_zobrist: Zobrist) -> bool {
+fn is_available_move_sim(
+    rules: &Rules,
+    history: &IntSet<Zobrist>,
+    kind: PlacementKind,
+    has_had_same_color: bool,
+    next_zobrist: Zobrist,
+) -> bool {
     // check placement kind
     match kind {
         PlacementKind::Normal => {}
@@ -223,9 +229,11 @@ fn is_available_move_sim(rules: &Rules, history: &IntSet<Zobrist>, kind: Placeme
         }
     }
 
+    let could_repeat = has_had_same_color || kind == PlacementKind::SuicideMulti;
+
     // check history
     //   scan in reverse to hopefully find quicker matches
-    if !rules.allow_repeating_tiles() && history.contains(&next_zobrist) {
+    if could_repeat && !rules.allow_repeating_tiles() && history.contains(&next_zobrist) {
         return false;
     }
 
@@ -250,7 +258,18 @@ impl Board for GoBoard {
                 } else {
                     let tile = tile.to_flat(self.size());
                     match self.chains.simulate_place_stone_minimal(tile, self.next_player) {
-                        Ok(sim) => is_available_move_sim(&self.rules, &self.history, sim.kind, sim.next_zobrist),
+                        Ok(sim) => {
+                            // TODO move earlier for perf
+                            let could_be_super_ko = self.chains.has_had_stone_at(tile, self.next_player);
+
+                            is_available_move_sim(
+                                &self.rules,
+                                &self.history,
+                                sim.kind,
+                                could_be_super_ko,
+                                sim.next_zobrist,
+                            )
+                        }
                         Err(TileOccupied) => false,
                     }
                 }
@@ -288,8 +307,9 @@ impl Board for GoBoard {
                     let tile = tile.to_flat(self.size());
                     let rules = &self.rules;
                     let history = &self.history;
+                    let has_had_same_color = self.chains.has_had_stone_at(tile, curr) | true;
                     let place_result = self.chains.place_stone_if(tile, curr, |sim| {
-                        is_available_move_sim(rules, history, sim.kind, sim.next_zobrist)
+                        is_available_move_sim(rules, history, sim.kind, has_had_same_color, sim.next_zobrist)
                     });
                     match place_result {
                         Ok((_, true)) => {}
