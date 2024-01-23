@@ -160,6 +160,17 @@ impl<V> WDLAbs<V> {
     pub fn new(win_a: V, draw: V, win_b: V) -> Self {
         Self { win_a, draw, win_b }
     }
+
+    pub fn cast<W>(self) -> WDLAbs<W>
+    where
+        V: Cast<W>,
+    {
+        WDLAbs {
+            win_a: self.win_a.cast(),
+            draw: self.draw.cast(),
+            win_b: self.win_b.cast(),
+        }
+    }
 }
 
 impl<V> WDL<V> {
@@ -170,9 +181,21 @@ impl<V> WDL<V> {
     pub fn to_slice(self) -> [V; 3] {
         [self.win, self.draw, self.loss]
     }
+
+    pub fn cast<W>(self) -> WDL<W>
+    where
+        V: Cast<W>,
+    {
+        WDL {
+            win: self.win.cast(),
+            draw: self.draw.cast(),
+            loss: self.loss.cast(),
+        }
+    }
 }
 
 impl<V: num_traits::Float> WDL<V> {
+    #[must_use]
     pub fn nan() -> WDL<V> {
         WDL {
             win: V::nan(),
@@ -187,12 +210,18 @@ impl<V: num_traits::Float> WDL<V> {
 }
 
 impl<V: num_traits::Float> WDLAbs<V> {
+    #[must_use]
     pub fn nan() -> WDLAbs<V> {
         WDLAbs {
             win_a: V::nan(),
             draw: V::nan(),
             win_b: V::nan(),
         }
+    }
+
+    #[must_use]
+    pub fn normalized(self) -> WDLAbs<V> {
+        self / self.sum()
     }
 }
 
@@ -207,19 +236,6 @@ impl<V: num_traits::One + Default + PartialEq> WDL<V> {
     pub fn try_to_outcome_wdl(self) -> Option<OutcomeWDL> {
         let outcomes = [OutcomeWDL::Win, OutcomeWDL::Draw, OutcomeWDL::Loss];
         outcomes.iter().copied().find(|&o| o.to_wdl() == self)
-    }
-}
-
-impl<V: Copy> WDL<V> {
-    pub fn cast<W>(self) -> WDL<W>
-    where
-        V: Cast<W>,
-    {
-        WDL {
-            win: self.win.cast(),
-            draw: self.draw.cast(),
-            loss: self.loss.cast(),
-        }
     }
 }
 
