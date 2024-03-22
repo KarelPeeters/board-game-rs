@@ -53,10 +53,13 @@
 //! ## List the available moves on a board and play a random one.
 //!
 //! ```
+//! # #[cfg(feature = "game_ataxx")]
 //! # use board_game::games::ataxx::AtaxxBoard;
 //! # use board_game::board::{BoardMoves, Board};
 //! # use internal_iterator::InternalIterator;
 //! # let mut rng = rand::thread_rng();
+//! # #[cfg(feature = "game_ataxx")]
+//! # {
 //! let mut board = AtaxxBoard::default();
 //! println!("{}", board);
 //!
@@ -68,24 +71,33 @@
 //! println!("Picked move {:?}", mv);
 //! board.play(mv).unwrap();
 //! println!("{}", board);
+//! # }
 //! ```
 //!
 //! ## Get the best move according to MCTS
 //!
 //! ```
 //! # use board_game::ai::mcts::MCTSBot;
+//! # #[cfg(feature = "game_ataxx")]
 //! # use board_game::games::ataxx::AtaxxBoard;
 //! # use board_game::ai::Bot;
 //! # use rand::thread_rng;
+//! # #[cfg(feature = "game_ataxx")]
+//! # {
 //! let board = AtaxxBoard::default();
 //! println!("{}", board);
 //!
 //! let mut bot = MCTSBot::new(1000, 2.0, thread_rng());
 //! println!("{:?}", bot.select_move(&board))
+//! # }
 //! ```
 
 // export used game crates
+
+#[cfg(feature = "game_arimaa")]
 pub use arimaa_engine_step;
+
+#[cfg(feature = "game_chess")]
 pub use chess;
 
 pub mod board;
@@ -95,7 +107,9 @@ pub mod pov;
 pub mod wdl;
 
 pub mod ai;
+
 pub mod games;
+
 pub mod heuristic;
 
 pub mod util;

@@ -2,14 +2,13 @@
 
 use std::time::Instant;
 
-use itertools::Itertools;
-use rand::rngs::SmallRng;
-use rand::SeedableRng;
-
 use board_game::ai::mcts::mcts_build_tree;
 use board_game::games::ataxx::AtaxxBoard;
 use board_game::games::chess::ChessBoard;
 use board_game::games::sttt::STTTBoard;
+use itertools::Itertools;
+use rand::rngs::SmallRng;
+use rand::SeedableRng;
 
 fn main() {
     bench("mcts_sttt", || {

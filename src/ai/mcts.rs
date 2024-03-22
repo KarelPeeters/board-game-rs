@@ -365,6 +365,7 @@ pub fn mcts_build_tree<B: AltBoard>(
     let mut tree = Tree::new(root_board.clone());
 
     let root_outcome = root_board.outcome().map(|o| o.pov(root_board.next_player().other()));
+
     tree.nodes.push(Node::new(None, root_outcome));
 
     for _ in 0..iterations {
