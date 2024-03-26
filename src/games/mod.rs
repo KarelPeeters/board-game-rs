@@ -1,10 +1,18 @@
+#[cfg(feature = "game_arimaa")]
 pub mod arimaa;
+#[cfg(feature = "game_ataxx")]
 pub mod ataxx;
+#[cfg(feature = "game_chess")]
 pub mod chess;
+#[cfg(feature = "game_connect4")]
 pub mod connect4;
+#[cfg(feature = "game_go")]
 pub mod go;
+#[cfg(feature = "game_oware")]
 pub mod oware;
+#[cfg(feature = "game_sttt")]
 pub mod sttt;
+#[cfg(feature = "game_ttt")]
 pub mod ttt;
 
 pub mod dummy;

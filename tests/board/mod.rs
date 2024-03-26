@@ -14,15 +14,26 @@ use board_game::util::tiny::consistent_rng;
 
 use crate::util::test_sampler_uniform;
 
+#[cfg(feature = "game_arimaa")]
 mod arimaa;
+#[cfg(feature = "game_ataxx")]
 mod ataxx;
+#[cfg(feature = "game_chess")]
 mod chess;
+#[cfg(feature = "game_connect4")]
 mod connect4;
+#[cfg(feature = "game_go")]
 mod go;
+#[cfg(feature = "game_go")]
 mod go_chains;
+
 mod max_moves;
+
+#[cfg(feature = "game_oware")]
 mod oware;
+#[cfg(feature = "game_sttt")]
 mod sttt;
+#[cfg(feature = "game_ttt")]
 mod ttt;
 
 // TODO add test for symmetry after playing moves
