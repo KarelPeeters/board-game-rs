@@ -81,4 +81,9 @@ let mut bot = MCTSBot::new(1000, 2.0, thread_rng());
 println!("{:?}", bot.select_move(&board))
 ```
 
+### Cargo features
+
+Each game has a separate cargo feature, and there's a `game_all` default feature that enables all games.
+See [the docs](https://docs.rs/crate/board-game/latest/features) for a full list.
+
 <!-- cargo-rdme end -->

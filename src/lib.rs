@@ -91,12 +91,16 @@
 //! println!("{:?}", bot.select_move(&board))
 //! # }
 //! ```
+//!
+//! ## Cargo features
+//!
+//! Each game has a separate cargo feature, and there's a `game_all` default feature that enables all games.
+//! See [the docs](https://docs.rs/crate/board-game/latest/features) for a full list.
 
 // export used game crates
 
 #[cfg(feature = "game_arimaa")]
 pub use arimaa_engine_step;
-
 #[cfg(feature = "game_chess")]
 pub use chess;
 
