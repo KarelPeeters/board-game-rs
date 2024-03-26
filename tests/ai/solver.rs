@@ -1,3 +1,6 @@
+// TODO solver tests without TTT?
+#![cfg(feature = "game_ttt")]
+
 use internal_iterator::InternalIterator;
 
 use board_game::ai::solver::{solve_all_moves, solve_value, SolverValue};
